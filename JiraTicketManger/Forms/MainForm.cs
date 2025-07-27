@@ -35,6 +35,9 @@ namespace JiraTicketManager
         private readonly JiraDataService _dataService;
         private readonly WindowsToastService _toastService;
 
+        private readonly Dictionary<ComboBox, List<string>> _comboBoxOriginalItems = new();
+        private readonly Dictionary<ComboBox, System.Windows.Forms.Timer> _filterTimers = new();
+
 #if DEBUG
         private DevelopmentTests _devTests;
 #endif
@@ -398,16 +401,24 @@ namespace JiraTicketManager
             {
                 _logger.LogInfo("🎛️ Inizializzazione sistema filtri");
 
-               
+                // 🔤 AUTOCOMPLETE: Lista delle ComboBox da configurare
                 var filterCombos = new[] { cmbCliente, cmbArea, cmbApplicativo, cmbTipo, cmbStato, cmbPriorita, cmbAssegnatario };
 
                 foreach (var combo in filterCombos)
                 {
                     if (combo != null)
                     {
-                        combo.DropDownStyle = ComboBoxStyle.DropDownList;
+                        // *** CONFIGURAZIONE BASE ***
                         combo.Font = new Font("Segoe UI", 9F);
 
+                        // 🔤 AUTOCOMPLETE: Cambio da DropDownList a DropDown
+                        combo.DropDownStyle = ComboBoxStyle.DropDown;
+
+                        // 🔤 AUTOCOMPLETE: Configurazione nativa Windows
+                        combo.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+                        combo.AutoCompleteSource = AutoCompleteSource.ListItems;
+
+                        // *** EVENT HANDLERS ESISTENTI ***
                         // ⚠️ IMPORTANTE: NON aggiungere SelectedIndexChanged per cmbArea
                         // È già gestito da LoadWithAreaDependency() nel ComboBoxManager
                         if (combo != cmbArea)
@@ -419,6 +430,9 @@ namespace JiraTicketManager
                         {
                             _logger.LogDebug($"⚠️ Event handler ESCLUSO per: {combo.Name} (gestito da dipendenza)");
                         }
+
+                        // 🔤 AUTOCOMPLETE: Log di conferma
+                        _logger.LogDebug($"🔤 AutoComplete abilitato per: {combo.Name}");
                     }
                 }
 
@@ -450,7 +464,7 @@ namespace JiraTicketManager
                 // Set initial mode
                 SetFilterMode(true); // Start in basic mode
 
-                _logger.LogInfo("✅ Sistema filtri inizializzato con dipendenza Area → Applicativo");
+                _logger.LogInfo("✅ Sistema filtri inizializzato con AutoComplete e dipendenza Area → Applicativo");
             }
             catch (Exception ex)
             {
@@ -458,7 +472,7 @@ namespace JiraTicketManager
             }
         }
 
-      
+
 
         /// <summary>
         /// Inizializza controlli DateTimePicker per filtri data
@@ -595,6 +609,9 @@ namespace JiraTicketManager
                 if (btnPulisci != null)
                     btnPulisci.Click += OnPulisciClick;
 
+                // Navigation events
+                SetupNavigationEvents();
+
                 // 🔧 EVENTI COMBOBOX PER RICERCA AUTOMATICA
                 if (cmbCliente != null)
                 {
@@ -602,8 +619,13 @@ namespace JiraTicketManager
                     _logger.LogDebug("✅ Event handler aggiunto: cmbCliente.SelectedIndexChanged");
                 }
 
-                // 🔧 NON per cmbArea - è gestito dalla dipendenza nel ComboBoxManager
-                _logger.LogDebug("⚠️ cmbArea: Event handler gestito da dipendenza Area→Applicativo");
+                // 🔧 AGGIUNTO: cmbArea per ricerca automatica
+                if (cmbArea != null)
+                {
+                    cmbArea.SelectedIndexChanged += OnSmartFilterChanged;
+                    _logger.LogDebug("✅ Event handler aggiunto: cmbArea.SelectedIndexChanged");
+                    _logger.LogDebug("ℹ️ cmbArea: Ha DOPPIO event handler (dipendenza + ricerca automatica)");
+                }
 
                 if (cmbApplicativo != null)
                 {
@@ -635,14 +657,25 @@ namespace JiraTicketManager
                     _logger.LogDebug("✅ Event handler aggiunto: cmbAssegnatario.SelectedIndexChanged");
                 }
 
-                // Navigation events (usa controlli di navigazione dal Designer)
-                SetupNavigationEvents();
+                // Text search events (CONTROLLI ESISTENTI)
+                if (txtSearch != null)
+                {
+                    txtSearch.KeyPress += OnSearchKeyPress;
+                    _logger.LogDebug("✅ Event handler aggiunto: txtSearch.KeyPress");
+                }
 
-                _logger.LogInfo("✅ Event handlers configurati completamente");
+                if (txtJQLQuery != null)
+                {
+                    txtJQLQuery.KeyPress += OnJQLKeyPress;
+                    _logger.LogDebug("✅ Event handler aggiunto: txtJQLQuery.KeyPress");
+                }
+
+                _logger.LogInfo("✅ Tutti gli event handlers configurati");
             }
             catch (Exception ex)
             {
                 _logger.LogError("❌ Errore setup event handlers", ex);
+                throw;
             }
         }
 

@@ -24,6 +24,12 @@ namespace JiraTicketManager.UI.Managers
         private readonly Dictionary<ComboBox, ComboBoxInfo> _comboBoxInfos = new();
         private readonly Dictionary<ComboBox, Dictionary<string, string>> _valueMappings = new();
 
+        // autocomplete
+
+        private readonly Dictionary<ComboBox, List<string>> _originalDisplayItems = new();
+        private readonly Dictionary<ComboBox, System.Windows.Forms.Timer> _filterTimers = new();
+        private readonly Dictionary<ComboBox, bool> _autoCompleteEnabled = new();
+
         public ComboBoxManager(IJiraDataService dataService)
         {
             _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
@@ -186,7 +192,314 @@ namespace JiraTicketManager.UI.Managers
             return comboBox.SelectedIndex > 0 && !string.IsNullOrWhiteSpace(comboBox.Text);
         }
 
+
+        #region Autocomplete Methods
+        // <summary>
+        /// Abilita AutoComplete con filtering per una ComboBox
+        /// Funziona sia con ComboBox gestite (con mapping) che statiche
+        /// </summary>
+        public void EnableAutoComplete(ComboBox comboBox)
+        {
+            try
+            {
+                if (comboBox == null) return;
+
+                var comboName = comboBox.Name ?? "Unknown";
+                _logger.LogDebug($"🔤 Abilitazione AutoComplete per: {comboName}");
+
+                // 1. Converti a DropDown per permettere digitazione
+                comboBox.DropDownStyle = ComboBoxStyle.DropDown;
+
+                // 2. Salva items originali (Display Values)
+                var originalItems = new List<string>();
+                foreach (var item in comboBox.Items)
+                {
+                    originalItems.Add(item.ToString());
+                }
+                _originalDisplayItems[comboBox] = originalItems;
+
+                // 3. Crea timer debouncing (300ms)
+                var timer = new System.Windows.Forms.Timer();
+                timer.Interval = 300;
+                timer.Tick += (s, e) => OnAutoCompleteFilterTick(comboBox, timer);
+                _filterTimers[comboBox] = timer;
+
+                // 4. Aggiungi event handlers
+                comboBox.TextChanged += (s, e) => OnAutoCompleteTextChanged(comboBox);
+                comboBox.Enter += OnAutoCompleteEnter;
+                comboBox.Leave += OnAutoCompleteLeave;
+
+                // 5. Marca come abilitato
+                _autoCompleteEnabled[comboBox] = true;
+
+                _logger.LogDebug($"✅ AutoComplete abilitato per {comboName}: {originalItems.Count} items");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"❌ Errore abilitazione AutoComplete per {comboBox?.Name}: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Abilita AutoComplete per multiple ComboBox
+        /// </summary>
+        public void EnableAutoCompleteForAll(params ComboBox[] comboBoxes)
+        {
+            foreach (var combo in comboBoxes)
+            {
+                if (combo != null)
+                {
+                    EnableAutoComplete(combo);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Disabilita AutoComplete per una ComboBox
+        /// </summary>
+        public void DisableAutoComplete(ComboBox comboBox)
+        {
+            try
+            {
+                if (comboBox == null || !_autoCompleteEnabled.ContainsKey(comboBox)) return;
+
+                var comboName = comboBox.Name ?? "Unknown";
+                _logger.LogDebug($"🚫 Disabilitazione AutoComplete per: {comboName}");
+
+                // Rimuovi event handlers
+                comboBox.TextChanged -= (s, e) => OnAutoCompleteTextChanged(comboBox);
+                comboBox.Enter -= OnAutoCompleteEnter;
+                comboBox.Leave -= OnAutoCompleteLeave;
+
+                // Ferma e disponi timer
+                if (_filterTimers.TryGetValue(comboBox, out var timer))
+                {
+                    timer.Stop();
+                    timer.Dispose();
+                    _filterTimers.Remove(comboBox);
+                }
+
+                // Ripristina DropDownList
+                comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+
+                // Ripristina items originali
+                if (_originalDisplayItems.TryGetValue(comboBox, out var originalItems))
+                {
+                    RestoreAllDisplayItems(comboBox, originalItems);
+                    _originalDisplayItems.Remove(comboBox);
+                }
+
+                // Cleanup
+                _autoCompleteEnabled.Remove(comboBox);
+
+                _logger.LogDebug($"✅ AutoComplete disabilitato per {comboName}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"❌ Errore disabilitazione AutoComplete: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Aggiorna items di una ComboBox mantenendo AutoComplete
+        /// Chiamato automaticamente quando PopulateComboBox viene eseguito
+        /// </summary>
+        public void RefreshAutoCompleteItems(ComboBox comboBox)
+        {
+            try
+            {
+                if (!_autoCompleteEnabled.ContainsKey(comboBox)) return;
+
+                // Aggiorna lista items originali
+                var newItems = new List<string>();
+                foreach (var item in comboBox.Items)
+                {
+                    newItems.Add(item.ToString());
+                }
+                _originalDisplayItems[comboBox] = newItems;
+
+                _logger.LogDebug($"🔄 AutoComplete items aggiornati per {comboBox.Name}: {newItems.Count} items");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"❌ Errore refresh AutoComplete: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Gestisce TextChanged con debouncing
+        /// </summary>
+        private void OnAutoCompleteTextChanged(ComboBox comboBox)
+        {
+            try
+            {
+                if (!_filterTimers.TryGetValue(comboBox, out var timer)) return;
+
+                // Riavvia timer per debouncing
+                timer.Stop();
+                timer.Start();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore AutoComplete TextChanged per {comboBox.Name}: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Esegue il filtering dopo il debouncing
+        /// </summary>
+        private void OnAutoCompleteFilterTick(ComboBox comboBox, System.Windows.Forms.Timer timer)
+        {
+            try
+            {
+                timer.Stop();
+
+                if (!_originalDisplayItems.TryGetValue(comboBox, out var originalItems)) return;
+
+                var searchText = comboBox.Text?.Trim()?.ToLower() ?? "";
+
+                // Se testo vuoto, ripristina tutti gli items
+                if (string.IsNullOrEmpty(searchText))
+                {
+                    RestoreAllDisplayItems(comboBox, originalItems);
+                    return;
+                }
+
+                // 🚀 FILTERING sui Display Values
+                var filteredItems = originalItems
+                    .Where(item => item.ToLower().Contains(searchText))
+                    .ToList();
+
+                // Aggiorna ComboBox con items filtrati
+                UpdateFilteredDisplayItems(comboBox, filteredItems, searchText);
+
+                _logger.LogDebug($"🔍 AutoComplete filtering per {comboBox.Name}: '{searchText}' → {filteredItems.Count} risultati");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore AutoComplete filtering per {comboBox.Name}: {ex.Message}", ex);
+            }
+        }
+
+        // <summary>
+        /// Aggiorna items della ComboBox mantenendo il testo digitato
+        /// </summary>
+        private void UpdateFilteredDisplayItems(ComboBox comboBox, List<string> filteredItems, string currentText)
+        {
+            try
+            {
+                // Salva posizione cursore
+                var selectionStart = comboBox.SelectionStart;
+
+                // Disabilita eventi temporaneamente
+                var timer = _filterTimers[comboBox];
+                comboBox.TextChanged -= (s, e) => OnAutoCompleteTextChanged(comboBox);
+
+                // Aggiorna items
+                comboBox.Items.Clear();
+                foreach (var item in filteredItems)
+                {
+                    comboBox.Items.Add(item);
+                }
+
+                // Ripristina testo e cursore
+                comboBox.Text = currentText;
+                comboBox.SelectionStart = selectionStart;
+                comboBox.SelectionLength = 0;
+
+                // Riabilita eventi
+                comboBox.TextChanged += (s, e) => OnAutoCompleteTextChanged(comboBox);
+
+                // Mostra dropdown se ci sono risultati
+                if (filteredItems.Count > 0 && !comboBox.DroppedDown)
+                {
+                    comboBox.DroppedDown = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore aggiornamento filtered items: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Ripristina tutti gli items Display originali
+        /// </summary>
+        private void RestoreAllDisplayItems(ComboBox comboBox, List<string> originalItems)
+        {
+            try
+            {
+                var currentText = comboBox.Text;
+                var selectionStart = comboBox.SelectionStart;
+
+                // Disabilita eventi
+                comboBox.TextChanged -= (s, e) => OnAutoCompleteTextChanged(comboBox);
+
+                comboBox.Items.Clear();
+                foreach (var item in originalItems)
+                {
+                    comboBox.Items.Add(item);
+                }
+
+                comboBox.Text = currentText;
+                comboBox.SelectionStart = selectionStart;
+
+                // Riabilita eventi
+                comboBox.TextChanged += (s, e) => OnAutoCompleteTextChanged(comboBox);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore ripristino items: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Gestisce focus enter - ripristina tutti gli items
+        /// </summary>
+        private void OnAutoCompleteEnter(object sender, EventArgs e)
+        {
+            try
+            {
+                if (sender is ComboBox combo && _originalDisplayItems.TryGetValue(combo, out var originalItems))
+                {
+                    RestoreAllDisplayItems(combo, originalItems);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore AutoComplete Enter: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Gestisce focus leave - valida selezione
+        /// </summary>
+        private void OnAutoCompleteLeave(object sender, EventArgs e)
+        {
+            try
+            {
+                if (sender is ComboBox combo && _originalDisplayItems.TryGetValue(combo, out var originalItems))
+                {
+                    // Se il testo non corrisponde a nessun item originale, seleziona il primo (default)
+                    if (!originalItems.Contains(combo.Text) && originalItems.Count > 0)
+                    {
+                        // Ripristina tutti gli items e seleziona default
+                        RestoreAllDisplayItems(combo, originalItems);
+                        combo.SelectedIndex = 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore AutoComplete Leave: {ex.Message}", ex);
+            }
+        }
+
         #endregion
+
+        #endregion
+
+
 
         #region Private Methods
 
@@ -212,29 +525,23 @@ namespace JiraTicketManager.UI.Managers
                 comboBox.Invoke(() => PopulateComboBox(comboBox, fields, defaultText));
                 return;
             }
-
             // Preserva selezione corrente
             var currentSelection = comboBox.Text;
-
             // Pulisci e crea mapping
             comboBox.Items.Clear();
             var mapping = new Dictionary<string, string>();
-
             // Aggiungi default
             var defaultDisplayText = defaultText ?? GetDefaultText(_comboBoxInfos[comboBox].FieldType);
             comboBox.Items.Add(defaultDisplayText);
             mapping[defaultDisplayText] = "";
-
             // Aggiungi valori ordinati
             var sortedFields = fields
                 .Where(f => !string.IsNullOrWhiteSpace(f.DisplayValue))
                 .OrderBy(f => f.DisplayValue)
                 .ToList();
-
             foreach (var field in sortedFields)
             {
                 var displayValue = CleanDisplayValue(field.DisplayValue);
-
                 // Evita duplicati
                 if (!mapping.ContainsKey(displayValue))
                 {
@@ -242,10 +549,8 @@ namespace JiraTicketManager.UI.Managers
                     mapping[displayValue] = field.Value;
                 }
             }
-
             // Salva mapping
             _valueMappings[comboBox] = mapping;
-
             // Ripristina selezione o seleziona default
             if (!string.IsNullOrEmpty(currentSelection) && comboBox.Items.Contains(currentSelection))
             {
@@ -255,10 +560,12 @@ namespace JiraTicketManager.UI.Managers
             {
                 comboBox.SelectedIndex = 0;
             }
-
             // Aggiorna info
             _comboBoxInfos[comboBox].LastLoadTime = DateTime.Now;
             _comboBoxInfos[comboBox].ItemCount = fields.Count;
+
+            // *** NUOVO: Aggiorna AutoComplete se abilitato ***
+            RefreshAutoCompleteItems(comboBox);
         }
 
         private void SetLoadingState(ComboBox comboBox, bool isLoading)
@@ -364,10 +671,6 @@ namespace JiraTicketManager.UI.Managers
 
         #endregion
 
-
-
-
-    
 
         #region Dependency Management
 
@@ -676,7 +979,7 @@ namespace JiraTicketManager.UI.Managers
 
         #endregion
 
-        // AGGIUNGERE al ComboBoxManager.cs nella sezione #region Public Methods
+     
 
 #if DEBUG
         /// <summary>
