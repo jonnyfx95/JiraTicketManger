@@ -2557,6 +2557,390 @@ namespace JiraTicketManager.Testing
             }
         }
 
+        // ===================================================================
+        // AGGIUNGI questo test al DevelopmentTests per provare vari endpoint API
+        // F13 - Test risoluzione Workspace Object
+        // ===================================================================
+
+        /// <summary>
+        /// Test multipli endpoint API per risolvere workspace object ID in nome reale
+        /// </summary>
+        public async Task TestWorkspaceObjectResolution()
+        {
+            LogTest("🔍 === TEST RISOLUZIONE WORKSPACE OBJECT ===");
+            LogTest($"📅 Data: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            LogTest("");
+
+            try
+            {
+                var apiService = JiraApiService.CreateFromSettings(SettingsService.CreateDefault());
+                var ticketKey = "CC-28812";
+                var objectId = "508";
+                var workspaceId = "c541ca01-a3a4-400b-a389-573d1f19899a";
+
+                LogTest($"🎫 Ticket: {ticketKey}");
+                LogTest($"🆔 ObjectId: {objectId}");
+                LogTest($"🏢 WorkspaceId: {workspaceId}");
+                LogTest($"🎯 Obiettivo: Trovare 'NARDÒ Comune di - PARSEC 3.26'");
+                LogTest("");
+
+                // Ottieni le credenziali decrittate dal ConfigService
+                var configService = ConfigService.CreateDefault();
+                var (domain, username, apiToken) = configService.GetDecryptedCredentials();
+
+                LogTest($"🌐 Domain: {domain}");
+                LogTest("");
+
+                // TEST 1: API Issue con expand
+                await TestApiWithExpand(domain, username, apiToken, ticketKey);
+
+                // TEST 2: API Object specifico
+                await TestObjectSpecificApi(domain, username, apiToken, workspaceId, objectId);
+
+                // TEST 3: API Assets/Objects
+                await TestAssetsApi(domain, username, apiToken, workspaceId, objectId);
+
+                // TEST 4: API Search con expand
+                await TestSearchWithExpand(domain, username, apiToken, ticketKey);
+
+                // TEST 5: API Administration (se accessibile)
+                await TestAdministrationApi(domain, username, apiToken, workspaceId);
+
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE GENERALE: {ex.Message}");
+                LogTest($"📍 Stack: {ex.StackTrace}");
+            }
+            finally
+            {
+                LogTest("");
+                LogTest("🎯 === FINE TEST RISOLUZIONE ===");
+                await SaveAndOpenTestLog();
+            }
+        }
+
+        /// <summary>
+        /// TEST 1: API Issue con parametri expand diversi
+        /// </summary>
+        private async Task TestApiWithExpand(string domain, string username, string apiToken, string ticketKey)
+        {
+            LogTest("📋 === TEST 1: API Issue con Expand ===");
+
+            var expandOptions = new[]
+            {
+        "customfield_10103",
+        "names",
+        "schema",
+        "transitions",
+        "operations",
+        "versionedRepresentations",
+        "editmeta",
+        "changelog",
+        "renderedFields"
+    };
+
+            using var httpClient = new HttpClient();
+            var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{username}:{apiToken}"));
+            httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", credentials);
+
+            foreach (var expand in expandOptions)
+            {
+                try
+                {
+                    var url = $"{domain}/rest/api/2/issue/{ticketKey}?expand={expand}&fields=customfield_10103";
+                    LogTest($"   🔗 Test URL: {url}");
+
+                    var response = await httpClient.GetAsync(url);
+                    LogTest($"   📊 Status: {response.StatusCode}");
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var content = await response.Content.ReadAsStringAsync();
+                        var json = JObject.Parse(content);
+
+                        // Cerca il nome in qualsiasi parte della risposta
+                        if (content.Contains("NARDÒ") || content.Contains("PARSEC"))
+                        {
+                            LogTest($"   ⭐ TROVATO! Il nome è presente in questa risposta!");
+                            LogTest($"   📄 Contenuto (primi 500 chars): {content.Substring(0, Math.Min(500, content.Length))}...");
+                        }
+                        else
+                        {
+                            LogTest($"   ❌ Nome non trovato in questa risposta");
+                        }
+                    }
+                    else
+                    {
+                        LogTest($"   ❌ Errore HTTP: {response.StatusCode}");
+                    }
+
+                    await Task.Delay(100); // Evita rate limiting
+                }
+                catch (Exception ex)
+                {
+                    LogTest($"   ❌ Errore: {ex.Message}");
+                }
+            }
+
+            LogTest("");
+        }
+
+        /// <summary>
+        /// TEST 2: API Object specifico per workspace
+        /// </summary>
+        private async Task TestObjectSpecificApi(string domain, string username, string apiToken, string workspaceId, string objectId)
+        {
+            LogTest("📋 === TEST 2: API Object Specifico ===");
+
+            var objectUrls = new[]
+            {
+        $"{domain}/rest/api/2/object/{objectId}",
+        $"{domain}/rest/api/2/workspace/{workspaceId}/object/{objectId}",
+        $"{domain}/rest/servicedeskapi/assets/workspace/{workspaceId}/v1/object/{objectId}",
+        $"{domain}/rest/insight/1.0/object/{objectId}",
+        $"{domain}/rest/insight/1.0/workspace/{workspaceId}/object/{objectId}",
+        $"{domain}/gateway/api/jsm/insight/workspace/{workspaceId}/v1/object/{objectId}",
+        $"{domain}/rest/assets/1.0/object/{objectId}",
+        $"{domain}/rest/assets/1.0/workspace/{workspaceId}/object/{objectId}"
+    };
+
+            using var httpClient = new HttpClient();
+            var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{username}:{apiToken}"));
+            httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", credentials);
+
+            foreach (var url in objectUrls)
+            {
+                try
+                {
+                    LogTest($"   🔗 Test URL: {url}");
+
+                    var response = await httpClient.GetAsync(url);
+                    LogTest($"   📊 Status: {response.StatusCode}");
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var content = await response.Content.ReadAsStringAsync();
+
+                        if (content.Contains("NARDÒ") || content.Contains("PARSEC"))
+                        {
+                            LogTest($"   ⭐ TROVATO! Il nome è presente!");
+                            LogTest($"   📄 Contenuto: {content}");
+                            return; // Ferma la ricerca se trovato
+                        }
+                        else
+                        {
+                            LogTest($"   ❌ Nome non trovato");
+                            LogTest($"   📄 Risposta (primi 200 chars): {content.Substring(0, Math.Min(200, content.Length))}...");
+                        }
+                    }
+                    else
+                    {
+                        var errorContent = await response.Content.ReadAsStringAsync();
+                        LogTest($"   ❌ Errore: {response.StatusCode} - {errorContent}");
+                    }
+
+                    await Task.Delay(100);
+                }
+                catch (Exception ex)
+                {
+                    LogTest($"   ❌ Errore: {ex.Message}");
+                }
+            }
+
+            LogTest("");
+        }
+
+        /// <summary>
+        /// TEST 3: API Assets/Insight specifici
+        /// </summary>
+        private async Task TestAssetsApi(string domain, string username, string apiToken, string workspaceId, string objectId)
+        {
+            LogTest("📋 === TEST 3: API Assets/Insight ===");
+
+            var assetsUrls = new[]
+            {
+        $"{domain}/rest/servicedeskapi/assets/workspace/{workspaceId}/v1/object/{objectId}/attributes",
+        $"{domain}/rest/servicedeskapi/assets/workspace/{workspaceId}/v1/object/{objectId}/history",
+        $"{domain}/gateway/api/jsm/assets/workspace/{workspaceId}/v1/object/{objectId}",
+        $"{domain}/gateway/api/jsm/insight/workspace/{workspaceId}/v1/object/{objectId}/attributes"
+    };
+
+            using var httpClient = new HttpClient();
+            var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{username}:{apiToken}"));
+            httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", credentials);
+
+            foreach (var url in assetsUrls)
+            {
+                try
+                {
+                    LogTest($"   🔗 Test URL: {url}");
+
+                    var response = await httpClient.GetAsync(url);
+                    LogTest($"   📊 Status: {response.StatusCode}");
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var content = await response.Content.ReadAsStringAsync();
+
+                        if (content.Contains("NARDÒ") || content.Contains("PARSEC"))
+                        {
+                            LogTest($"   ⭐ TROVATO! Il nome è presente!");
+                            LogTest($"   📄 Contenuto: {content}");
+                        }
+                        else
+                        {
+                            LogTest($"   ❌ Nome non trovato");
+                            LogTest($"   📄 Risposta (primi 200 chars): {content.Substring(0, Math.Min(200, content.Length))}...");
+                        }
+                    }
+                    else
+                    {
+                        var errorContent = await response.Content.ReadAsStringAsync();
+                        LogTest($"   ❌ Errore: {response.StatusCode} - {errorContent}");
+                    }
+
+                    await Task.Delay(100);
+                }
+                catch (Exception ex)
+                {
+                    LogTest($"   ❌ Errore: {ex.Message}");
+                }
+            }
+
+            LogTest("");
+        }
+
+        /// <summary>
+        /// TEST 4: API Search con expand completo
+        /// </summary>
+        private async Task TestSearchWithExpand(string domain, string username, string apiToken, string ticketKey)
+        {
+            LogTest("📋 === TEST 4: Search API con Expand Completo ===");
+
+            var searchUrls = new[]
+            {
+        $"{domain}/rest/api/2/search?jql=key={ticketKey}&expand=names,schema,operations,versionedRepresentations,editmeta,changelog,renderedFields&fields=*all",
+        $"{domain}/rest/api/2/issue/{ticketKey}?expand=*all&fields=*all",
+        $"{domain}/rest/api/2/issue/{ticketKey}?expand=names,schema&fields=*navigable"
+    };
+
+            using var httpClient = new HttpClient();
+            var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{username}:{apiToken}"));
+            httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", credentials);
+
+            foreach (var url in searchUrls)
+            {
+                try
+                {
+                    LogTest($"   🔗 Test URL: {url}");
+
+                    var response = await httpClient.GetAsync(url);
+                    LogTest($"   📊 Status: {response.StatusCode}");
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var content = await response.Content.ReadAsStringAsync();
+
+                        if (content.Contains("NARDÒ") || content.Contains("PARSEC"))
+                        {
+                            LogTest($"   ⭐ TROVATO! Il nome è presente!");
+
+                            // Trova la sezione specifica che contiene il nome
+                            var lines = content.Split('\n');
+                            for (int i = 0; i < lines.Length; i++)
+                            {
+                                if (lines[i].Contains("NARDÒ") || lines[i].Contains("PARSEC"))
+                                {
+                                    LogTest($"   📍 Linea {i}: {lines[i].Trim()}");
+                                    // Mostra anche qualche linea di contesto
+                                    for (int j = Math.Max(0, i - 2); j <= Math.Min(lines.Length - 1, i + 2); j++)
+                                    {
+                                        LogTest($"      [{j}]: {lines[j].Trim()}");
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            LogTest($"   ❌ Nome non trovato");
+                        }
+                    }
+                    else
+                    {
+                        var errorContent = await response.Content.ReadAsStringAsync();
+                        LogTest($"   ❌ Errore: {response.StatusCode} - {errorContent}");
+                    }
+
+                    await Task.Delay(100);
+                }
+                catch (Exception ex)
+                {
+                    LogTest($"   ❌ Errore: {ex.Message}");
+                }
+            }
+
+            LogTest("");
+        }
+
+        /// <summary>
+        /// TEST 5: API Administration per elencare workspace
+        /// </summary>
+        private async Task TestAdministrationApi(string domain, string username, string apiToken, string workspaceId)
+        {
+            LogTest("📋 === TEST 5: API Administration ===");
+
+            var adminUrls = new[]
+            {
+        $"{domain}/rest/servicedeskapi/assets/workspace",
+        $"{domain}/rest/servicedeskapi/assets/workspace/{workspaceId}",
+        $"{domain}/gateway/api/jsm/assets/workspace",
+        $"{domain}/gateway/api/jsm/insight/workspace/{workspaceId}/v1/objectschema",
+        $"{domain}/rest/insight/1.0/objectschema/list"
+    };
+
+            using var httpClient = new HttpClient();
+            var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{username}:{apiToken}"));
+            httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", credentials);
+
+            foreach (var url in adminUrls)
+            {
+                try
+                {
+                    LogTest($"   🔗 Test URL: {url}");
+
+                    var response = await httpClient.GetAsync(url);
+                    LogTest($"   📊 Status: {response.StatusCode}");
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var content = await response.Content.ReadAsStringAsync();
+                        LogTest($"   ✅ Successo! Contenuto (primi 300 chars): {content.Substring(0, Math.Min(300, content.Length))}...");
+
+                        if (content.Contains("NARDÒ") || content.Contains("PARSEC"))
+                        {
+                            LogTest($"   ⭐ BONUS: Il nome è presente anche qui!");
+                        }
+                    }
+                    else
+                    {
+                        var errorContent = await response.Content.ReadAsStringAsync();
+                        LogTest($"   ❌ Errore: {response.StatusCode} - {errorContent}");
+                    }
+
+                    await Task.Delay(100);
+                }
+                catch (Exception ex)
+                {
+                    LogTest($"   ❌ Errore: {ex.Message}");
+                }
+            }
+
+            LogTest("");
+        }
+
+
         #endregion
 
 

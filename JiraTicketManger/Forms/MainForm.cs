@@ -2438,7 +2438,7 @@ namespace JiraTicketManager
             // F12 - Test API dedicata Cliente Partner  
             if (keyData == Keys.F12)
             {
-                _ = _devTests?.TestClientePartnerDedicatedAPI();
+                _ = _devTests?.TestWorkspaceObjectResolution();
                 return true;
             }
 

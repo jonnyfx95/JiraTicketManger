@@ -6,6 +6,7 @@ using JiraTicketManager.Data;
 using JiraTicketManager.Services;
 using JiraTicketManager.Utilities;
 using Newtonsoft.Json.Linq;
+using JiraTicketManager.Utilities;
 
 namespace JiraTicketManager.UI.Managers
 {
@@ -74,7 +75,7 @@ namespace JiraTicketManager.UI.Managers
                 }
 
                 // 2. Estrai il valore del campo usando JiraFieldExtractor esistente
-                var fieldValue = ExtractFieldValue(ticket.RawData, jiraField);
+                var fieldValue = await ExtractFieldValueAsync(ticket.RawData, jiraField);
 
                 // 3. Popola la TextBox
                 SetTextBoxValue(textBox, fieldValue);
@@ -126,7 +127,7 @@ namespace JiraTicketManager.UI.Managers
 
                     try
                     {
-                        var fieldValue = ExtractFieldValue(ticket.RawData, jiraField);
+                        var fieldValue = await ExtractFieldValueAsync(ticket.RawData, jiraField);
                         SetTextBoxValue(textBox, fieldValue);
                         _textBoxMappings[textBox] = jiraField;
 
@@ -168,7 +169,8 @@ namespace JiraTicketManager.UI.Managers
         /// <summary>
         /// Estrae il valore di un campo usando JiraFieldExtractor esistente
         /// </summary>
-        private string ExtractFieldValue(JToken rawData, string jiraField)
+
+        private async Task<string> ExtractFieldValueAsync(JToken rawData, string jiraField)
         {
             try
             {
@@ -212,39 +214,44 @@ namespace JiraTicketManager.UI.Managers
                     return "-";
                 }
 
-                // === GESTIONE SPECIALE PER CLIENTE PARTNER (ARRAY WORKSPACE) ===
+                // === GESTIONE CLIENTE PARTNER CON WORKSPACE OBJECT RESOLVER ===
                 if (jiraField == "customfield_10103")
                 {
-                    var clientePartnerField = rawData["fields"]?["customfield_10103"];
-                    if (clientePartnerField != null && clientePartnerField.Type == JTokenType.Array)
+                    try
                     {
-                        var array = clientePartnerField as JArray;
-                        if (array?.Count > 0)
-                        {
-                            var firstItem = array[0];
-                            if (firstItem?.Type == JTokenType.Object)
-                            {
-                                // Gestione workspace object
-                                var objectId = firstItem["objectId"]?.ToString();
-                                var id = firstItem["id"]?.ToString();
+                        var clientePartnerField = rawData["fields"]?["customfield_10103"];
 
-                                if (!string.IsNullOrEmpty(objectId))
+                        if (clientePartnerField != null && clientePartnerField.Type != JTokenType.Null)
+                        {
+                            using var resolver = new WorkspaceObjectResolver();
+
+                            if (clientePartnerField.Type == JTokenType.Array)
+                            {
+                                var resolvedName = await resolver.ResolveArrayAsync(clientePartnerField);
+                                if (!string.IsNullOrEmpty(resolvedName) && !resolvedName.StartsWith("["))
                                 {
-                                    return $"ID: {objectId}";
+                                    _logger.LogInfo($"Cliente Partner risolto: {resolvedName}");
+                                    return resolvedName;
                                 }
-                                else if (!string.IsNullOrEmpty(id) && id.Contains(":"))
+                            }
+                            else if (clientePartnerField.Type == JTokenType.Object)
+                            {
+                                var resolvedName = await resolver.ResolveFromTokenAsync(clientePartnerField);
+                                if (!string.IsNullOrEmpty(resolvedName) && !resolvedName.StartsWith("["))
                                 {
-                                    var parts = id.Split(':');
-                                    return $"Ref: {parts[parts.Length - 1]}";
-                                }
-                                else
-                                {
-                                    return "[Riferimento oggetto]";
+                                    _logger.LogInfo($"Cliente Partner risolto: {resolvedName}");
+                                    return resolvedName;
                                 }
                             }
                         }
+
+                        return "-"; // Campo vuoto o non risolto
                     }
-                    return "-";
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Errore risoluzione Cliente Partner", ex);
+                        return "[Errore risoluzione]";
+                    }
                 }
 
                 // === GESTIONE STANDARD CON JIRA FIELD EXTRACTOR ===
@@ -264,6 +271,152 @@ namespace JiraTicketManager.UI.Managers
             {
                 _logger.LogError($"Errore estrazione campo {jiraField}", ex);
                 return "Errore estrazione";
+            }
+        }
+
+
+     
+
+        /// <summary>
+        /// Popola una singola TextBox con dato da ticket Jira (VERSIONE AGGIORNATA)
+        /// </summary>
+        public async Task PopulateTextBoxAsync(TextBox textBox, string ticketKey, string jiraField)
+        {
+            try
+            {
+                if (textBox == null)
+                {
+                    _logger.LogWarning($"TextBox null per campo {jiraField}");
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(ticketKey))
+                {
+                    _logger.LogWarning($"TicketKey vuoto per campo {jiraField}");
+                    ClearTextBox(textBox);
+                    return;
+                }
+
+                _logger.LogDebug($"Popolamento TextBox per ticket {ticketKey}, campo {jiraField}");
+
+                // 1. Ottieni i dati del ticket usando API esistente
+                var ticket = await _dataService.GetTicketAsync(ticketKey);
+                if (ticket == null)
+                {
+                    _logger.LogWarning($"Ticket {ticketKey} non trovato");
+                    SetTextBoxValue(textBox, "Ticket non trovato");
+                    return;
+                }
+
+                // 2. Estrai il valore del campo usando metodo ASYNC aggiornato
+                var fieldValue = await ExtractFieldValueAsync(ticket.RawData, jiraField);
+
+                // 3. Popola la TextBox
+                SetTextBoxValue(textBox, fieldValue);
+
+                // 4. Salva mapping per future operazioni
+                _textBoxMappings[textBox] = jiraField;
+
+                _logger.LogDebug($"TextBox popolata: {jiraField} = '{fieldValue}'");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore popolamento TextBox per {ticketKey}.{jiraField}", ex);
+                SetTextBoxValue(textBox, $"Errore: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Popola multiple TextBox con un singolo caricamento ticket (VERSIONE AGGIORNATA)
+        /// </summary>
+        public async Task PopulateMultipleTextBoxesAsync(string ticketKey, Dictionary<TextBox, string> textBoxFieldMappings)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(ticketKey))
+                {
+                    _logger.LogWarning("TicketKey vuoto per popolamento multiplo");
+                    ClearAllTextBoxes(textBoxFieldMappings.Keys);
+                    return;
+                }
+
+                _logger.LogInfo($"Popolamento multiplo per ticket {ticketKey} - {textBoxFieldMappings.Count} campi");
+
+                // 1. Carica ticket una sola volta (ottimizzazione)
+                var ticket = await _dataService.GetTicketAsync(ticketKey);
+                if (ticket == null)
+                {
+                    _logger.LogWarning($"Ticket {ticketKey} non trovato");
+                    SetAllTextBoxesValue(textBoxFieldMappings.Keys, "Ticket non trovato");
+                    return;
+                }
+
+                // 2. Popola tutti i campi con chiamate ASYNC
+                foreach (var mapping in textBoxFieldMappings)
+                {
+                    var textBox = mapping.Key;
+                    var jiraField = mapping.Value;
+
+                    try
+                    {
+                        var fieldValue = await ExtractFieldValueAsync(ticket.RawData, jiraField);
+                        SetTextBoxValue(textBox, fieldValue);
+                        _textBoxMappings[textBox] = jiraField;
+
+                        _logger.LogDebug($"Campo popolato: {jiraField} = '{fieldValue}'");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Errore popolamento campo {jiraField}", ex);
+                        SetTextBoxValue(textBox, $"Errore campo");
+                    }
+                }
+
+                _logger.LogInfo($"Popolamento multiplo completato per {ticketKey}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore popolamento multiplo per {ticketKey}", ex);
+                SetAllTextBoxesValue(textBoxFieldMappings.Keys, $"Errore caricamento");
+            }
+        }
+
+        /// <summary>
+        /// Popola una Label con valore del campo Jira (VERSIONE AGGIORNATA)
+        /// </summary>
+        public async Task PopulateLabelAsync(Label label, string ticketKey, string jiraField)
+        {
+            try
+            {
+                if (label == null || string.IsNullOrEmpty(ticketKey) || string.IsNullOrEmpty(jiraField))
+                {
+                    _logger.LogWarning("Parametri non validi per popolamento Label");
+                    return;
+                }
+
+                _logger.LogDebug($"Popolamento Label per {ticketKey}.{jiraField}");
+
+                // 1. Carica dati ticket
+                var ticket = await _dataService.GetTicketAsync(ticketKey);
+                if (ticket == null)
+                {
+                    _logger.LogWarning($"Ticket {ticketKey} non trovato");
+                    SetLabelValue(label, "Ticket non trovato");
+                    return;
+                }
+
+                // 2. Estrai il valore del campo con metodo ASYNC
+                var fieldValue = await ExtractFieldValueAsync(ticket.RawData, jiraField);
+
+                // 3. Popola la Label
+                SetLabelValue(label, fieldValue);
+
+                _logger.LogDebug($"Label popolata: {jiraField} = '{fieldValue}'");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore popolamento Label per {ticketKey}.{jiraField}", ex);
+                SetLabelValue(label, $"Errore: {ex.Message}");
             }
         }
 
@@ -486,7 +639,7 @@ namespace JiraTicketManager.UI.Managers
                 }
 
                 // 2. Estrai il valore del campo
-                var fieldValue = ExtractFieldValue(ticket.RawData, jiraField);
+                var fieldValue = await ExtractFieldValueAsync(ticket.RawData, jiraField);
 
                 // 3. Popola la Label
                 SetLabelValue(label, fieldValue);
@@ -535,7 +688,7 @@ namespace JiraTicketManager.UI.Managers
 
                     try
                     {
-                        var fieldValue = ExtractFieldValue(ticket.RawData, jiraField);
+                        var fieldValue = await ExtractFieldValueAsync(ticket.RawData, jiraField);
                         SetLabelValue(label, fieldValue);
 
                         _logger.LogDebug($"Label popolata: {jiraField} = '{fieldValue}'");
@@ -596,7 +749,7 @@ namespace JiraTicketManager.UI.Managers
 
                     try
                     {
-                        var fieldValue = ExtractFieldValue(ticket.RawData, jiraField);
+                        var fieldValue = await ExtractFieldValueAsync(ticket.RawData, jiraField);
                         SetTextBoxValue(textBox, fieldValue);
                         _textBoxMappings[textBox] = jiraField;
 
@@ -617,7 +770,7 @@ namespace JiraTicketManager.UI.Managers
 
                     try
                     {
-                        var fieldValue = ExtractFieldValue(ticket.RawData, jiraField);
+                        var fieldValue = await ExtractFieldValueAsync(ticket.RawData, jiraField);
                         SetLabelValue(label, fieldValue);
 
                         _logger.LogDebug($"Label popolata: {jiraField} = '{fieldValue}'");
