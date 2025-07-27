@@ -353,10 +353,9 @@ namespace JiraTicketManager.UI.Managers
             try
             {
                 timer.Stop();
-
                 if (!_originalDisplayItems.TryGetValue(comboBox, out var originalItems)) return;
 
-                var searchText = comboBox.Text?.Trim()?.ToLower() ?? "";
+                var searchText = comboBox.Text?.Trim() ?? "";
 
                 // Se testo vuoto, ripristina tutti gli items
                 if (string.IsNullOrEmpty(searchText))
@@ -365,20 +364,83 @@ namespace JiraTicketManager.UI.Managers
                     return;
                 }
 
-                // 🚀 FILTERING sui Display Values
-                var filteredItems = originalItems
-                    .Where(item => item.ToLower().Contains(searchText))
-                    .ToList();
+                // 🚀 SMART FILTERING: Diverso comportamento per ComboBox gestite vs statiche
+                var isManaged = _valueMappings.ContainsKey(comboBox);
+                var filteredItems = new List<string>();
 
-                // Aggiorna ComboBox con items filtrati
+                foreach (var item in originalItems)
+                {
+                    bool matches = false;
+
+                    if (isManaged)
+                    {
+                        // 🎯 ComboBox GESTITE (Area, Applicativo, Cliente): Smart filtering
+                        matches = MatchesManagedComboBox(item, searchText);
+                    }
+                    else
+                    {
+                        // 🎯 ComboBox STATICHE (Tipo, Stato, Priorità, Assegnatario): Filtering normale
+                        matches = item.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0;
+                    }
+
+                    if (matches)
+                    {
+                        filteredItems.Add(item);
+                    }
+                }
+
+                // Aggiorna ComboBox con items filtrati USANDO IL TUO METODO PROTETTO
                 UpdateFilteredDisplayItems(comboBox, filteredItems, searchText);
 
-                _logger.LogDebug($"🔍 AutoComplete filtering per {comboBox.Name}: '{searchText}' → {filteredItems.Count} risultati");
+                _logger.LogDebug($"🔍 AutoComplete filtering per {comboBox.Name}: '{searchText}' → {filteredItems.Count} risultati (Smart: {isManaged})");
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Errore AutoComplete filtering per {comboBox.Name}: {ex.Message}", ex);
             }
+        }
+
+        // <summary>
+        /// Logica di matching intelligente per ComboBox gestite (Area, Applicativo, Cliente)
+        /// </summary>
+        private bool MatchesManagedComboBox(string item, string searchText)
+        {
+            // 🎯 LOGICA SMART: Cerca nella parte più significativa dell'item
+
+            // Per items che iniziano con "Civilia Next - Area " cerca dopo "Area "
+            if (item.StartsWith("Civilia Next - Area "))
+            {
+                var cleanPart = item.Replace("Civilia Next - Area ", "");
+                return cleanPart.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+
+            // Per items che contengono " -> " cerca nella parte dopo "->"
+            if (item.Contains(" -> "))
+            {
+                var parts = item.Split(new[] { " -> " }, 2, StringSplitOptions.None);
+                var appPart = parts[1].Trim();
+                return appPart.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+
+            // Per items che contengono " - " cerca dopo il primo " - "
+            if (item.Contains(" - "))
+            {
+                var dashIndex = item.IndexOf(" - ");
+                var afterDash = item.Substring(dashIndex + 3);
+
+                // Se c'è "Area " dopo il dash, cerca dopo "Area "
+                if (afterDash.StartsWith("Area "))
+                {
+                    var cleanPart = afterDash.Replace("Area ", "");
+                    return cleanPart.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0;
+                }
+
+                // Altrimenti cerca nella parte dopo " - "
+                return afterDash.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+
+            // Per tutti gli altri casi: ricerca normale nell'intero testo
+            return item.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         // <summary>
@@ -388,12 +450,22 @@ namespace JiraTicketManager.UI.Managers
         {
             try
             {
+                // 🔧 PROTEZIONE LOOP: Se già stiamo aggiornando, esci
+                if (comboBox.Tag?.ToString() == "UPDATING") return;
+
                 // Salva posizione cursore
                 var selectionStart = comboBox.SelectionStart;
 
-                // Disabilita eventi temporaneamente
-                var timer = _filterTimers[comboBox];
-                comboBox.TextChanged -= (s, e) => OnAutoCompleteTextChanged(comboBox);
+                // 🔧 MARCA COME "IN AGGIORNAMENTO"
+                comboBox.Tag = "UPDATING";
+
+                // 🔧 RIMUOVI TUTTI GLI EVENT HANDLERS
+                if (_filterTimers.TryGetValue(comboBox, out var timer))
+                {
+                    comboBox.TextChanged -= (s, e) => OnAutoCompleteTextChanged(comboBox);
+                    comboBox.Enter -= OnAutoCompleteEnter;
+                    comboBox.Leave -= OnAutoCompleteLeave;
+                }
 
                 // Aggiorna items
                 comboBox.Items.Clear();
@@ -404,21 +476,47 @@ namespace JiraTicketManager.UI.Managers
 
                 // Ripristina testo e cursore
                 comboBox.Text = currentText;
-                comboBox.SelectionStart = selectionStart;
+                comboBox.SelectionStart = Math.Min(selectionStart, currentText.Length);
                 comboBox.SelectionLength = 0;
 
-                // Riabilita eventi
-                comboBox.TextChanged += (s, e) => OnAutoCompleteTextChanged(comboBox);
-
-                // Mostra dropdown se ci sono risultati
-                if (filteredItems.Count > 0 && !comboBox.DroppedDown)
+                // 🔧 RIABILITA EVENT HANDLERS
+                if (_filterTimers.TryGetValue(comboBox, out timer))
                 {
-                    comboBox.DroppedDown = true;
+                    comboBox.TextChanged += (s, e) => OnAutoCompleteTextChanged(comboBox);
+                    comboBox.Enter += OnAutoCompleteEnter;
+                    comboBox.Leave += OnAutoCompleteLeave;
+                }
+
+                // 🔧 RIMUOVI MARCA "IN AGGIORNAMENTO"
+                comboBox.Tag = null;
+
+                // Mostra dropdown se ci sono risultati e NON è già aperto
+                if (filteredItems.Count > 0 && filteredItems.Count < 50 && !comboBox.DroppedDown)
+                {
+                    // 🔧 DELAY per evitare conflitti UI
+                    var dropTimer = new System.Windows.Forms.Timer();
+                    dropTimer.Interval = 100;
+                    dropTimer.Tick += (s, e) =>
+                    {
+                        dropTimer.Stop();
+                        dropTimer.Dispose();
+                        try
+                        {
+                            if (!comboBox.DroppedDown && comboBox.Focused)
+                            {
+                                comboBox.DroppedDown = true;
+                            }
+                        }
+                        catch { /* Ignora errori dropdown */ }
+                    };
+                    dropTimer.Start();
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Errore aggiornamento filtered items: {ex.Message}", ex);
+                // 🔧 CLEANUP in caso di errore
+                comboBox.Tag = null;
             }
         }
 
@@ -917,12 +1015,17 @@ namespace JiraTicketManager.UI.Managers
             var mapping = new Dictionary<string, string>();
 
             // Aggiungi default
-            var defaultDisplayText = defaultText ?? GetDefaultText(JiraFieldType.Application);
+            var defaultDisplayText = defaultText ?? GetDefaultText(_comboBoxInfos[comboBox].FieldType);
             comboBox.Items.Add(defaultDisplayText);
             mapping[defaultDisplayText] = "";
 
-            // Aggiungi applicativi filtrati
-            foreach (var field in fields)
+            // Aggiungi valori ordinati
+            var sortedFields = fields
+                .Where(f => !string.IsNullOrWhiteSpace(f.DisplayValue))
+                .OrderBy(f => f.DisplayValue)
+                .ToList();
+
+            foreach (var field in sortedFields)
             {
                 var displayValue = CleanDisplayValue(field.DisplayValue);
 
@@ -937,10 +1040,15 @@ namespace JiraTicketManager.UI.Managers
             // Salva mapping
             _valueMappings[comboBox] = mapping;
 
-            // Seleziona default
+            // Ripristina selezione o seleziona default
             comboBox.SelectedIndex = 0;
 
-            _logger.LogDebug($"📋 ComboBox popolata: {fields.Count} elementi + default");
+            // Aggiorna info
+            _comboBoxInfos[comboBox].LastLoadTime = DateTime.Now;
+            _comboBoxInfos[comboBox].ItemCount = fields.Count;
+
+            // *** 🔤 AGGIUNTA: AutoComplete per cmbApplicativo ***
+            RefreshAutoCompleteItems(comboBox);
         }
 
         /// <summary>
