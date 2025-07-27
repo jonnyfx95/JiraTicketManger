@@ -1,0 +1,103 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>JiraTicketManager</RootNamespace>
+    <AssemblyName>JiraTicketManager</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultItems>true</EnableDefaultItems>
+    <!-- Configurazione DPI identica al VB.NET -->
+    <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="logs\**" />
+    <EmbeddedResource Remove="logs\**" />
+    <None Remove="logs\**" />
+  </ItemGroup>
+
+  <!-- 📦 PACKAGE REFERENCES IDENTICI AL VB.NET -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3351.48" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <!-- Aggiungi se necessari (presenti nel VB.NET) -->
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
+    <PackageReference Include="MimeKit" Version="4.12.0" />
+  </ItemGroup>
+
+  <!-- 📁 CARTELLE ORGANIZZATE -->
+  <ItemGroup>
+    <Folder Include="config\" />
+  </ItemGroup>
+
+  <!-- ⚙️ INCLUDI app.config SE ESISTE -->
+  <ItemGroup>
+    <None Include="app.config" Condition="Exists('app.config')" />
+  </ItemGroup>
+
+  <!-- 🎯 TARGET IDENTICO AL VB.NET - SPOSTA DLL IN libs/ -->
+  <Target Name="MoveDLLsToLibsFolder" AfterTargets="Build">
+    <PropertyGroup>
+      <LibsFolder>$(OutputPath)libs</LibsFolder>
+    </PropertyGroup>
+
+    <!-- Crea la cartella libs se non esiste -->
+    <MakeDir Directories="$(LibsFolder)" />
+
+    <!-- 📦 Trova tutti i DLL tranne il principale (IDENTICO AL VB.NET) -->
+    <ItemGroup>
+      <DllsToMove Include="$(OutputPath)*.dll" Exclude="$(OutputPath)JiraTicketManager.dll;$(OutputPath)libs\*.dll" />
+      <!-- 📄 NUOVO: Sposta anche i file XML di documentazione -->
+      <XmlFilesToMove Include="$(OutputPath)*.xml" Exclude="$(OutputPath)libs\*.xml" />
+    </ItemGroup>
+
+    <!-- 📁 Copia i DLL nella cartella libs -->
+    <Copy SourceFiles="@(DllsToMove)" DestinationFolder="$(LibsFolder)" />
+
+    <!-- 📄 Copia i file XML nella cartella libs -->
+    <Copy SourceFiles="@(XmlFilesToMove)" DestinationFolder="$(LibsFolder)" />
+
+    <!-- 🗑️ Rimuovi i DLL originali -->
+    <Delete Files="@(DllsToMove)" />
+
+    <!-- 🗑️ Rimuovi i file XML originali -->
+    <Delete Files="@(XmlFilesToMove)" />
+
+    <!-- 📊 Messaggio di log IDENTICO -->
+    <Message Text="DLL e file XML spostati nella cartella libs" Importance="high" />
+  </Target>
+
+  <!-- 🚀 TARGET AGGIUNTIVO PER PUBLISH (stessa logica) -->
+  <Target Name="MoveDLLsToLibsFolderOnPublish" AfterTargets="Publish">
+    <PropertyGroup>
+      <LibsFolder>$(PublishDir)libs</LibsFolder>
+    </PropertyGroup>
+
+    <!-- Crea la cartella libs se non esiste -->
+    <MakeDir Directories="$(LibsFolder)" />
+
+    <!-- 📦 Trova tutti i DLL tranne il principale -->
+    <ItemGroup>
+      <PublishDllsToMove Include="$(PublishDir)*.dll" Exclude="$(PublishDir)JiraTicketManager.dll;$(PublishDir)libs\*.dll" />
+      <!-- 📄 Sposta anche i file XML nel publish -->
+      <PublishXmlFilesToMove Include="$(PublishDir)*.xml" Exclude="$(PublishDir)libs\*.xml" />
+    </ItemGroup>
+
+    <!-- 📁 Copia i DLL nella cartella libs -->
+    <Copy SourceFiles="@(PublishDllsToMove)" DestinationFolder="$(LibsFolder)" />
+
+    <!-- 📄 Copia i file XML nella cartella libs -->
+    <Copy SourceFiles="@(PublishXmlFilesToMove)" DestinationFolder="$(LibsFolder)" />
+
+    <!-- 🗑️ Rimuovi i DLL originali -->
+    <Delete Files="@(PublishDllsToMove)" />
+
+    <!-- 🗑️ Rimuovi i file XML originali -->
+    <Delete Files="@(PublishXmlFilesToMove)" />
+
+    <!-- 📊 Messaggio di log -->
+    <Message Text="DLL e file XML Publish spostati nella cartella libs (stile VB.NET)" Importance="high" />
+  </Target>
+</Project>
