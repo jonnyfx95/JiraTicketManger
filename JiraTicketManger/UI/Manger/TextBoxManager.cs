@@ -172,10 +172,83 @@ namespace JiraTicketManager.UI.Managers
         {
             try
             {
-                // Mappa i campi dal formato API a quello del JiraFieldExtractor
-                var fieldName = MapJiraFieldToExtractorField(jiraField);
+                // === GESTIONE SPECIALE PER REPORTER EMAIL ===
+                if (jiraField == "reporter.emailAddress")
+                {
+                    var reporterField = rawData["fields"]?["reporter"];
+                    if (reporterField != null && reporterField.Type != JTokenType.Null)
+                    {
+                        var emailAddress = reporterField["emailAddress"]?.ToString();
+                        return !string.IsNullOrEmpty(emailAddress) ? emailAddress : "-";
+                    }
+                    return "-";
+                }
 
-                // Usa il metodo esistente di JiraFieldExtractor
+                // === GESTIONE SPECIALE PER CUSTOM FIELD TELEFONO ===
+                if (jiraField == "customfield_10074")
+                {
+                    var phoneField = rawData["fields"]?["customfield_10074"];
+                    if (phoneField != null && phoneField.Type != JTokenType.Null)
+                    {
+                        var phoneValue = phoneField.ToString();
+                        return !string.IsNullOrEmpty(phoneValue) ? phoneValue : "-";
+                    }
+                    return "-";
+                }
+
+                // === GESTIONE SPECIALE PER DESCRIZIONE ===
+                if (jiraField == "description")
+                {
+                    var descriptionField = rawData["fields"]?["description"];
+                    if (descriptionField != null && descriptionField.Type != JTokenType.Null)
+                    {
+                        var description = descriptionField.ToString();
+                        if (!string.IsNullOrEmpty(description))
+                        {
+                            // Formatta la descrizione per migliorare la leggibilità
+                            return FormatDescription(description);
+                        }
+                    }
+                    return "-";
+                }
+
+                // === GESTIONE SPECIALE PER CLIENTE PARTNER (ARRAY WORKSPACE) ===
+                if (jiraField == "customfield_10103")
+                {
+                    var clientePartnerField = rawData["fields"]?["customfield_10103"];
+                    if (clientePartnerField != null && clientePartnerField.Type == JTokenType.Array)
+                    {
+                        var array = clientePartnerField as JArray;
+                        if (array?.Count > 0)
+                        {
+                            var firstItem = array[0];
+                            if (firstItem?.Type == JTokenType.Object)
+                            {
+                                // Gestione workspace object
+                                var objectId = firstItem["objectId"]?.ToString();
+                                var id = firstItem["id"]?.ToString();
+
+                                if (!string.IsNullOrEmpty(objectId))
+                                {
+                                    return $"ID: {objectId}";
+                                }
+                                else if (!string.IsNullOrEmpty(id) && id.Contains(":"))
+                                {
+                                    var parts = id.Split(':');
+                                    return $"Ref: {parts[parts.Length - 1]}";
+                                }
+                                else
+                                {
+                                    return "[Riferimento oggetto]";
+                                }
+                            }
+                        }
+                    }
+                    return "-";
+                }
+
+                // === GESTIONE STANDARD CON JIRA FIELD EXTRACTOR ===
+                var fieldName = MapJiraFieldToExtractorField(jiraField);
                 var value = JiraFieldExtractor.ExtractField(rawData, fieldName);
 
                 // Gestisci casi speciali
@@ -194,14 +267,90 @@ namespace JiraTicketManager.UI.Managers
             }
         }
 
+        // <summary>
+        /// Formatta la descrizione per una migliore leggibilità
+        /// </summary>
+        private string FormatDescription(string description)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(description))
+                    return "-";
+
+                // 1. Normalizza i caratteri di fine riga
+                description = description
+                    .Replace("\r\n", "\n")  // Windows → Unix
+                    .Replace("\r", "\n");   // Mac → Unix
+
+                // 2. Sostituisce sequenze multiple di spazi con spazi singoli
+                while (description.Contains("  "))
+                {
+                    description = description.Replace("  ", " ");
+                }
+
+                // 3. Aggiunge spazi dopo la punteggiatura se mancano
+                description = description
+                    .Replace(".", ". ")
+                    .Replace(",", ", ")
+                    .Replace(":", ": ")
+                    .Replace(";", "; ");
+
+                // 4. Rimuove spazi doppi creati dal punto precedente
+                while (description.Contains("  "))
+                {
+                    description = description.Replace("  ", " ");
+                }
+
+                // 5. Divide il testo in paragrafi logici (dopo punto e a capo)
+                var lines = description.Split('\n');
+                var formattedLines = new List<string>();
+
+                foreach (var line in lines)
+                {
+                    var trimmedLine = line.Trim();
+                    if (!string.IsNullOrEmpty(trimmedLine))
+                    {
+                        // Capitalizza la prima lettera se necessario
+                        if (char.IsLower(trimmedLine[0]))
+                        {
+                            trimmedLine = char.ToUpper(trimmedLine[0]) + trimmedLine.Substring(1);
+                        }
+                        formattedLines.Add(trimmedLine);
+                    }
+                }
+
+                // 6. Unisce con doppio a capo per paragrafi separati
+                var formatted = string.Join("\r\n\r\n", formattedLines);
+
+                // 7. Limita la lunghezza se troppo lungo (opzionale)
+                if (formatted.Length > 1000)
+                {
+                    formatted = formatted.Substring(0, 997) + "...";
+                }
+
+                return formatted;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore formattazione descrizione", ex);
+                return description; // Ritorna il testo originale in caso di errore
+            }
+        }
+
+
         /// <summary>
         /// Mappa i nomi dei campi API ai nomi del JiraFieldExtractor
+        /// AGGIORNATO con mapping reporter corretto
         /// </summary>
         private string MapJiraFieldToExtractorField(string jiraField)
         {
             return jiraField switch
             {
-                "reporter" => "Reporter",
+                // === CAMPI REPORTER CORRETTI ===
+                "reporter" => "Reporter",                    // reporter.displayName
+                "reporter.emailAddress" => "ReporterEmail",  //  reporter.emailAddress  
+
+                // === CAMPI STANDARD ===
                 "assignee" => "Assignee",
                 "status" => "Status",
                 "priority" => "Priority",
@@ -211,10 +360,20 @@ namespace JiraTicketManager.UI.Managers
                 "created" => "Created",
                 "updated" => "Updated",
                 "resolutiondate" => "ResolutionDate",
+
+                // === CUSTOM FIELDS ===
                 "customfield_10117" => "Cliente",
                 "customfield_10113" => "Area",
                 "customfield_10114" => "Applicativo",
                 "customfield_10103" => "ClientePartner",
+                "customfield_10074" => "Telefono",          // Telefono funziona
+
+                // === CAMPI TEAM (anche se spesso vuoti) ===
+                "customfield_10271" => "PMEmail",           // P.M. (mail)
+                "customfield_10272" => "CommercialeEmail",  // Commerciale (mail)  
+                "customfield_10238" => "ConsulenteEmail",   // Consulente (mail)
+                "customfield_10096" => "WBS",               // WBS
+
                 _ => jiraField // Se non mappato, usa il nome originale
             };
         }
@@ -294,5 +453,242 @@ namespace JiraTicketManager.UI.Managers
         }
 
         #endregion
+
+        
+
+        #region Label Support Methods
+
+        /// <summary>
+        /// Popola una Label con valore del campo Jira
+        /// </summary>
+        /// <param name="label">Label da popolare</param>
+        /// <param name="ticketKey">Numero ticket</param>
+        /// <param name="jiraField">Nome campo Jira</param>
+        public async Task PopulateLabelAsync(Label label, string ticketKey, string jiraField)
+        {
+            try
+            {
+                if (label == null || string.IsNullOrEmpty(ticketKey) || string.IsNullOrEmpty(jiraField))
+                {
+                    _logger.LogWarning("Parametri non validi per popolamento Label");
+                    return;
+                }
+
+                _logger.LogDebug($"Popolamento Label per {ticketKey}.{jiraField}");
+
+                // 1. Carica dati ticket
+                var ticket = await _dataService.GetTicketAsync(ticketKey);
+                if (ticket == null)
+                {
+                    _logger.LogWarning($"Ticket {ticketKey} non trovato");
+                    SetLabelValue(label, "Ticket non trovato");
+                    return;
+                }
+
+                // 2. Estrai il valore del campo
+                var fieldValue = ExtractFieldValue(ticket.RawData, jiraField);
+
+                // 3. Popola la Label
+                SetLabelValue(label, fieldValue);
+
+                _logger.LogDebug($"Label popolata: {jiraField} = '{fieldValue}'");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore popolamento Label per {ticketKey}.{jiraField}", ex);
+                SetLabelValue(label, $"Errore: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Popola multiple Label con un singolo caricamento ticket
+        /// </summary>
+        /// <param name="ticketKey">Numero ticket</param>
+        /// <param name="labelFieldMappings">Dizionario Label → Campo Jira</param>
+        public async Task PopulateMultipleLabelsAsync(string ticketKey, Dictionary<Label, string> labelFieldMappings)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(ticketKey))
+                {
+                    _logger.LogWarning("TicketKey vuoto per popolamento multiplo Label");
+                    ClearAllLabels(labelFieldMappings.Keys);
+                    return;
+                }
+
+                _logger.LogInfo($"Popolamento multiplo Label per ticket {ticketKey} - {labelFieldMappings.Count} campi");
+
+                // 1. Carica ticket una sola volta (ottimizzazione)
+                var ticket = await _dataService.GetTicketAsync(ticketKey);
+                if (ticket == null)
+                {
+                    _logger.LogWarning($"Ticket {ticketKey} non trovato");
+                    SetAllLabelsValue(labelFieldMappings.Keys, "Ticket non trovato");
+                    return;
+                }
+
+                // 2. Popola tutte le Label
+                foreach (var mapping in labelFieldMappings)
+                {
+                    var label = mapping.Key;
+                    var jiraField = mapping.Value;
+
+                    try
+                    {
+                        var fieldValue = ExtractFieldValue(ticket.RawData, jiraField);
+                        SetLabelValue(label, fieldValue);
+
+                        _logger.LogDebug($"Label popolata: {jiraField} = '{fieldValue}'");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Errore popolamento Label {jiraField}", ex);
+                        SetLabelValue(label, $"Errore campo");
+                    }
+                }
+
+                _logger.LogInfo($"Popolamento multiplo Label completato per {ticketKey}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore popolamento multiplo Label per {ticketKey}", ex);
+                SetAllLabelsValue(labelFieldMappings.Keys, $"Errore caricamento");
+            }
+        }
+
+        /// <summary>
+        /// Popola sia TextBox che Label in un'unica operazione
+        /// </summary>
+        /// <param name="ticketKey">Numero ticket</param>
+        /// <param name="textBoxMappings">Dizionario TextBox → Campo Jira</param>
+        /// <param name="labelMappings">Dizionario Label → Campo Jira</param>
+        public async Task PopulateAllControlsAsync(string ticketKey,
+            Dictionary<TextBox, string> textBoxMappings,
+            Dictionary<Label, string> labelMappings)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(ticketKey))
+                {
+                    _logger.LogWarning("TicketKey vuoto per popolamento completo");
+                    ClearAllTextBoxes(textBoxMappings.Keys);
+                    ClearAllLabels(labelMappings.Keys);
+                    return;
+                }
+
+                _logger.LogInfo($"Popolamento completo per ticket {ticketKey} - TextBox: {textBoxMappings.Count}, Label: {labelMappings.Count}");
+
+                // 1. Carica ticket UNA SOLA VOLTA
+                var ticket = await _dataService.GetTicketAsync(ticketKey);
+                if (ticket == null)
+                {
+                    _logger.LogWarning($"Ticket {ticketKey} non trovato");
+                    SetAllTextBoxesValue(textBoxMappings.Keys, "Ticket non trovato");
+                    SetAllLabelsValue(labelMappings.Keys, "Ticket non trovato");
+                    return;
+                }
+
+                // 2. Popola tutte le TextBox
+                foreach (var mapping in textBoxMappings)
+                {
+                    var textBox = mapping.Key;
+                    var jiraField = mapping.Value;
+
+                    try
+                    {
+                        var fieldValue = ExtractFieldValue(ticket.RawData, jiraField);
+                        SetTextBoxValue(textBox, fieldValue);
+                        _textBoxMappings[textBox] = jiraField;
+
+                        _logger.LogDebug($"TextBox popolata: {jiraField} = '{fieldValue}'");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Errore popolamento TextBox {jiraField}", ex);
+                        SetTextBoxValue(textBox, $"Errore campo");
+                    }
+                }
+
+                // 3. Popola tutte le Label
+                foreach (var mapping in labelMappings)
+                {
+                    var label = mapping.Key;
+                    var jiraField = mapping.Value;
+
+                    try
+                    {
+                        var fieldValue = ExtractFieldValue(ticket.RawData, jiraField);
+                        SetLabelValue(label, fieldValue);
+
+                        _logger.LogDebug($"Label popolata: {jiraField} = '{fieldValue}'");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Errore popolamento Label {jiraField}", ex);
+                        SetLabelValue(label, $"Errore campo");
+                    }
+                }
+
+                _logger.LogInfo($"Popolamento completo completato per {ticketKey}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore popolamento completo per {ticketKey}", ex);
+                SetAllTextBoxesValue(textBoxMappings.Keys, $"Errore caricamento");
+                SetAllLabelsValue(labelMappings.Keys, $"Errore caricamento");
+            }
+        }
+
+        #endregion
+
+        #region Private Helper Methods for Labels
+
+        /// <summary>
+        /// Imposta valore in Label thread-safe
+        /// </summary>
+        private void SetLabelValue(Label label, string value)
+        {
+            if (label.InvokeRequired)
+            {
+                label.Invoke(() => SetLabelValue(label, value));
+                return;
+            }
+
+            label.Text = value ?? "-";
+        }
+
+        /// <summary>
+        /// Pulisce una Label
+        /// </summary>
+        private void ClearLabel(Label label)
+        {
+            SetLabelValue(label, "-");
+        }
+
+        /// <summary>
+        /// Pulisce multiple Label
+        /// </summary>
+        private void ClearAllLabels(IEnumerable<Label> labels)
+        {
+            foreach (var label in labels)
+            {
+                ClearLabel(label);
+            }
+        }
+
+        /// <summary>
+        /// Imposta stesso valore in multiple Label
+        /// </summary>
+        private void SetAllLabelsValue(IEnumerable<Label> labels, string value)
+        {
+            foreach (var label in labels)
+            {
+                SetLabelValue(label, value);
+            }
+        }
+
+        #endregion
+
+
     }
 }

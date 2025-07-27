@@ -48,6 +48,10 @@ namespace JiraTicketManager.Forms
         /// Carica e visualizza un ticket specifico
         /// </summary>
         /// <param name="ticketKey">Numero ticket (es: CC-12345)</param>
+        // <summary>
+        /// Carica e visualizza un ticket specifico
+        /// </summary>
+        /// <param name="ticketKey">Numero ticket (es: CC-12345)</param>
         public async Task LoadTicketAsync(string ticketKey)
         {
             try
@@ -68,10 +72,13 @@ namespace JiraTicketManager.Forms
                 this.Text = $"Caricamento Ticket {ticketKey}...";
 
                 // Crea mappatura completa TextBox → Campo Jira
-                var fieldMappings = CreateFieldMappings();
+                var textBoxMappings = CreateTextBoxMappings();
 
-                // Popola tutti i campi con una sola chiamata API
-                await _textBoxManager.PopulateMultipleTextBoxesAsync(ticketKey, fieldMappings);
+                // *** NUOVO: Crea mappatura Label → Campo Jira ***
+                var labelMappings = CreateLabelMappings();
+
+                // *** NUOVO: Popola tutti i controlli con una sola chiamata API ***
+                await _textBoxManager.PopulateAllControlsAsync(ticketKey, textBoxMappings, labelMappings);
 
                 // Aggiorna header con info ticket
                 await UpdateHeaderInfo(ticketKey);
@@ -101,6 +108,60 @@ namespace JiraTicketManager.Forms
                 SetLoadingState(false);
             }
         }
+
+        /// <summary>
+        /// Crea la mappatura completa TextBox → Campo Jira
+        /// </summary>
+
+        private Dictionary<TextBox, string> CreateTextBoxMappings()
+        {
+            return new Dictionary<TextBox, string>
+            {
+                // === LEFT PANEL - CONTACT (TESTATO E FUNZIONANTE) ===
+                [txtRichiedente] = "reporter",              // ✅ "Daniela Paltrinieri"
+                [txtEmail] = "reporter.emailAddress",       // ✅ "daniela.paltrinieri@libero.it"  
+                [txtTelefono] = "customfield_10074",        // ✅ "0521 344572 - 338 4412342"
+
+                // === LEFT PANEL - TIMELINE ===
+                [txtDataCreazione] = "created",             // ✅ Date format
+                [txtDataAggiornamento] = "updated",         // ✅ Date format 
+                [txtDataCompletamento] = "resolutiondate", // ✅ Date format (può essere null)
+
+                // === RIGHT PANEL - ORGANIZATION (TESTATO) ===
+                [txtCliente] = "customfield_10117",         // ✅ "UNIONE PEDEMONTANA PARMENSE"
+                [txtArea] = "customfield_10113",            // ✅ "Sistema Informativo Territoriale"
+                [txtApplicativo] = "customfield_10114",     // ✅ "Sistema Informativo Territoriale -> NewSed.Net"
+                [txtCommerciale] = "customfield_10272",     // ❌ Spesso NULL (facoltativo)
+                [txtClientePartner] = "customfield_10103",  // ❌ Spesso NULL (facoltativo)
+
+                // === RIGHT PANEL - TEAM PLANNING ===
+                [txtPM] = "customfield_10271",              // ❌ Spesso NULL (facoltativo)
+                                                            // [txtResponsabile] = "",                  // TODO: Logica custom futura
+                [txtWBS] = "customfield_10096",             // ❌ Spesso NULL (facoltativo)
+
+                // === CENTER PANEL - DESCRIPTION (TESTATO E FUNZIONANTE) ===
+                [txtDescrizione] = "description"            // ✅ "Buongiorno dovendo modificare il tracciato..."
+            };
+        }
+
+        // <summary>
+        /// Crea la mappatura Label → Campo Jira ***
+        /// </summary>
+        private Dictionary<Label, string> CreateLabelMappings()
+        {
+            return new Dictionary<Label, string>
+            {
+                // === HEADER METADATA LABELS ===
+                [lblStatus] = "status",           // "Inoltrato (Terzo Livello)"
+                [lblTipo] = "issuetype",          // "[System] Service request"
+                [lblPriorita] = "priority",       // "Media"
+                [lblAssegnatario] = "assignee",   // "Rosario Romano"
+
+                // *** NUOVO: Summary nell'header (se esiste lblTicketSummary) ***
+                [lblTicketSummary] = "summary"    // "Aci_Vesta"
+            };
+        }
+
 
         /// <summary>
         /// Versione sincrona per compatibilità (sconsigliata)
@@ -183,27 +244,21 @@ namespace JiraTicketManager.Forms
         {
             try
             {
-                // Carica dati ticket per header
-                var ticket = await _dataService.GetTicketAsync(ticketKey);
-                if (ticket == null) return;
+                // Il ticketKey viene già aggiornato dal mapping delle Label
+                // Aggiorna solo il lblTicketKey
+                if (lblTicketKey != null)
+                {
+                    lblTicketKey.Text = $"[{ticketKey}]";
+                }
 
-                // Aggiorna header labels
-                lblTicketKey.Text = $"[{ticket.Key}]";
-                lblTicketSummary.Text = ticket.Summary ?? "Summary non disponibile";
-
-                // Aggiorna metadata badges
-                UpdateStatusBadge(ticket.Status);
-                UpdateTypeBadge(ticket.IssueType);
-                UpdatePriorityBadge(ticket.Priority);
-                UpdateAssigneeBadge(ticket.AssigneeDisplayName);
-
-                _logger.LogDebug($"Header aggiornato per ticket {ticketKey}");
+                _logger.LogDebug($"Header aggiornato per {ticketKey}");
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Errore aggiornamento header per {ticketKey}", ex);
             }
         }
+
 
         /// <summary>
         /// Aggiorna il badge di status
@@ -308,15 +363,33 @@ namespace JiraTicketManager.Forms
         /// </summary>
         private void ClearAllFields()
         {
-            _textBoxManager.ClearAllMappedTextBoxes();
+            try
+            {
+                // Pulisce TextBox
+                var textBoxMappings = CreateTextBoxMappings();
+                foreach (var textBox in textBoxMappings.Keys)
+                {
+                    if (textBox != null)
+                        textBox.Text = "-";
+                }
 
-            // Pulisci header
-            lblTicketKey.Text = "[TICKET-KEY]";
-            lblTicketSummary.Text = "Summary del ticket";
-            lblStatus.Text = "Status";
-            lblTipo.Text = "Tipo";
-            lblPriorita.Text = "Priorità";
-            lblAssegnatario.Text = "Assegnatario";
+                // *** NUOVO: Pulisce Label ***
+                var labelMappings = CreateLabelMappings();
+                foreach (var label in labelMappings.Keys)
+                {
+                    if (label != null)
+                        label.Text = "-";
+                }
+
+                // Reset header
+                if (lblTicketKey != null) lblTicketKey.Text = "[CC-00000]";
+
+                _logger.LogDebug("Tutti i campi puliti");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore pulizia campi", ex);
+            }
         }
 
         #endregion

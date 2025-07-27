@@ -247,10 +247,10 @@ namespace JiraTicketManager.Forms
             lblAssegnatario.BackColor = Color.FromArgb(233, 236, 239);
             lblAssegnatario.Font = new Font("Segoe UI", 8F);
             lblAssegnatario.ForeColor = Color.FromArgb(73, 80, 87);
-            lblAssegnatario.Location = new Point(341, 8);
+            lblAssegnatario.Location = new Point(435, 4);
             lblAssegnatario.Name = "lblAssegnatario";
             lblAssegnatario.Padding = new Padding(5, 2, 2, 2);
-            lblAssegnatario.Size = new Size(150, 20);
+            lblAssegnatario.Size = new Size(136, 31);
             lblAssegnatario.TabIndex = 3;
             lblAssegnatario.Text = "👤 Mario Rossi";
             lblAssegnatario.TextAlign = ContentAlignment.MiddleLeft;
@@ -260,10 +260,10 @@ namespace JiraTicketManager.Forms
             lblPriorita.BackColor = Color.FromArgb(233, 236, 239);
             lblPriorita.Font = new Font("Segoe UI", 8F);
             lblPriorita.ForeColor = Color.FromArgb(255, 87, 34);
-            lblPriorita.Location = new Point(215, 8);
+            lblPriorita.Location = new Point(293, 4);
             lblPriorita.Name = "lblPriorita";
             lblPriorita.Padding = new Padding(5, 2, 2, 2);
-            lblPriorita.Size = new Size(120, 20);
+            lblPriorita.Size = new Size(136, 31);
             lblPriorita.TabIndex = 2;
             lblPriorita.Text = "\U0001f7e0 High";
             lblPriorita.TextAlign = ContentAlignment.MiddleLeft;
@@ -273,10 +273,10 @@ namespace JiraTicketManager.Forms
             lblTipo.BackColor = Color.FromArgb(233, 236, 239);
             lblTipo.Font = new Font("Segoe UI", 8F);
             lblTipo.ForeColor = Color.FromArgb(73, 80, 87);
-            lblTipo.Location = new Point(89, 8);
+            lblTipo.Location = new Point(151, 4);
             lblTipo.Name = "lblTipo";
             lblTipo.Padding = new Padding(5, 2, 2, 2);
-            lblTipo.Size = new Size(120, 20);
+            lblTipo.Size = new Size(136, 31);
             lblTipo.TabIndex = 1;
             lblTipo.Text = "🐛 Bug";
             lblTipo.TextAlign = ContentAlignment.MiddleLeft;
@@ -286,11 +286,11 @@ namespace JiraTicketManager.Forms
             lblStatus.BackColor = Color.FromArgb(220, 53, 69);
             lblStatus.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
             lblStatus.ForeColor = Color.White;
-            lblStatus.Location = new Point(4, 8);
+            lblStatus.Location = new Point(9, 4);
             lblStatus.Name = "lblStatus";
-            lblStatus.Size = new Size(80, 20);
+            lblStatus.Size = new Size(136, 31);
             lblStatus.TabIndex = 0;
-            lblStatus.Text = "Aperto";
+            lblStatus.Text = "Inoltrato (Terzo Livello)";
             lblStatus.TextAlign = ContentAlignment.MiddleCenter;
             // 
             // lblTicketSummary

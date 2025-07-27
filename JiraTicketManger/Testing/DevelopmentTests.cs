@@ -2,6 +2,7 @@
 using JiraTicketManager.Forms;
 using JiraTicketManager.Services;
 using JiraTicketManager.UI.Managers;
+using JiraTicketManager.Utilities;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
@@ -196,38 +197,67 @@ namespace JiraTicketManager.Testing
         {
             try
             {
-                // Scrivi file
-                await File.WriteAllLinesAsync(_testLogPath, _testResults);
-                LogTest($"📁 File salvato: {_testLogPath}");
+                // Salva il file di log
+                var logContent = string.Join(Environment.NewLine, _testResults);
+                await File.WriteAllTextAsync(_testLogPath, logContent);
 
-                // Verifica che il file esista
-                if (File.Exists(_testLogPath))
+                LogTest($"📁 Log salvato: {_testLogPath}");
+
+                // Apri automaticamente il file
+                await OpenFileAutomatically(_testLogPath);
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE salvataggio log: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Apre automaticamente un file con l'applicazione predefinita
+        /// </summary>
+        private async Task OpenFileAutomatically(string filePath)
+        {
+            try
+            {
+                if (!File.Exists(filePath))
                 {
-                    LogTest($"✅ File confermato esistente");
-
-                    // Apri file con programma predefinito
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = _testLogPath,
-                        UseShellExecute = true
-                    });
-
-                    LogTest($"🚀 Comando apertura file eseguito");
-                    _logger.LogInfo($"📝 Test log salvato e comando apertura eseguito: {_testLogPath}");
+                    LogTest($"❌ File non trovato: {filePath}");
+                    return;
                 }
-                else
+
+                // Usa Process.Start per aprire con app predefinita
+                var processInfo = new ProcessStartInfo
                 {
-                    LogTest($"❌ File non trovato dopo salvataggio!");
+                    FileName = filePath,
+                    UseShellExecute = true // Importante per aprire con app predefinita
+                };
+
+                using (var process = Process.Start(processInfo))
+                {
+                    LogTest($"📂 File aperto automaticamente: {Path.GetFileName(filePath)}");
                 }
             }
             catch (Exception ex)
             {
-                LogTest($"❌ ERRORE apertura file: {ex.Message}");
-                _logger.LogError($"Errore apertura file test: {ex.Message}");
+                LogTest($"⚠️ Impossibile aprire automaticamente il file: {ex.Message}");
+                LogTest($"📁 File disponibile manualmente: {filePath}");
             }
-      
-        
         }
+
+        /// <summary>
+        /// Apre automaticamente più file in sequenza
+        /// </summary>
+        private async Task OpenMultipleFilesAutomatically(List<string> filePaths)
+        {
+            foreach (var filePath in filePaths)
+            {
+                await OpenFileAutomatically(filePath);
+
+                // Breve pausa tra le aperture per evitare sovraffollamento
+                await Task.Delay(500);
+            }
+        }
+
 
         /// <summary>
         /// Test priorità numero ticket vs filtri
@@ -1440,6 +1470,9 @@ namespace JiraTicketManager.Testing
                 // 4. Genera suggerimenti per nuovi campi
                 await GenerateFieldMappingSuggestions(ticketKey);
 
+                //  5. Apri automaticamente i file generati ***
+                await OpenGeneratedFilesAutomatically(ticketKey);
+
             }
             catch (Exception ex)
             {
@@ -1451,6 +1484,50 @@ namespace JiraTicketManager.Testing
                 LogTest("");
                 LogTest("🎯 === FINE ANALISI JSON TICKET ===");
                 await SaveAndOpenTestLog();
+            }
+        }
+
+        /// <summary>
+        /// Apre automaticamente tutti i file generati per il ticket
+        /// </summary>
+        private async Task OpenGeneratedFilesAutomatically(string ticketKey)
+        {
+            LogTest("📂 === APERTURA AUTOMATICA FILE ===");
+
+            try
+            {
+                var filesToOpen = new List<string>();
+
+                // File JSON completo
+                var jsonFile = Path.Combine(Environment.CurrentDirectory, $"ticket_{ticketKey}_full.json");
+                if (File.Exists(jsonFile)) filesToOpen.Add(jsonFile);
+
+                // File fields
+                var fieldsFile = Path.Combine(Environment.CurrentDirectory, $"ticket_{ticketKey}_fields.json");
+                if (File.Exists(fieldsFile)) filesToOpen.Add(fieldsFile);
+
+                // File custom fields
+                var customFieldsFile = Path.Combine(Environment.CurrentDirectory, $"ticket_{ticketKey}_customfields.txt");
+                if (File.Exists(customFieldsFile)) filesToOpen.Add(customFieldsFile);
+
+                // File di log test (sempre presente)
+                if (File.Exists(_testLogPath)) filesToOpen.Add(_testLogPath);
+
+                LogTest($"📁 File da aprire: {filesToOpen.Count}");
+
+                if (filesToOpen.Count > 0)
+                {
+                    await OpenMultipleFilesAutomatically(filesToOpen);
+                    LogTest("✅ Tutti i file aperti automaticamente");
+                }
+                else
+                {
+                    LogTest("⚠️ Nessun file da aprire trovato");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE apertura automatica file: {ex.Message}");
             }
         }
 
@@ -1890,7 +1967,7 @@ namespace JiraTicketManager.Testing
         }
 
         /// <summary>
-        /// Ottiene preview del valore per il log
+        /// Ottiene una preview del valore JToken per il logging
         /// </summary>
         private string GetValuePreview(JToken value)
         {
@@ -1906,13 +1983,578 @@ namespace JiraTicketManager.Testing
             if (value.Type == JTokenType.Object)
             {
                 var objStr = value.ToString();
-                return objStr.Length > 100 ? $"= {{...{objStr.Length} chars...}}" : $"= {{{objStr.Substring(0, Math.Min(50, objStr.Length))...}}}";
+                if (objStr.Length > 100)
+                {
+                    return $"= {{...{objStr.Length} chars...}}";
+                }
+                else
+                {
+                    var preview = objStr.Length > 50 ? objStr.Substring(0, 50) + "..." : objStr;
+                    return $"= {{{preview}}}";
+                }
             }
 
             if (value.Type == JTokenType.Array)
-                return $"= [Array: {value.Count()} items]";
+            {
+                var array = value as JArray;
+                return $"= [Array: {array?.Count ?? 0} items]";
+            }
 
             return $"= {value}";
+        }
+
+
+        /// <summary>
+        /// Test specifico per verificare il campo Reporter su più ticket
+        /// </summary>
+        public async Task TestReporterFieldOnMultipleTickets()
+        {
+            LogTest("🔍 === DEBUG REPORTER + EMAIL + TELEFONO ===");
+            LogTest($"📅 Data: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            LogTest("");
+
+            try
+            {
+                var apiService = JiraApiService.CreateFromSettings(SettingsService.CreateDefault());
+                var dataService = new JiraDataService(apiService);
+
+                // Lista di ticket da testare
+                var ticketsToTest = new[]
+                 {
+                        "CC-28812", // Ticket con Cliente Partner: "NARDÒ Comune di - PARSEC 3.26"
+                        "CC-29070", // Ticket corrente
+                        "CC-29069", // Ticket precedente
+                        "CC-29068", // Ancora precedente
+                        "CC-28000"  // Ticket più vecchio
+               };
+
+                LogTest("🎫 Test completo Reporter + Contatti su multipli ticket:");
+                LogTest("");
+
+                foreach (var ticketKey in ticketsToTest)
+                {
+                    try
+                    {
+                        LogTest($"📋 Analisi ticket: {ticketKey}");
+
+                        var ticket = await dataService.GetTicketAsync(ticketKey);
+                        if (ticket == null)
+                        {
+                            LogTest($"   ❌ Ticket {ticketKey} non trovato");
+                            continue;
+                        }
+
+                        var fields = ticket.RawData["fields"];
+
+                        // === TEST CAMPO REPORTER ===
+                        var reporterField = fields?["reporter"];
+                        LogTest($"   👤 REPORTER:");
+
+                        if (reporterField != null && reporterField.Type != JTokenType.Null)
+                        {
+                            var displayName = reporterField["displayName"]?.ToString();
+                            var name = reporterField["name"]?.ToString();
+                            var emailAddress = reporterField["emailAddress"]?.ToString();
+
+                            LogTest($"      ✅ Reporter trovato:");
+                            LogTest($"         • displayName: '{displayName ?? "null"}'");
+                            LogTest($"         • name: '{name ?? "null"}'");
+                            LogTest($"         • emailAddress: '{emailAddress ?? "null"}'");
+                        }
+                        else
+                        {
+                            LogTest($"      ❌ Reporter: NULL");
+                        }
+
+                        // === TEST CUSTOM FIELD EMAIL ===
+                        LogTest($"   📧 EMAIL CUSTOM FIELDS:");
+
+                        var emailFields = new[]
+                        {
+                    "customfield_10136", // Email Richiedente principale
+                    "customfield_10271",  // P.M. (mail)
+                    "customfield_10272",  // Commerciale (mail)
+                    "customfield_10238"   // Consulente (mail)
+                };
+
+                        foreach (var emailFieldId in emailFields)
+                        {
+                            var emailField = fields?[emailFieldId];
+                            if (emailField != null && emailField.Type != JTokenType.Null)
+                            {
+                                var emailValue = emailField.ToString();
+                                LogTest($"      ✅ {emailFieldId}: '{emailValue}'");
+                            }
+                            else
+                            {
+                                LogTest($"      ❌ {emailFieldId}: NULL");
+                            }
+                        }
+
+                        // === TEST TELEFONO ===
+                        LogTest($"   📞 TELEFONO:");
+                        var phoneField = fields?["customfield_10074"];
+                        if (phoneField != null && phoneField.Type != JTokenType.Null)
+                        {
+                            var phoneValue = phoneField.ToString();
+                            LogTest($"      ✅ customfield_10074: '{phoneValue}'");
+                        }
+                        else
+                        {
+                            LogTest($"      ❌ customfield_10074: NULL");
+                        }
+
+
+                        LogTest($"   📄 DESCRIZIONE:");
+                        var descriptionField = fields?["description"];
+                        if (descriptionField != null && descriptionField.Type != JTokenType.Null)
+                        {
+                            string descriptionText;
+
+                            if (descriptionField.Type == JTokenType.String)
+                            {
+                                descriptionText = descriptionField.ToString();
+                                LogTest($"      ✅ description (String): '{descriptionText.Substring(0, Math.Min(100, descriptionText.Length))}...'");
+                            }
+                            else if (descriptionField.Type == JTokenType.Object)
+                            {
+                                // È in formato ADF (Atlassian Document Format)
+                                descriptionText = ExtractTextFromADF(descriptionField);
+                                LogTest($"      ✅ description (ADF): '{descriptionText.Substring(0, Math.Min(100, descriptionText.Length))}...'");
+                            }
+                            else
+                            {
+                                LogTest($"      ⚠️ description (Tipo sconosciuto: {descriptionField.Type}): '{descriptionField.ToString().Substring(0, Math.Min(50, descriptionField.ToString().Length))}...'");
+                            }
+                        }
+                        else
+                        {
+                            LogTest($"      ❌ description: NULL");
+                        }
+
+                        // === TEST CLIENTE PARTNER ARRAY ===
+                        LogTest($"   🏢 CLIENTE PARTNER (ARRAY):");
+                        var clientePartnerField = fields?["customfield_10103"];
+                        if (clientePartnerField != null && clientePartnerField.Type != JTokenType.Null)
+                        {
+                            LogTest($"      🔍 Tipo campo: {clientePartnerField.Type}");
+
+                            if (clientePartnerField.Type == JTokenType.Array)
+                            {
+                                var array = clientePartnerField as JArray;
+                                LogTest($"      📊 Array elementi: {array?.Count ?? 0}");
+
+                                for (int i = 0; i < (array?.Count ?? 0); i++)
+                                {
+                                    var item = array[i];
+                                    LogTest($"      📋 Elemento [{i}]:");
+                                    LogTest($"         • Tipo: {item?.Type}");
+
+                                    if (item?.Type == JTokenType.Object)
+                                    {
+                                        // Analizza la struttura dell'oggetto
+                                        foreach (var property in (item as JObject)?.Properties() ?? Enumerable.Empty<JProperty>())
+                                        {
+                                            var propValue = property.Value?.ToString();
+                                            var preview = propValue?.Length > 50 ? propValue.Substring(0, 50) + "..." : propValue;
+                                            LogTest($"         • {property.Name}: '{preview}'");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        var value = item?.ToString();
+                                        var preview = value?.Length > 100 ? value.Substring(0, 100) + "..." : value;
+                                        LogTest($"         • Valore: '{preview}'");
+                                    }
+                                }
+
+                                // Tenta estrazione con metodi esistenti
+                                LogTest($"      🧪 Test estrazione con metodi esistenti:");
+                                try
+                                {
+                                    // Test con JiraFieldExtractor
+                                    var extractorValue = JiraFieldExtractor.ExtractField(ticket.RawData, "ClientePartner");
+                                    LogTest($"         • JiraFieldExtractor: '{extractorValue}'");
+                                }
+                                catch (Exception ex)
+                                {
+                                    LogTest($"         • JiraFieldExtractor: ERRORE - {ex.Message}");
+                                }
+
+                                try
+                                {
+                                    // Test con ExtractCustomFieldValue (se esiste)
+                                    var customValue = ExtractCustomFieldForTest(clientePartnerField);
+                                    LogTest($"         • ExtractCustomFieldValue: '{customValue}'");
+                                }
+                                catch (Exception ex)
+                                {
+                                    LogTest($"         • ExtractCustomFieldValue: ERRORE - {ex.Message}");
+                                }
+                            }
+                            else if (clientePartnerField.Type == JTokenType.Object)
+                            {
+                                LogTest($"      📋 Oggetto singolo:");
+                                foreach (var property in (clientePartnerField as JObject)?.Properties() ?? Enumerable.Empty<JProperty>())
+                                {
+                                    var propValue = property.Value?.ToString();
+                                    var preview = propValue?.Length > 50 ? propValue.Substring(0, 50) + "..." : propValue;
+                                    LogTest($"         • {property.Name}: '{preview}'");
+                                }
+                            }
+                            else
+                            {
+                                var value = clientePartnerField.ToString();
+                                LogTest($"      ✅ Valore diretto: '{value}'");
+                            }
+                        }
+                        else
+                        {
+                            LogTest($"      ❌ customfield_10103: NULL");
+                        }
+
+
+
+
+                        // === CONFRONTO CON ASSIGNEE ===
+                        var assignee = fields?["assignee"];
+                        if (assignee != null && assignee.Type != JTokenType.Null)
+                        {
+                            var assigneeDisplayName = assignee["displayName"]?.ToString();
+                            var assigneeEmail = assignee["emailAddress"]?.ToString();
+                            LogTest($"   📊 CONFRONTO - Assignee: '{assigneeDisplayName}' ({assigneeEmail})");
+                        }
+
+                        // === RICERCA EMAIL NEL REPORTER ===
+                        if (reporterField != null && reporterField.Type != JTokenType.Null)
+                        {
+                            var reporterEmail = reporterField["emailAddress"]?.ToString();
+                            if (!string.IsNullOrEmpty(reporterEmail))
+                            {
+                                LogTest($"   💡 SOLUZIONE POSSIBILE: Usa reporter.emailAddress per email richiedente");
+                            }
+                        }
+
+                        LogTest("");
+
+                    }
+                    catch (Exception ex)
+                    {
+                        LogTest($"   ❌ ERRORE analisi {ticketKey}: {ex.Message}");
+                        LogTest("");
+                    }
+                }
+
+                LogTest("💡 === CONCLUSIONI E MAPPING SUGGERITO ===");
+                LogTest("📋 MAPPING RACCOMANDATO:");
+                LogTest("   • txtRichiedente → reporter.displayName");
+                LogTest("   • txtEmail → reporter.emailAddress (se presente) O customfield_10136");
+                LogTest("   • txtTelefono → customfield_10074 (se presente) O 'Non disponibile'");
+                LogTest("");
+                LogTest("🔧 PROSSIMI PASSI:");
+                LogTest("   1. Aggiorna TextBoxManager con mapping corretto");
+                LogTest("   2. Gestisci fallback per campi vuoti");
+                LogTest("   3. Testa double-click su ticket con dati completi");
+                LogTest("");
+
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE GENERALE: {ex.Message}");
+            }
+            finally
+            {
+                await SaveAndOpenTestLog();
+            }
+        }
+
+        /// <summary>
+        /// Estrae testo da Atlassian Document Format (ADF)
+        /// </summary>
+        private string ExtractTextFromADF(JToken adfToken)
+        {
+            try
+            {
+                if (adfToken == null) return "";
+
+                var text = "";
+
+                // Se ha contenuto testuale diretto
+                if (adfToken["text"] != null)
+                {
+                    text += adfToken["text"].ToString();
+                }
+
+                // Elabora contenuto nested
+                if (adfToken["content"] != null && adfToken["content"].Type == JTokenType.Array)
+                {
+                    foreach (var child in adfToken["content"])
+                    {
+                        text += ExtractTextFromADF(child);
+                        if (child["type"]?.ToString() == "paragraph")
+                        {
+                            text += "\n"; // Aggiungi newline dopo i paragrafi
+                        }
+                    }
+                }
+
+                return text.Trim();
+            }
+            catch (Exception ex)
+            {
+                LogTest($"      ❌ ERRORE estrazione ADF: {ex.Message}");
+                return "[Errore estrazione descrizione]";
+            }
+        }
+
+        private string ExtractCustomFieldForTest(JToken fieldValue)
+        {
+            try
+            {
+                if (fieldValue == null || fieldValue.Type == JTokenType.Null)
+                    return "";
+
+                // Gestisce diversi formati di custom field
+                if (fieldValue.Type == JTokenType.String)
+                    return fieldValue.ToString();
+
+                if (fieldValue.Type == JTokenType.Object && fieldValue["value"] != null)
+                    return fieldValue["value"].ToString();
+
+                if (fieldValue.Type == JTokenType.Array && fieldValue.HasValues)
+                {
+                    var firstItem = fieldValue[0];
+                    if (firstItem?["value"] != null)
+                        return firstItem["value"].ToString();
+                    if (firstItem?["name"] != null)
+                        return firstItem["name"].ToString();
+                    return firstItem?.ToString() ?? "";
+                }
+
+                return fieldValue.ToString();
+            }
+            catch
+            {
+                return "[Errore estrazione test]";
+            }
+        }
+
+        #endregion
+
+
+        #region "Cliente Partner" Tests"
+
+        /// <summary>
+        /// Test API dedicata per Cliente Partner con fields specifici
+        /// F12 - Test risoluzione completa Cliente Partner
+        /// </summary>
+        public async Task TestClientePartnerDedicatedAPI()
+        {
+            LogTest("🔍 === TEST CLIENTE PARTNER SEMPLIFICATO ===");
+            LogTest($"📅 Data: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            LogTest("");
+
+            try
+            {
+                var apiService = JiraApiService.CreateFromSettings(SettingsService.CreateDefault());
+                var ticketKey = "CC-28812"; // Ticket con Cliente Partner
+
+                LogTest($"🎫 Ticket di test: {ticketKey}");
+                LogTest($"🎯 Obiettivo: Ottenere 'NARDÒ Comune di - PARSEC 3.26'");
+                LogTest("");
+
+                // Test con SearchIssuesAsync normale (che già funziona)
+                LogTest("📋 TEST VIA SearchIssuesAsync:");
+                var jql = $"key = {ticketKey}";
+                var searchResult = await apiService.SearchIssuesAsync(jql, 0, 1);
+
+                if (searchResult.Issues.Count > 0)
+                {
+                    var issue = searchResult.Issues[0];
+                    LogTest($"   ✅ Ticket trovato");
+
+                    // Analizza customfield_10103 nel dettaglio
+                    var customField = issue["fields"]?["customfield_10103"];
+
+                    LogTest($"   🏢 CUSTOMFIELD_10103 ANALISI DETTAGLIATA:");
+                    LogTest($"   📋 Tipo: {customField?.Type ?? JTokenType.Null}");
+
+                    if (customField != null && customField.Type != JTokenType.Null)
+                    {
+                        LogTest($"   📄 JSON Completo:");
+                        LogTest($"   {customField.ToString(Newtonsoft.Json.Formatting.Indented)}");
+                        LogTest("");
+
+                        if (customField.Type == JTokenType.Array)
+                        {
+                            var array = customField as JArray;
+                            LogTest($"   📊 Array con {array?.Count ?? 0} elementi");
+
+                            for (int i = 0; i < (array?.Count ?? 0); i++)
+                            {
+                                var item = array[i];
+                                LogTest($"   📋 Elemento [{i}]:");
+                                LogTest($"      Tipo: {item?.Type}");
+
+                                if (item?.Type == JTokenType.Object)
+                                {
+                                    var obj = item as JObject;
+                                    LogTest($"      Proprietà oggetto:");
+
+                                    foreach (var prop in obj?.Properties() ?? Enumerable.Empty<JProperty>())
+                                    {
+                                        LogTest($"         • {prop.Name}: '{prop.Value}'");
+                                    }
+
+                                    // Cerca campi che potrebbero contenere il nome
+                                    LogTest($"      🔍 Cerca nome completo:");
+                                    var possibleNameFields = new[] { "displayName", "name", "value", "label", "description", "title" };
+
+                                    foreach (var field in possibleNameFields)
+                                    {
+                                        var value = obj?[field]?.ToString();
+                                        if (!string.IsNullOrEmpty(value))
+                                        {
+                                            LogTest($"         🎯 {field}: '{value}'");
+
+                                            if (value.Contains("NARDÒ") || value.Contains("PARSEC"))
+                                            {
+                                                LogTest($"         ⭐ TROVATO! Campo '{field}' contiene il nome cercato!");
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        LogTest("");
+                        LogTest($"   💡 ANALISI:");
+
+                        // Applica la logica FormatTokenEnhanced che abbiamo sviluppato
+                        var formattedResult = FormatTokenEnhancedForTest(customField);
+                        LogTest($"   🔧 FormatTokenEnhanced result: '{formattedResult}'");
+
+                        // Test vari metodi di estrazione
+                        LogTest($"   🧪 TEST METODI ESTRAZIONE:");
+                        LogTest($"      • ToString(): '{customField.ToString()}'");
+                        LogTest($"      • First element: '{(customField as JArray)?[0]?.ToString() ?? "N/A"}'");
+
+                        if (customField.Type == JTokenType.Array && customField.HasValues)
+                        {
+                            var firstObj = (customField as JArray)?[0] as JObject;
+                            if (firstObj != null)
+                            {
+                                LogTest($"      • First.displayName: '{firstObj["displayName"]?.ToString() ?? "N/A"}'");
+                                LogTest($"      • First.name: '{firstObj["name"]?.ToString() ?? "N/A"}'");
+                                LogTest($"      • First.value: '{firstObj["value"]?.ToString() ?? "N/A"}'");
+                            }
+                        }
+
+                    }
+                    else
+                    {
+                        LogTest($"   ❌ customfield_10103 è NULL o vuoto");
+                    }
+                }
+                else
+                {
+                    LogTest($"   ❌ Ticket non trovato con JQL: {jql}");
+                }
+
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE: {ex.Message}");
+            }
+            finally
+            {
+                LogTest("");
+                LogTest("🎯 === CONCLUSIONI ===");
+                LogTest("Se non troviamo il nome 'NARDÒ Comune di - PARSEC 3.26':");
+                LogTest("1. Il campo potrebbe contenere solo riferimenti ID");
+                LogTest("2. Serve una chiamata API aggiuntiva per risolvere l'ID");
+                LogTest("3. Oppure il nome è in un campo diverso");
+                LogTest("");
+                await SaveAndOpenTestLog();
+            }
+        }
+
+        /// <summary>
+        /// Test della logica FormatTokenEnhanced per debug
+        /// </summary>
+        private string FormatTokenEnhancedForTest(JToken token)
+        {
+            if (token == null || token.Type == JTokenType.Null) return "";
+
+            try
+            {
+                if (token.Type == JTokenType.Array)
+                {
+                    var arr = token as JArray;
+                    if (arr?.Count == 1)
+                    {
+                        var item = arr[0];
+                        if (item?.Type == JTokenType.Object)
+                        {
+                            var obj = item as JObject;
+
+                            // Cerca workspace object
+                            if (obj?["workspaceId"] != null && obj?["objectId"] != null)
+                            {
+                                var objectId = obj["objectId"]?.ToString();
+                                return $"WorkspaceObject ID: {objectId}";
+                            }
+
+                            // Cerca campi standard
+                            var fields = new[] { "displayName", "name", "value", "label" };
+                            foreach (var field in fields)
+                            {
+                                var value = obj[field]?.ToString();
+                                if (!string.IsNullOrEmpty(value))
+                                {
+                                    return value;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return token.ToString();
+            }
+            catch
+            {
+                return "[Errore test]";
+            }
+        }
+
+        // <summary>
+        /// Helper per ottenere header auth (semplificato per test)
+        /// </summary>
+        private string GetAuthHeaderForTest(JiraApiService apiService)
+        {
+            try
+            {
+                // Usa reflection per ottenere credenziali (solo per test)
+                var usernameField = typeof(JiraApiService).GetField("Username",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var tokenField = typeof(JiraApiService).GetField("Token",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                var username = usernameField?.GetValue(apiService)?.ToString();
+                var token = tokenField?.GetValue(apiService)?.ToString();
+
+                if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(token))
+                {
+                    var authValue = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{username}:{token}"));
+                    return $"Basic {authValue}";
+                }
+
+                return "";
+            }
+            catch
+            {
+                return "";
+            }
         }
 
         #endregion

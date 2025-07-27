@@ -177,6 +177,7 @@ namespace JiraTicketManager.Data.Converters
             row["Cliente"] = GetOrganizationValue(fields);
             row["Creato"] = GetSafeStringValue(fields?["created"]);
             row["Completato"] = GetCustomFieldValue(fields, "customfield_10172");
+            
         }
 
         /// <summary>
@@ -202,6 +203,139 @@ namespace JiraTicketManager.Data.Converters
         #endregion
 
         #region Private Methods - Safe Value Extraction
+
+
+
+        /// <summary>
+        /// Estrae in modo sicuro un custom field value.
+        /// Versione avanzata che gestisce oggetti complessi, array e workspace objects.
+        /// </summary>
+        private static string GetSafeCustomFieldValue(JToken fields, string fieldId, LoggingService logger = null)
+        {
+            try
+            {
+                if (fields == null) return "";
+
+                var customField = fields[fieldId];
+                if (customField == null || customField.Type == JTokenType.Null)
+                    return "";
+
+                // Usa la logica avanzata per formattazione
+                return FormatTokenEnhanced(customField, logger);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogDebug($"Errore estrazione custom field {fieldId}: {ex.Message}");
+                return "";
+            }
+        }
+
+
+        private static string FormatTokenEnhanced(JToken token, LoggingService logger = null)
+        {
+            if (token == null || token.Type == JTokenType.Null)
+            {
+                return "";
+            }
+
+            try
+            {
+                switch (token.Type)
+                {
+                    case JTokenType.String:
+                    case JTokenType.Integer:
+                    case JTokenType.Boolean:
+                        return token.ToString();
+
+                    case JTokenType.Date:
+                        if (token is JValue jValue && jValue.Value is DateTime dateValue)
+                        {
+                            return dateValue.ToString("dd/MM/yyyy");
+                        }
+                        return token.ToString();
+
+                    case JTokenType.Object:
+                        var obj = token as JObject;
+
+                        // === GESTIONE SPECIALE WORKSPACE/REFERENCE (Cliente Partner) ===
+                        if (obj?["workspaceId"] != null && obj?["objectId"] != null)
+                        {
+                            var objectId = obj["objectId"]?.ToString();
+                            var id = obj["id"]?.ToString();
+
+                            if (!string.IsNullOrEmpty(objectId))
+                            {
+                                return $"ID: {objectId}";
+                            }
+                            else if (!string.IsNullOrEmpty(id) && id.Contains(":"))
+                            {
+                                var parts = id.Split(':');
+                                return $"Ref: {parts[parts.Length - 1]}";
+                            }
+                            else
+                            {
+                                return "[Riferimento oggetto]";
+                            }
+                        }
+                        else
+                        {
+                            // === GESTIONE NORMALE OGGETTI ===
+                            var possibleFields = new[] { "displayName", "name", "value", "emailAddress", "key" };
+
+                            foreach (var field in possibleFields)
+                            {
+                                if (obj?[field] != null)
+                                {
+                                    var value = obj[field].ToString();
+                                    if (!string.IsNullOrEmpty(value))
+                                    {
+                                        return value;
+                                    }
+                                }
+                            }
+
+                            // Fallback su logica esistente
+                            return GetSafeStringValue(token);
+                        }
+
+                    case JTokenType.Array:
+                        var arr = token as JArray;
+                        if (arr?.Count == 0)
+                        {
+                            return "";
+                        }
+                        else if (arr?.Count == 1)
+                        {
+                            // Array con singolo elemento
+                            return FormatTokenEnhanced(arr[0], logger);
+                        }
+                        else
+                        {
+                            // Array multipli - concatena i valori
+                            var values = new List<string>();
+                            foreach (var item in arr ?? Enumerable.Empty<JToken>())
+                            {
+                                var formattedValue = FormatTokenEnhanced(item, logger);
+                                if (!string.IsNullOrEmpty(formattedValue))
+                                {
+                                    values.Add(formattedValue);
+                                }
+                            }
+                            return string.Join(", ", values);
+                        }
+
+                    default:
+                        return token.ToString();
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.LogDebug($"Errore FormatTokenEnhanced: {ex.Message}");
+                return "[Errore formattazione]";
+            }
+        }
+
+
 
         /// <summary>
         /// Estrae in modo sicuro un valore stringa da un JToken.

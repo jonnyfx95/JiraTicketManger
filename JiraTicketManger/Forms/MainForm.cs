@@ -2407,18 +2407,42 @@ namespace JiraTicketManager
 #if DEBUG
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
+            // F9 - Esegui tutti i test di sviluppo
             if (keyData == Keys.F9)
             {
                 _ = RunDevTestsAsync();
                 return true;
             }
 
-            // *** NUOVO: F12 per generare mappatura ***
-            if (keyData == Keys.F12)
+            // F10 - Analisi JSON ticket selezionato
+            if (keyData == Keys.F10)
             {
-                GenerateAreaApplicativoMapping();
+                _ = _devTests?.TestRealTicketJSONAnalysis();
                 return true;
             }
+
+            // *** NUOVO: F11 - Debug campo Reporter ***
+            if (keyData == Keys.F11)
+            {
+                _ = _devTests?.TestReporterFieldOnMultipleTickets();
+                return true;
+            }
+
+            // F12 - Genera mappatura Area-Applicativo
+            //if (keyData == Keys.F12)
+            //{
+            //    GenerateAreaApplicativoMapping();
+            //    return true;
+            //}
+
+            // F12 - Test API dedicata Cliente Partner  
+            if (keyData == Keys.F12)
+            {
+                _ = _devTests?.TestClientePartnerDedicatedAPI();
+                return true;
+            }
+
+
 
             return base.ProcessCmdKey(ref msg, keyData);
         }
@@ -2503,14 +2527,7 @@ namespace JiraTicketManager
 #endif
 
 
-        #region "Ticket Details Form"
         
-        
-        
-        
-        
-        
-        #endregion
 
 
     }

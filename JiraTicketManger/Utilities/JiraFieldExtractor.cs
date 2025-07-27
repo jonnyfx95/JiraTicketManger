@@ -39,7 +39,7 @@ namespace JiraTicketManager.Utilities
             ["ClientePartner"] = new FieldConfig { Path = "customfield_10053", IsCustomField = true, DefaultValue = "" },
 
             // Altri campi
-            ["Description"] = new FieldConfig { Path = "description", IsADF = true, DefaultValue = "" }
+            ["Description"] = new FieldConfig { Path = "description", DefaultValue = "" }
         };
 
         /// <summary>
