@@ -17,6 +17,7 @@ using JiraTicketManager.Tools;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using JiraTicketManager.Forms;
 
 namespace JiraTicketManager
 {
@@ -1788,17 +1789,281 @@ namespace JiraTicketManager
         }
 
         // Grid Events
-        private void OnTicketDoubleClick(object sender, DataGridViewCellEventArgs e)
+        // <summary>
+        /// Gestisce il double click su una cella del DataGridView
+        /// </summary>
+        private async void OnTicketDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
-            if (e.RowIndex >= 0 && dgvTickets.Rows[e.RowIndex].DataBoundItem is DataRowView row)
+            try
             {
-                var ticketKey = row["Key"]?.ToString();
-                if (!string.IsNullOrEmpty(ticketKey))
+                if (e.RowIndex < 0) return; // Click su header
+
+                // Estrai ticket key dalla riga
+                var ticketKey = GetTicketKeyFromRow(e.RowIndex);
+                if (string.IsNullOrEmpty(ticketKey))
                 {
-                    OpenTicketDetails(ticketKey);
+                    _logger.LogWarning("Ticket key non trovato nella riga selezionata");
+                    return;
                 }
+
+                _logger.LogInfo($"Double-click su ticket: {ticketKey}");
+
+                // Apri form dettaglio
+                await OpenTicketDetailAsync(ticketKey);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore gestione double-click ticket", ex);
+                _toastService?.ShowError("Errore", $"Errore apertura dettaglio: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Estrae la chiave del ticket dalla riga del DataGridView
+        /// </summary>
+        private string GetTicketKeyFromRow(int rowIndex)
+        {
+            try
+            {
+                if (rowIndex < 0 || rowIndex >= dgvTickets.Rows.Count)
+                    return null;
+
+                var row = dgvTickets.Rows[rowIndex];
+
+                // Metodo 1: DataBoundItem (più affidabile)
+                if (row.DataBoundItem is DataRowView dataRow)
+                {
+                    var key = dataRow["Key"]?.ToString();
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        _logger.LogDebug($"Ticket key estratto da DataBoundItem: {key}");
+                        return key;
+                    }
+                }
+
+                // Metodo 2: Cerca colonna "Key"
+                if (dgvTickets.Columns.Contains("Key"))
+                {
+                    var key = row.Cells["Key"]?.Value?.ToString();
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        _logger.LogDebug($"Ticket key estratto da colonna Key: {key}");
+                        return key;
+                    }
+                }
+
+                // Metodo 3: Prima colonna se contiene formato ticket
+                var firstCellValue = row.Cells[0]?.Value?.ToString();
+                if (!string.IsNullOrEmpty(firstCellValue) && firstCellValue.Contains("-"))
+                {
+                    _logger.LogDebug($"Ticket key estratto da prima colonna: {firstCellValue}");
+                    return firstCellValue;
+                }
+
+                _logger.LogWarning($"Impossibile estrarre ticket key dalla riga {rowIndex}");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore estrazione ticket key dalla riga {rowIndex}", ex);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Apre la form di dettaglio ticket
+        /// </summary>
+        private async Task OpenTicketDetailAsync(string ticketKey)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(ticketKey))
+                {
+                    _logger.LogWarning("Tentativo apertura dettaglio con ticket key vuoto");
+                    return;
+                }
+
+                _logger.LogInfo($"Apertura form dettaglio per ticket: {ticketKey}");
+
+                // Crea nuova istanza della form
+                var detailForm = new TicketDetailForm();
+
+                // Configura la form
+                ConfigureDetailForm(detailForm, ticketKey);
+
+                // Mostra la form (non bloccante)
+                detailForm.Show();
+
+                // Carica i dati del ticket (asincrono)
+                await detailForm.LoadTicketAsync(ticketKey);
+
+                _logger.LogInfo($"Form dettaglio aperta per ticket: {ticketKey}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore apertura form dettaglio per {ticketKey}", ex);
+
+                // Mostra errore all'utente
+                _toastService?.ShowError(
+                    "Errore Apertura Dettaglio",
+                    $"Impossibile aprire il dettaglio del ticket {ticketKey}.\n\nErrore: {ex.Message}"
+                );
+            }
+        }
+
+        /// <summary>
+        /// Centra la form sullo schermo
+        /// </summary>
+        private void CenterFormOnScreen(Form form)
+        {
+            try
+            {
+                // Ottieni lo schermo che contiene la MainForm
+                var screen = Screen.FromControl(this);
+                var workingArea = screen.WorkingArea;
+
+                // Calcola posizione centrata
+                var x = workingArea.X + (workingArea.Width - form.Width) / 2;
+                var y = workingArea.Y + (workingArea.Height - form.Height) / 2;
+
+                // Assicurati che sia dentro i bounds dello schermo
+                x = Math.Max(workingArea.X, Math.Min(x, workingArea.Right - form.Width));
+                y = Math.Max(workingArea.Y, Math.Min(y, workingArea.Bottom - form.Height));
+
+                // Imposta posizione
+                form.StartPosition = FormStartPosition.Manual;
+                form.Location = new Point(x, y);
+
+                _logger.LogDebug($"Form centrata a posizione: {x}, {y}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore centratura form", ex);
+
+                // Fallback: centra sullo schermo principale
+                form.StartPosition = FormStartPosition.CenterScreen;
+            }
+        }
+
+        /// <summary>
+        /// Apre dettaglio ticket da tastiera (Enter su riga selezionata)
+        /// </summary>
+        private async void OnDataGridKeyDown(object sender, KeyEventArgs e)
+        {
+            try
+            {
+                if (e.KeyCode == Keys.Enter && dgvTickets.CurrentRow != null)
+                {
+                    var ticketKey = GetTicketKeyFromRow(dgvTickets.CurrentRow.Index);
+                    if (!string.IsNullOrEmpty(ticketKey))
+                    {
+                        e.Handled = true; // Previeni comportamento default
+                        await OpenTicketDetailAsync(ticketKey);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore gestione tasto Enter su DataGrid", ex);
+            }
+        }
+
+        /// <summary>
+        /// Setup event handlers aggiuntivi (OPZIONALE - chiama in InitializeDataGrid)
+        /// </summary>
+        private void SetupAdditionalDataGridEvents()
+        {
+            try
+            {
+                // Aggiungi event handler per Enter key (opzionale)
+                dgvTickets.KeyDown += OnDataGridKeyDown;
+
+                _logger.LogDebug("Event handlers aggiuntivi DataGrid configurati");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore setup event handlers DataGrid", ex);
+            }
+        }
+
+
+        /// <summary>
+        /// Crea context menu per click destro su riga (OPZIONALE)
+        /// </summary>
+        private void SetupDataGridContextMenu()
+        {
+            try
+            {
+                var contextMenu = new ContextMenuStrip();
+
+                // Menu item "Apri Dettaglio"
+                var openDetailItem = new ToolStripMenuItem("Apri Dettaglio", null, async (s, e) => {
+                    if (dgvTickets.CurrentRow != null)
+                    {
+                        var ticketKey = GetTicketKeyFromRow(dgvTickets.CurrentRow.Index);
+                        if (!string.IsNullOrEmpty(ticketKey))
+                        {
+                            await OpenTicketDetailAsync(ticketKey);
+                        }
+                    }
+                });
+
+                // Menu item "Copia Ticket Key"
+                var copyKeyItem = new ToolStripMenuItem("Copia Numero Ticket", null, (s, e) => {
+                    if (dgvTickets.CurrentRow != null)
+                    {
+                        var ticketKey = GetTicketKeyFromRow(dgvTickets.CurrentRow.Index);
+                        if (!string.IsNullOrEmpty(ticketKey))
+                        {
+                            Clipboard.SetText(ticketKey);
+                            _toastService?.ShowSuccess("Copiato", $"Numero ticket {ticketKey} copiato negli appunti");
+                        }
+                    }
+                });
+
+                contextMenu.Items.AddRange(new ToolStripItem[] { openDetailItem, copyKeyItem });
+                dgvTickets.ContextMenuStrip = contextMenu;
+
+                _logger.LogDebug("Context menu DataGrid configurato");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore setup context menu DataGrid", ex);
+            }
+        }
+
+
+        // <summary>
+        /// Configura la form di dettaglio prima dell'apertura
+        /// </summary>
+        private void ConfigureDetailForm(TicketDetailForm detailForm, string ticketKey)
+        {
+            try
+            {
+                // Titolo della finestra
+                detailForm.Text = $"Dettaglio Ticket - {ticketKey}";
+
+                // Dimensioni ottimali per desktop FullHD
+                detailForm.Size = new Size(1620, 1055);
+                detailForm.MinimumSize = new Size(1400, 900);
+
+                // Centra sullo schermo
+                CenterFormOnScreen(detailForm);
+
+                // Icona (se disponibile)
+                if (this.Icon != null)
+                {
+                    detailForm.Icon = this.Icon;
+                }
+
+                _logger.LogDebug($"Form dettaglio configurata per {ticketKey}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore configurazione form dettaglio per {ticketKey}", ex);
+            }
+        }
+
 
         private void OnTicketSelectionChanged(object sender, EventArgs e)
         {
@@ -2236,6 +2501,17 @@ namespace JiraTicketManager
             _logger.LogInfo($"    Original: '{originalValue}'");
         }
 #endif
+
+
+        #region "Ticket Details Form"
+        
+        
+        
+        
+        
+        
+        #endregion
+
 
     }
 }

@@ -37,6 +37,10 @@ namespace JiraTicketManager.Forms
             pnlHeader = new Panel();
             pnlTicketInfo = new Panel();
             pnlMetadata = new Panel();
+            btnEsporta = new Button();
+            pnlTicketAction = new Panel();
+            btnChiudi = new Button();
+            btnAssegna = new Button();
             lblAssegnatario = new Label();
             lblPriorita = new Label();
             lblTipo = new Label();
@@ -54,6 +58,10 @@ namespace JiraTicketManager.Forms
             tsbClose = new ToolStripButton();
             pnlMain = new Panel();
             pnlCenter = new Panel();
+            statusStrip1 = new StatusStrip();
+            tslConnection = new ToolStripStatusLabel();
+            tsCommentNumber = new ToolStripStatusLabel();
+            tslLastUpdate = new ToolStripStatusLabel();
             pnlActivity = new Panel();
             tcActivity = new TabControl();
             tpComments = new TabPage();
@@ -90,6 +98,9 @@ namespace JiraTicketManager.Forms
             lblCliente = new Label();
             lblOrganizationTitle = new Label();
             pnlLeft = new Panel();
+            panel1 = new Panel();
+            btnPianifica = new Button();
+            btnCommento = new Button();
             pnlPlanningIntervento = new Panel();
             nudEffort = new NumericUpDown();
             lblEffort = new Label();
@@ -116,23 +127,14 @@ namespace JiraTicketManager.Forms
             txtRichiedente = new TextBox();
             lblRichiedente = new Label();
             lblContactTitle = new Label();
-            btnEsporta = new Button();
-            btnCommento = new Button();
-            btnAssegna = new Button();
-            btnPianifica = new Button();
-            btnChiudi = new Button();
-            pnlTicketAction = new Panel();
-            panel1 = new Panel();
-            statusStrip1 = new StatusStrip();
-            tslConnection = new ToolStripStatusLabel();
-            tsCommentNumber = new ToolStripStatusLabel();
-            tslLastUpdate = new ToolStripStatusLabel();
             pnlHeader.SuspendLayout();
             pnlTicketInfo.SuspendLayout();
             pnlMetadata.SuspendLayout();
+            pnlTicketAction.SuspendLayout();
             tsHeader.SuspendLayout();
             pnlMain.SuspendLayout();
             pnlCenter.SuspendLayout();
+            statusStrip1.SuspendLayout();
             pnlActivity.SuspendLayout();
             tcActivity.SuspendLayout();
             tpComments.SuspendLayout();
@@ -143,13 +145,11 @@ namespace JiraTicketManager.Forms
             pnlTeamPlanning.SuspendLayout();
             pnlOrganization.SuspendLayout();
             pnlLeft.SuspendLayout();
+            panel1.SuspendLayout();
             pnlPlanningIntervento.SuspendLayout();
             ((ISupportInitialize)nudEffort).BeginInit();
             pnlTimeline.SuspendLayout();
             pnlContact.SuspendLayout();
-            pnlTicketAction.SuspendLayout();
-            panel1.SuspendLayout();
-            statusStrip1.SuspendLayout();
             SuspendLayout();
             // 
             // pnlHeader
@@ -167,8 +167,6 @@ namespace JiraTicketManager.Forms
             // pnlTicketInfo
             // 
             pnlTicketInfo.BackColor = Color.FromArgb(248, 249, 250);
-            pnlTicketInfo.Controls.Add(pnlTicketAction);
-            pnlTicketInfo.Controls.Add(btnEsporta);
             pnlTicketInfo.Controls.Add(pnlMetadata);
             pnlTicketInfo.Controls.Add(lblTicketSummary);
             pnlTicketInfo.Controls.Add(lblTicketKey);
@@ -182,14 +180,67 @@ namespace JiraTicketManager.Forms
             // pnlMetadata
             // 
             pnlMetadata.BackColor = Color.Transparent;
+            pnlMetadata.Controls.Add(btnEsporta);
+            pnlMetadata.Controls.Add(pnlTicketAction);
             pnlMetadata.Controls.Add(lblAssegnatario);
             pnlMetadata.Controls.Add(lblPriorita);
             pnlMetadata.Controls.Add(lblTipo);
             pnlMetadata.Controls.Add(lblStatus);
             pnlMetadata.Location = new Point(15, 40);
             pnlMetadata.Name = "pnlMetadata";
-            pnlMetadata.Size = new Size(800, 40);
+            pnlMetadata.Size = new Size(1130, 40);
             pnlMetadata.TabIndex = 2;
+            // 
+            // btnEsporta
+            // 
+            btnEsporta.BackColor = Color.FromArgb(8, 145, 178);
+            btnEsporta.FlatAppearance.BorderSize = 0;
+            btnEsporta.FlatStyle = FlatStyle.Flat;
+            btnEsporta.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnEsporta.ForeColor = Color.White;
+            btnEsporta.Location = new Point(1037, 8);
+            btnEsporta.Name = "btnEsporta";
+            btnEsporta.Size = new Size(90, 23);
+            btnEsporta.TabIndex = 4;
+            btnEsporta.Text = "📊 Esporta";
+            btnEsporta.UseVisualStyleBackColor = false;
+            // 
+            // pnlTicketAction
+            // 
+            pnlTicketAction.Controls.Add(btnChiudi);
+            pnlTicketAction.Controls.Add(btnAssegna);
+            pnlTicketAction.Location = new Point(826, 3);
+            pnlTicketAction.Name = "pnlTicketAction";
+            pnlTicketAction.Size = new Size(205, 31);
+            pnlTicketAction.TabIndex = 5;
+            // 
+            // btnChiudi
+            // 
+            btnChiudi.BackColor = Color.FromArgb(40, 167, 69);
+            btnChiudi.FlatAppearance.BorderSize = 0;
+            btnChiudi.FlatStyle = FlatStyle.Flat;
+            btnChiudi.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnChiudi.ForeColor = Color.White;
+            btnChiudi.Location = new Point(3, 5);
+            btnChiudi.Name = "btnChiudi";
+            btnChiudi.Size = new Size(106, 23);
+            btnChiudi.TabIndex = 2;
+            btnChiudi.Text = "✅ Chiudi Ticket";
+            btnChiudi.UseVisualStyleBackColor = false;
+            // 
+            // btnAssegna
+            // 
+            btnAssegna.BackColor = Color.FromArgb(217, 119, 6);
+            btnAssegna.FlatAppearance.BorderSize = 0;
+            btnAssegna.FlatStyle = FlatStyle.Flat;
+            btnAssegna.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnAssegna.ForeColor = Color.White;
+            btnAssegna.Location = new Point(110, 5);
+            btnAssegna.Name = "btnAssegna";
+            btnAssegna.Size = new Size(90, 23);
+            btnAssegna.TabIndex = 1;
+            btnAssegna.Text = "👤 Assegna";
+            btnAssegna.UseVisualStyleBackColor = false;
             // 
             // lblAssegnatario
             // 
@@ -369,6 +420,38 @@ namespace JiraTicketManager.Forms
             pnlCenter.Size = new Size(860, 929);
             pnlCenter.TabIndex = 1;
             // 
+            // statusStrip1
+            // 
+            statusStrip1.BackColor = Color.FromArgb(248, 249, 250);
+            statusStrip1.Font = new Font("Segoe UI", 8F);
+            statusStrip1.Items.AddRange(new ToolStripItem[] { tslConnection, tsCommentNumber, tslLastUpdate });
+            statusStrip1.Location = new Point(5, 895);
+            statusStrip1.Name = "statusStrip1";
+            statusStrip1.Size = new Size(848, 22);
+            statusStrip1.TabIndex = 4;
+            statusStrip1.Text = "statusStrip1";
+            // 
+            // tslConnection
+            // 
+            tslConnection.ForeColor = Color.FromArgb(40, 167, 69);
+            tslConnection.Name = "tslConnection";
+            tslConnection.Size = new Size(102, 17);
+            tslConnection.Text = "\U0001f7e2 Connesso a Jira";
+            // 
+            // tsCommentNumber
+            // 
+            tsCommentNumber.Name = "tsCommentNumber";
+            tsCommentNumber.Size = new Size(544, 17);
+            tsCommentNumber.Spring = true;
+            tsCommentNumber.Text = "Numero Commenti";
+            // 
+            // tslLastUpdate
+            // 
+            tslLastUpdate.Name = "tslLastUpdate";
+            tslLastUpdate.Size = new Size(187, 17);
+            tslLastUpdate.Text = "🕒 Ultimo aggiornamento: 20:13:08";
+            tslLastUpdate.TextAlign = ContentAlignment.MiddleRight;
+            // 
             // pnlActivity
             // 
             pnlActivity.BackColor = Color.White;
@@ -482,7 +565,7 @@ namespace JiraTicketManager.Forms
             pnlDescription.BorderStyle = BorderStyle.FixedSingle;
             pnlDescription.Controls.Add(txtDescrizione);
             pnlDescription.Controls.Add(lblDescriptionTitle);
-            pnlDescription.Location = new Point(5, 10);
+            pnlDescription.Location = new Point(5, 2);
             pnlDescription.Name = "pnlDescription";
             pnlDescription.Size = new Size(850, 400);
             pnlDescription.TabIndex = 0;
@@ -499,7 +582,7 @@ namespace JiraTicketManager.Forms
             txtDescrizione.Name = "txtDescrizione";
             txtDescrizione.ReadOnly = true;
             txtDescrizione.ScrollBars = ScrollBars.Vertical;
-            txtDescrizione.Size = new Size(834, 360);
+            txtDescrizione.Size = new Size(832, 359);
             txtDescrizione.TabIndex = 1;
             txtDescrizione.Text = resources.GetString("txtDescrizione.Text");
             // 
@@ -564,7 +647,7 @@ namespace JiraTicketManager.Forms
             lblWBS.AutoSize = true;
             lblWBS.Font = new Font("Segoe UI", 9F);
             lblWBS.ForeColor = Color.FromArgb(52, 73, 94);
-            lblWBS.Location = new Point(15, 125);
+            lblWBS.Location = new Point(9, 124);
             lblWBS.Name = "lblWBS";
             lblWBS.Size = new Size(34, 15);
             lblWBS.TabIndex = 7;
@@ -588,7 +671,7 @@ namespace JiraTicketManager.Forms
             lblResponsabile.AutoSize = true;
             lblResponsabile.Font = new Font("Segoe UI", 9F);
             lblResponsabile.ForeColor = Color.FromArgb(52, 73, 94);
-            lblResponsabile.Location = new Point(15, 95);
+            lblResponsabile.Location = new Point(5, 94);
             lblResponsabile.Name = "lblResponsabile";
             lblResponsabile.Size = new Size(79, 15);
             lblResponsabile.TabIndex = 5;
@@ -612,7 +695,7 @@ namespace JiraTicketManager.Forms
             lblPM.AutoSize = true;
             lblPM.Font = new Font("Segoe UI", 9F);
             lblPM.ForeColor = Color.FromArgb(52, 73, 94);
-            lblPM.Location = new Point(15, 65);
+            lblPM.Location = new Point(9, 64);
             lblPM.Name = "lblPM";
             lblPM.Size = new Size(28, 15);
             lblPM.TabIndex = 3;
@@ -635,7 +718,7 @@ namespace JiraTicketManager.Forms
             lblConsulente.AutoSize = true;
             lblConsulente.Font = new Font("Segoe UI", 9F);
             lblConsulente.ForeColor = Color.FromArgb(52, 73, 94);
-            lblConsulente.Location = new Point(15, 35);
+            lblConsulente.Location = new Point(3, 35);
             lblConsulente.Name = "lblConsulente";
             lblConsulente.Size = new Size(70, 15);
             lblConsulente.TabIndex = 1;
@@ -715,7 +798,7 @@ namespace JiraTicketManager.Forms
             lblCommerciale.AutoSize = true;
             lblCommerciale.Font = new Font("Segoe UI", 9F);
             lblCommerciale.ForeColor = Color.FromArgb(52, 73, 94);
-            lblCommerciale.Location = new Point(15, 125);
+            lblCommerciale.Location = new Point(3, 124);
             lblCommerciale.Name = "lblCommerciale";
             lblCommerciale.Size = new Size(81, 15);
             lblCommerciale.TabIndex = 7;
@@ -739,7 +822,7 @@ namespace JiraTicketManager.Forms
             lblApplicativo.AutoSize = true;
             lblApplicativo.Font = new Font("Segoe UI", 9F);
             lblApplicativo.ForeColor = Color.FromArgb(52, 73, 94);
-            lblApplicativo.Location = new Point(15, 95);
+            lblApplicativo.Location = new Point(5, 94);
             lblApplicativo.Name = "lblApplicativo";
             lblApplicativo.Size = new Size(70, 15);
             lblApplicativo.TabIndex = 5;
@@ -763,7 +846,7 @@ namespace JiraTicketManager.Forms
             lblArea.AutoSize = true;
             lblArea.Font = new Font("Segoe UI", 9F);
             lblArea.ForeColor = Color.FromArgb(52, 73, 94);
-            lblArea.Location = new Point(15, 65);
+            lblArea.Location = new Point(5, 64);
             lblArea.Name = "lblArea";
             lblArea.Size = new Size(34, 15);
             lblArea.TabIndex = 3;
@@ -787,7 +870,7 @@ namespace JiraTicketManager.Forms
             lblCliente.AutoSize = true;
             lblCliente.Font = new Font("Segoe UI", 9F);
             lblCliente.ForeColor = Color.FromArgb(52, 73, 94);
-            lblCliente.Location = new Point(15, 35);
+            lblCliente.Location = new Point(5, 35);
             lblCliente.Name = "lblCliente";
             lblCliente.Size = new Size(47, 15);
             lblCliente.TabIndex = 1;
@@ -819,6 +902,43 @@ namespace JiraTicketManager.Forms
             pnlLeft.Padding = new Padding(10, 10, 5, 10);
             pnlLeft.Size = new Size(380, 929);
             pnlLeft.TabIndex = 0;
+            // 
+            // panel1
+            // 
+            panel1.Controls.Add(btnPianifica);
+            panel1.Controls.Add(btnCommento);
+            panel1.Location = new Point(11, 452);
+            panel1.Name = "panel1";
+            panel1.Size = new Size(362, 29);
+            panel1.TabIndex = 4;
+            // 
+            // btnPianifica
+            // 
+            btnPianifica.BackColor = Color.FromArgb(0, 120, 212);
+            btnPianifica.FlatAppearance.BorderSize = 0;
+            btnPianifica.FlatStyle = FlatStyle.Flat;
+            btnPianifica.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnPianifica.ForeColor = Color.White;
+            btnPianifica.Location = new Point(3, 3);
+            btnPianifica.Name = "btnPianifica";
+            btnPianifica.Size = new Size(90, 23);
+            btnPianifica.TabIndex = 0;
+            btnPianifica.Text = "📅 Pianifica";
+            btnPianifica.UseVisualStyleBackColor = false;
+            // 
+            // btnCommento
+            // 
+            btnCommento.BackColor = Color.FromArgb(108, 117, 125);
+            btnCommento.FlatAppearance.BorderSize = 0;
+            btnCommento.FlatStyle = FlatStyle.Flat;
+            btnCommento.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnCommento.ForeColor = Color.White;
+            btnCommento.Location = new Point(268, 3);
+            btnCommento.Name = "btnCommento";
+            btnCommento.Size = new Size(90, 23);
+            btnCommento.TabIndex = 3;
+            btnCommento.Text = "💬 Commento";
+            btnCommento.UseVisualStyleBackColor = false;
             // 
             // pnlPlanningIntervento
             // 
@@ -1143,126 +1263,6 @@ namespace JiraTicketManager.Forms
             lblContactTitle.TabIndex = 0;
             lblContactTitle.Text = "👤 RICHIEDENTE";
             // 
-            // btnEsporta
-            // 
-            btnEsporta.BackColor = Color.FromArgb(8, 145, 178);
-            btnEsporta.FlatAppearance.BorderSize = 0;
-            btnEsporta.FlatStyle = FlatStyle.Flat;
-            btnEsporta.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            btnEsporta.ForeColor = Color.White;
-            btnEsporta.Location = new Point(821, 48);
-            btnEsporta.Name = "btnEsporta";
-            btnEsporta.Size = new Size(90, 23);
-            btnEsporta.TabIndex = 4;
-            btnEsporta.Text = "📊 Esporta";
-            btnEsporta.UseVisualStyleBackColor = false;
-            // 
-            // btnCommento
-            // 
-            btnCommento.BackColor = Color.FromArgb(108, 117, 125);
-            btnCommento.FlatAppearance.BorderSize = 0;
-            btnCommento.FlatStyle = FlatStyle.Flat;
-            btnCommento.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            btnCommento.ForeColor = Color.White;
-            btnCommento.Location = new Point(268, 3);
-            btnCommento.Name = "btnCommento";
-            btnCommento.Size = new Size(90, 23);
-            btnCommento.TabIndex = 3;
-            btnCommento.Text = "💬 Commento";
-            btnCommento.UseVisualStyleBackColor = false;
-            // 
-            // btnAssegna
-            // 
-            btnAssegna.BackColor = Color.FromArgb(217, 119, 6);
-            btnAssegna.FlatAppearance.BorderSize = 0;
-            btnAssegna.FlatStyle = FlatStyle.Flat;
-            btnAssegna.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            btnAssegna.ForeColor = Color.White;
-            btnAssegna.Location = new Point(110, 5);
-            btnAssegna.Name = "btnAssegna";
-            btnAssegna.Size = new Size(90, 23);
-            btnAssegna.TabIndex = 1;
-            btnAssegna.Text = "👤 Assegna";
-            btnAssegna.UseVisualStyleBackColor = false;
-            // 
-            // btnPianifica
-            // 
-            btnPianifica.BackColor = Color.FromArgb(0, 120, 212);
-            btnPianifica.FlatAppearance.BorderSize = 0;
-            btnPianifica.FlatStyle = FlatStyle.Flat;
-            btnPianifica.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            btnPianifica.ForeColor = Color.White;
-            btnPianifica.Location = new Point(3, 3);
-            btnPianifica.Name = "btnPianifica";
-            btnPianifica.Size = new Size(90, 23);
-            btnPianifica.TabIndex = 0;
-            btnPianifica.Text = "📅 Pianifica";
-            btnPianifica.UseVisualStyleBackColor = false;
-            // 
-            // btnChiudi
-            // 
-            btnChiudi.BackColor = Color.FromArgb(40, 167, 69);
-            btnChiudi.FlatAppearance.BorderSize = 0;
-            btnChiudi.FlatStyle = FlatStyle.Flat;
-            btnChiudi.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            btnChiudi.ForeColor = Color.White;
-            btnChiudi.Location = new Point(3, 5);
-            btnChiudi.Name = "btnChiudi";
-            btnChiudi.Size = new Size(106, 23);
-            btnChiudi.TabIndex = 2;
-            btnChiudi.Text = "✅ Chiudi Ticket";
-            btnChiudi.UseVisualStyleBackColor = false;
-            // 
-            // pnlTicketAction
-            // 
-            pnlTicketAction.Controls.Add(btnChiudi);
-            pnlTicketAction.Controls.Add(btnAssegna);
-            pnlTicketAction.Location = new Point(1410, 46);
-            pnlTicketAction.Name = "pnlTicketAction";
-            pnlTicketAction.Size = new Size(205, 37);
-            pnlTicketAction.TabIndex = 5;
-            // 
-            // panel1
-            // 
-            panel1.Controls.Add(btnPianifica);
-            panel1.Controls.Add(btnCommento);
-            panel1.Location = new Point(11, 452);
-            panel1.Name = "panel1";
-            panel1.Size = new Size(362, 29);
-            panel1.TabIndex = 4;
-            // 
-            // statusStrip1
-            // 
-            statusStrip1.BackColor = Color.FromArgb(248, 249, 250);
-            statusStrip1.Font = new Font("Segoe UI", 8F);
-            statusStrip1.Items.AddRange(new ToolStripItem[] { tslConnection, tsCommentNumber, tslLastUpdate });
-            statusStrip1.Location = new Point(5, 895);
-            statusStrip1.Name = "statusStrip1";
-            statusStrip1.Size = new Size(848, 22);
-            statusStrip1.TabIndex = 4;
-            statusStrip1.Text = "statusStrip1";
-            // 
-            // tslConnection
-            // 
-            tslConnection.ForeColor = Color.FromArgb(40, 167, 69);
-            tslConnection.Name = "tslConnection";
-            tslConnection.Size = new Size(102, 17);
-            tslConnection.Text = "\U0001f7e2 Connesso a Jira";
-            // 
-            // tsCommentNumber
-            // 
-            tsCommentNumber.Name = "tsCommentNumber";
-            tsCommentNumber.Size = new Size(544, 17);
-            tsCommentNumber.Spring = true;
-            tsCommentNumber.Text = "Numero Commenti";
-            // 
-            // tslLastUpdate
-            // 
-            tslLastUpdate.Name = "tslLastUpdate";
-            tslLastUpdate.Size = new Size(187, 17);
-            tslLastUpdate.Text = "🕒 Ultimo aggiornamento: 20:13:08";
-            tslLastUpdate.TextAlign = ContentAlignment.MiddleRight;
-            // 
             // TicketDetailForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -1281,11 +1281,14 @@ namespace JiraTicketManager.Forms
             pnlTicketInfo.ResumeLayout(false);
             pnlTicketInfo.PerformLayout();
             pnlMetadata.ResumeLayout(false);
+            pnlTicketAction.ResumeLayout(false);
             tsHeader.ResumeLayout(false);
             tsHeader.PerformLayout();
             pnlMain.ResumeLayout(false);
             pnlCenter.ResumeLayout(false);
             pnlCenter.PerformLayout();
+            statusStrip1.ResumeLayout(false);
+            statusStrip1.PerformLayout();
             pnlActivity.ResumeLayout(false);
             tcActivity.ResumeLayout(false);
             tpComments.ResumeLayout(false);
@@ -1299,6 +1302,7 @@ namespace JiraTicketManager.Forms
             pnlOrganization.ResumeLayout(false);
             pnlOrganization.PerformLayout();
             pnlLeft.ResumeLayout(false);
+            panel1.ResumeLayout(false);
             pnlPlanningIntervento.ResumeLayout(false);
             pnlPlanningIntervento.PerformLayout();
             ((ISupportInitialize)nudEffort).EndInit();
@@ -1306,10 +1310,6 @@ namespace JiraTicketManager.Forms
             pnlTimeline.PerformLayout();
             pnlContact.ResumeLayout(false);
             pnlContact.PerformLayout();
-            pnlTicketAction.ResumeLayout(false);
-            panel1.ResumeLayout(false);
-            statusStrip1.ResumeLayout(false);
-            statusStrip1.PerformLayout();
             ResumeLayout(false);
         }
 

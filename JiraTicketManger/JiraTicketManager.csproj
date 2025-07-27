@@ -36,6 +36,19 @@
   <ItemGroup>
     <None Include="app.config" Condition="Exists('app.config')" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Update="Properties\Resources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Update="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
 
   <!-- 🎯 TARGET IDENTICO AL VB.NET - SPOSTA DLL IN libs/ -->
   <Target Name="MoveDLLsToLibsFolder" AfterTargets="Build">

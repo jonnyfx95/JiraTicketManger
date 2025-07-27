@@ -1,10 +1,17 @@
-﻿using System;
+﻿using JiraTicketManager.Data;
+using JiraTicketManager.Forms;
+using JiraTicketManager.Services;
+using JiraTicketManager.UI.Managers;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Diagnostics;
+using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.IO;
-using System.Diagnostics;
-using JiraTicketManager.Services;
 
 namespace JiraTicketManager.Testing
 {
@@ -1396,6 +1403,520 @@ namespace JiraTicketManager.Testing
         LogTest($"   ⚠️  Errore selezione Area/App: {ex.Message}");
     }
 }
+
+
+        #region "Jira Text Binding Tests"
+
+        /// <summary>
+        /// Test analisi struttura JSON ticket reale - F10
+        /// </summary>
+        public async Task TestRealTicketJSONAnalysis()
+        {
+            LogTest("🎯 === TEST ANALISI JSON TICKET REALE ===");
+            LogTest($"📅 Data: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            LogTest("");
+
+            try
+            {
+                // 1. Ottieni ticket key dalla DataGridView della MainForm
+                var ticketKey = GetSelectedTicketFromMainForm();
+                if (string.IsNullOrEmpty(ticketKey))
+                {
+                    LogTest("❌ ERRORE: Nessun ticket selezionato nella MainForm");
+                    LogTest("💡 ISTRUZIONE: Seleziona una riga nella DataGridView e riprova");
+                    await SaveAndOpenTestLog();
+                    return;
+                }
+
+                LogTest($"🎫 Ticket selezionato: {ticketKey}");
+                LogTest("");
+
+                // 2. Carica dati completi del ticket
+                await AnalyzeTicketStructure(ticketKey);
+
+                // 3. Test mapping campi esistenti
+                await TestFieldMappingAccuracy(ticketKey);
+
+                // 4. Genera suggerimenti per nuovi campi
+                await GenerateFieldMappingSuggestions(ticketKey);
+
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE GENERALE: {ex.Message}");
+                LogTest($"📍 Stack Trace: {ex.StackTrace}");
+            }
+            finally
+            {
+                LogTest("");
+                LogTest("🎯 === FINE ANALISI JSON TICKET ===");
+                await SaveAndOpenTestLog();
+            }
+        }
+
+        /// <summary>
+        /// Ottiene il ticket key selezionato dalla MainForm DataGridView
+        /// </summary>
+        private string GetSelectedTicketFromMainForm()
+        {
+            try
+            {
+                var dgvTickets = _mainForm.Controls.Find("dgvTickets", true).FirstOrDefault() as DataGridView;
+                if (dgvTickets == null)
+                {
+                    LogTest("❌ DataGridView 'dgvTickets' non trovata");
+                    return null;
+                }
+
+                if (dgvTickets.SelectedRows.Count == 0)
+                {
+                    LogTest("❌ Nessuna riga selezionata nella DataGridView");
+                    return null;
+                }
+
+                var selectedRow = dgvTickets.SelectedRows[0];
+
+                // Metodo 1: DataBoundItem
+                if (selectedRow.DataBoundItem is DataRowView dataRow)
+                {
+                    var key = dataRow["Key"]?.ToString();
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        LogTest($"✅ Ticket key estratto da DataBoundItem: {key}");
+                        return key;
+                    }
+                }
+
+                // Metodo 2: Colonna Key
+                if (dgvTickets.Columns.Contains("Key"))
+                {
+                    var key = selectedRow.Cells["Key"]?.Value?.ToString();
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        LogTest($"✅ Ticket key estratto da colonna Key: {key}");
+                        return key;
+                    }
+                }
+
+                // Metodo 3: Prima colonna
+                var firstCell = selectedRow.Cells[0]?.Value?.ToString();
+                if (!string.IsNullOrEmpty(firstCell) && firstCell.Contains("-"))
+                {
+                    LogTest($"✅ Ticket key estratto da prima colonna: {firstCell}");
+                    return firstCell;
+                }
+
+                LogTest("❌ Impossibile estrarre ticket key dalla riga selezionata");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE estrazione ticket key: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Analizza la struttura JSON completa del ticket
+        /// </summary>
+        private async Task AnalyzeTicketStructure(string ticketKey)
+        {
+            LogTest("📊 === ANALISI STRUTTURA JSON TICKET ===");
+
+            try
+            {
+                // Crea servizi per API call
+                var apiService = JiraApiService.CreateFromSettings(SettingsService.CreateDefault());
+                var dataService = new JiraDataService(apiService);
+
+                LogTest($"🔗 Chiamata API per ticket: {ticketKey}");
+
+                // Carica ticket completo
+                var ticket = await dataService.GetTicketAsync(ticketKey);
+                if (ticket == null)
+                {
+                    LogTest($"❌ ERRORE: Ticket {ticketKey} non trovato");
+                    return;
+                }
+
+                LogTest($"✅ Ticket caricato: {ticket.Key} - {ticket.Summary}");
+                LogTest("");
+
+                // Analizza JSON grezzo
+                await AnalyzeRawJSON(ticket.RawData, ticketKey);
+
+                // Analizza struttura fields
+                await AnalyzeFieldsStructure(ticket.RawData, ticketKey);
+
+                // Analizza custom fields
+                await AnalyzeCustomFields(ticket.RawData, ticketKey);
+
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE analisi struttura: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Analizza il JSON grezzo completo
+        /// </summary>
+        private async Task AnalyzeRawJSON(JToken rawData, string ticketKey)
+        {
+            LogTest("🔍 === ANALISI JSON GREZZO ===");
+
+            try
+            {
+                // Salva JSON completo formattato
+                var jsonFormatted = JsonConvert.SerializeObject(rawData, Formatting.Indented);
+                var jsonFilePath = Path.Combine(Environment.CurrentDirectory, $"ticket_{ticketKey}_full.json");
+
+                await File.WriteAllTextAsync(jsonFilePath, jsonFormatted);
+                LogTest($"📁 JSON completo salvato: {jsonFilePath}");
+
+                // Analizza struttura principale
+                LogTest("📋 Struttura principale JSON:");
+                if (rawData is JObject jsonObject)
+                {
+                    foreach (var property in jsonObject.Properties())
+                    {
+                        var valueType = property.Value?.Type.ToString() ?? "null";
+                        var valuePreview = GetValuePreview(property.Value);
+                        LogTest($"   • {property.Name}: {valueType} {valuePreview}");
+                    }
+                }
+
+                LogTest("");
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE analisi JSON grezzo: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Analizza la sezione fields del ticket
+        /// </summary>
+        private async Task AnalyzeFieldsStructure(JToken rawData, string ticketKey)
+        {
+            LogTest("🏷️ === ANALISI FIELDS JIRA ===");
+
+            try
+            {
+                var fields = rawData["fields"];
+                if (fields == null)
+                {
+                    LogTest("❌ Sezione 'fields' non trovata nel JSON");
+                    return;
+                }
+
+                // Salva fields JSON separato
+                var fieldsFormatted = JsonConvert.SerializeObject(fields, Formatting.Indented);
+                var fieldsFilePath = Path.Combine(Environment.CurrentDirectory, $"ticket_{ticketKey}_fields.json");
+
+                await File.WriteAllTextAsync(fieldsFilePath, fieldsFormatted);
+                LogTest($"📁 Fields salvati: {fieldsFilePath}");
+
+                // Analizza tutti i fields
+                LogTest("📋 Tutti i fields disponibili:");
+                if (fields is JObject fieldsObject)
+                {
+                    var sortedFields = fieldsObject.Properties().OrderBy(p => p.Name).ToList();
+
+                    foreach (var field in sortedFields)
+                    {
+                        var valueType = field.Value?.Type.ToString() ?? "null";
+                        var valuePreview = GetValuePreview(field.Value);
+                        LogTest($"   • {field.Name}: {valueType} {valuePreview}");
+                    }
+                }
+
+                LogTest($"📊 Totale fields trovati: {(fields as JObject)?.Properties().Count() ?? 0}");
+                LogTest("");
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE analisi fields: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Analizza tutti i custom fields
+        /// </summary>
+        private async Task AnalyzeCustomFields(JToken rawData, string ticketKey)
+        {
+            LogTest("🔧 === ANALISI CUSTOM FIELDS ===");
+
+            try
+            {
+                var fields = rawData["fields"];
+                if (fields == null) return;
+
+                var customFields = new List<(string name, string type, string value)>();
+
+                if (fields is JObject fieldsObject)
+                {
+                    foreach (var field in fieldsObject.Properties())
+                    {
+                        if (field.Name.StartsWith("customfield_"))
+                        {
+                            var valueType = field.Value?.Type.ToString() ?? "null";
+                            var valuePreview = GetValuePreview(field.Value);
+                            customFields.Add((field.Name, valueType, valuePreview));
+                        }
+                    }
+                }
+
+                // Salva custom fields in file separato
+                var customFieldsText = new StringBuilder();
+                customFieldsText.AppendLine($"CUSTOM FIELDS ANALYSIS - Ticket: {ticketKey}");
+                customFieldsText.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                customFieldsText.AppendLine();
+                customFieldsText.AppendLine("FORMATO: campo_id | tipo | valore_esempio");
+                customFieldsText.AppendLine(new string('=', 80));
+
+                foreach (var (name, type, value) in customFields.OrderBy(x => x.name))
+                {
+                    customFieldsText.AppendLine($"{name} | {type} | {value}");
+                }
+
+                var customFieldsPath = Path.Combine(Environment.CurrentDirectory, $"ticket_{ticketKey}_customfields.txt");
+                await File.WriteAllTextAsync(customFieldsPath, customFieldsText.ToString());
+
+                LogTest($"📁 Custom fields salvati: {customFieldsPath}");
+                LogTest($"📊 Totale custom fields: {customFields.Count}");
+
+                // Mostra i primi 10 nel log
+                LogTest("🔧 Custom fields trovati (primi 10):");
+                foreach (var (name, type, value) in customFields.Take(10))
+                {
+                    LogTest($"   • {name}: {type} = {value}");
+                }
+
+                if (customFields.Count > 10)
+                {
+                    LogTest($"   ... e altri {customFields.Count - 10} custom fields (vedi file completo)");
+                }
+
+                LogTest("");
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE analisi custom fields: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Testa l'accuratezza del mapping campi esistente
+        /// </summary>
+        private async Task TestFieldMappingAccuracy(string ticketKey)
+        {
+            LogTest("🎯 === TEST MAPPING CAMPI ESISTENTI ===");
+
+            try
+            {
+                // Crea servizi
+                var apiService = JiraApiService.CreateFromSettings(SettingsService.CreateDefault());
+                var dataService = new JiraDataService(apiService);
+                var textBoxManager = new TextBoxManager(dataService);
+
+                // Carica ticket
+                var ticket = await dataService.GetTicketAsync(ticketKey);
+                if (ticket == null) return;
+
+                // Campi da testare (dalla nostra mappatura)
+                var fieldsToTest = new Dictionary<string, string>
+                {
+                    ["reporter"] = "Reporter",
+                    ["customfield_10136"] = "Email Richiedente",
+                    ["customfield_10074"] = "Telefono",
+                    ["customfield_10117"] = "Cliente",
+                    ["customfield_10113"] = "Area",
+                    ["customfield_10114"] = "Applicativo",
+                    ["customfield_10103"] = "Cliente Partner",
+                    ["customfield_10271"] = "P.M. (mail)",
+                    ["customfield_10272"] = "Commerciale (mail)",
+                    ["customfield_10238"] = "Consulente (mail)",
+                    ["customfield_10096"] = "WBS",
+                    ["created"] = "Data Creazione",
+                    ["updated"] = "Data Aggiornamento",
+                    ["resolutiondate"] = "Data Completamento",
+                    ["description"] = "Descrizione"
+                };
+
+                LogTest("🔍 Test estrazione valori campi:");
+
+                foreach (var field in fieldsToTest)
+                {
+                    try
+                    {
+                        var fieldValue = ExtractFieldForTest(ticket.RawData, field.Key);
+                        var status = string.IsNullOrEmpty(fieldValue) ? "❌ VUOTO" : "✅ OK";
+                        LogTest($"   {status} {field.Value} ({field.Key}): {fieldValue}");
+                    }
+                    catch (Exception ex)
+                    {
+                        LogTest($"   ❌ ERRORE {field.Value} ({field.Key}): {ex.Message}");
+                    }
+                }
+
+                LogTest("");
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE test mapping: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Genera suggerimenti per nuovi campi da mappare
+        /// </summary>
+        private async Task GenerateFieldMappingSuggestions(string ticketKey)
+        {
+            LogTest("💡 === SUGGERIMENTI NUOVI CAMPI ===");
+
+            try
+            {
+                // Campi interessanti da cercare
+                var interestingFields = new[]
+                {
+            "customfield_10133", // Ora Intervento
+            "customfield_10089", // Effort Previsto
+            "customfield_10116", // Data Intervento
+            "assignee", // Assegnatario
+            "status", // Status
+            "priority", // Priorità
+            "issuetype", // Tipo
+            "summary", // Summary/Titolo
+            "environment", // Ambiente
+            "resolution", // Risoluzione
+            "worklog", // Work Log
+            "comment", // Commenti
+            "attachment", // Allegati
+            "issuelinks", // Links
+            "subtasks" // Subtasks
+        };
+
+                var apiService = JiraApiService.CreateFromSettings(SettingsService.CreateDefault());
+                var dataService = new JiraDataService(apiService);
+                var ticket = await dataService.GetTicketAsync(ticketKey);
+
+                if (ticket == null) return;
+
+                LogTest("🔍 Campi aggiuntivi interessanti trovati:");
+
+                foreach (var fieldName in interestingFields)
+                {
+                    try
+                    {
+                        var fieldValue = ExtractFieldForTest(ticket.RawData, fieldName);
+                        if (!string.IsNullOrEmpty(fieldValue))
+                        {
+                            LogTest($"   💡 {fieldName}: {fieldValue}");
+                        }
+                        else
+                        {
+                            LogTest($"   ⚪ {fieldName}: (vuoto/non presente)");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogTest($"   ❌ {fieldName}: Errore - {ex.Message}");
+                    }
+                }
+
+                LogTest("");
+                LogTest("📋 RACCOMANDAZIONI:");
+                LogTest("   1. Verifica i custom fields con valori interessanti");
+                LogTest("   2. Aggiungi campi mancanti al TextBoxManager");
+                LogTest("   3. Controlla se serve mapping per assignee/status/priority");
+                LogTest("   4. Considera aggiunta di worklog e commenti");
+
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE generazione suggerimenti: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Estrae valore di un campo per test (semplificato)
+        /// </summary>
+        private string ExtractFieldForTest(JToken rawData, string fieldName)
+        {
+            try
+            {
+                var fields = rawData["fields"];
+                var fieldValue = fields?[fieldName];
+
+                if (fieldValue == null || fieldValue.Type == JTokenType.Null)
+                    return "";
+
+                // Gestione tipi semplici
+                if (fieldValue.Type == JTokenType.String)
+                    return fieldValue.ToString();
+
+                // Gestione oggetti complessi
+                if (fieldValue.Type == JTokenType.Object)
+                {
+                    // Prova displayName, name, value
+                    var displayName = fieldValue["displayName"]?.ToString();
+                    if (!string.IsNullOrEmpty(displayName)) return displayName;
+
+                    var name = fieldValue["name"]?.ToString();
+                    if (!string.IsNullOrEmpty(name)) return name;
+
+                    var value = fieldValue["value"]?.ToString();
+                    if (!string.IsNullOrEmpty(value)) return value;
+
+                    var emailAddress = fieldValue["emailAddress"]?.ToString();
+                    if (!string.IsNullOrEmpty(emailAddress)) return emailAddress;
+
+                    return $"[Object: {fieldValue.ToString().Substring(0, Math.Min(50, fieldValue.ToString().Length))}...]";
+                }
+
+                // Gestione array
+                if (fieldValue.Type == JTokenType.Array && fieldValue.HasValues)
+                {
+                    return $"[Array: {fieldValue.Count()} elementi]";
+                }
+
+                return fieldValue.ToString();
+            }
+            catch
+            {
+                return "[Errore estrazione]";
+            }
+        }
+
+        /// <summary>
+        /// Ottiene preview del valore per il log
+        /// </summary>
+        private string GetValuePreview(JToken value)
+        {
+            if (value == null || value.Type == JTokenType.Null)
+                return "(null)";
+
+            if (value.Type == JTokenType.String)
+            {
+                var str = value.ToString();
+                return str.Length > 50 ? $"= \"{str.Substring(0, 47)}...\"" : $"= \"{str}\"";
+            }
+
+            if (value.Type == JTokenType.Object)
+            {
+                var objStr = value.ToString();
+                return objStr.Length > 100 ? $"= {{...{objStr.Length} chars...}}" : $"= {{{objStr.Substring(0, Math.Min(50, objStr.Length))...}}}";
+            }
+
+            if (value.Type == JTokenType.Array)
+                return $"= [Array: {value.Count()} items]";
+
+            return $"= {value}";
+        }
+
+        #endregion
+
 
     }
 
