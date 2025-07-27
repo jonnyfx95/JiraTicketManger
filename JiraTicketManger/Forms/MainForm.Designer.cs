@@ -587,7 +587,7 @@ namespace JiraTicketManager
             btnPulisci.FlatStyle = FlatStyle.Flat;
             btnPulisci.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
             btnPulisci.ForeColor = Color.White;
-            btnPulisci.Location = new Point(356, 15);
+            btnPulisci.Location = new Point(356, 14);
             btnPulisci.Name = "btnPulisci";
             btnPulisci.Size = new Size(70, 23);
             btnPulisci.TabIndex = 30;
@@ -631,7 +631,7 @@ namespace JiraTicketManager
             btnRefresh.FlatStyle = FlatStyle.Flat;
             btnRefresh.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
             btnRefresh.ForeColor = Color.White;
-            btnRefresh.Location = new Point(432, 15);
+            btnRefresh.Location = new Point(432, 14);
             btnRefresh.Name = "btnRefresh";
             btnRefresh.Size = new Size(80, 23);
             btnRefresh.TabIndex = 2;

@@ -10,9 +10,9 @@ using System.Windows.Forms;
 
 namespace JiraTicketManager.Forms
 {
-    public partial class FrmDettaglio : Form
+    public partial class TicketDetailForm : Form
     {
-        public FrmDettaglio()
+        public TicketDetailForm()
         {
             InitializeComponent();
         }
