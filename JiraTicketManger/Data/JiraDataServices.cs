@@ -887,9 +887,9 @@ namespace JiraTicketManager.Data
             return result;
         }
 
-       
 
-       
+
+
 
         private JiraFieldType GetFieldTypeFromCustomFieldId(string fieldId)
         {
@@ -897,6 +897,7 @@ namespace JiraTicketManager.Data
             {
                 "customfield_10113" => JiraFieldType.Area,
                 "customfield_10114" => JiraFieldType.Application,
+                "customfield_10238" => JiraFieldType.Consulente, // Consulente
                 _ => JiraFieldType.CustomField
             };
         }

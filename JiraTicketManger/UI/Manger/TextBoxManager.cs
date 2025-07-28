@@ -297,7 +297,7 @@ namespace JiraTicketManager.UI.Managers
                     description = description.Replace("  ", " ");
                 }
 
-                // 3. Aggiunge spazi dopo la punteggiatura se mancano
+                // 3. Aggiunge spazi dopo la punteggiatura se mancanti
                 description = description
                     .Replace(".", ". ")
                     .Replace(",", ", ")
@@ -331,11 +331,8 @@ namespace JiraTicketManager.UI.Managers
                 // 6. Unisce con doppio a capo per paragrafi separati
                 var formatted = string.Join("\r\n\r\n", formattedLines);
 
-                // 7. Limita la lunghezza se troppo lungo (opzionale)
-                if (formatted.Length > 1000)
-                {
-                    formatted = formatted.Substring(0, 997) + "...";
-                }
+                // 7. RIMOSSO: Non limitare più la lunghezza
+                // La TextBox può gestire testi lunghi e ha scroll automatico
 
                 return formatted;
             }
@@ -356,8 +353,8 @@ namespace JiraTicketManager.UI.Managers
             return jiraField switch
             {
                 // === CAMPI REPORTER CORRETTI ===
-                "reporter" => "Reporter",                    // reporter.displayName
-                "reporter.emailAddress" => "ReporterEmail",  //  reporter.emailAddress  
+                "reporter" => "Reporter",
+                "reporter.emailAddress" => "ReporterEmail",
 
                 // === CAMPI STANDARD ===
                 "assignee" => "Assignee",
@@ -375,15 +372,13 @@ namespace JiraTicketManager.UI.Managers
                 "customfield_10113" => "Area",
                 "customfield_10114" => "Applicativo",
                 "customfield_10103" => "ClientePartner",
-                "customfield_10074" => "Telefono",          // Telefono funziona
+                "customfield_10074" => "Telefono",
+                "customfield_10271" => "PMEmail",
+                "customfield_10272" => "CommercialeEmail",
+                "customfield_10238" => "ConsulenteEmail",  
+                "customfield_10096" => "WBS",
 
-                // === CAMPI TEAM (anche se spesso vuoti) ===
-                "customfield_10271" => "PMEmail",           // P.M. (mail)
-                "customfield_10272" => "CommercialeEmail",  // Commerciale (mail)  
-                "customfield_10238" => "ConsulenteEmail",   // Consulente (mail)
-                "customfield_10096" => "WBS",               // WBS
-
-                _ => jiraField // Se non mappato, usa il nome originale
+                _ => jiraField
             };
         }
 

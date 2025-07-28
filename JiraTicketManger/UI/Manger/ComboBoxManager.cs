@@ -721,6 +721,7 @@ namespace JiraTicketManager.UI.Managers
                 JiraFieldType.Area => "Tutte le aree",
                 JiraFieldType.Application => "Tutte le applicazioni",
                 JiraFieldType.Assignee => "Tutti gli assegnatari",
+                JiraFieldType.Consulente => "Tutti i consulenti",
                 _ => $"Tutti i {JiraFieldTypeHelper.GetDisplayName(fieldType).ToLower()}"
             };
         }

@@ -46,10 +46,16 @@
         /// </summary>
         Project,
 
+        /// Consulente (customfield_10238) - API: search con distinct values
+        /// </summary>
+        Consulente,
+
         /// <summary>
         /// Custom field generico - richiede field ID
         /// </summary>
         CustomField
+
+
     }
 
     /// <summary>
@@ -74,40 +80,43 @@
         /// Mappatura field type -> Custom Field ID
         /// </summary>
         public static readonly Dictionary<JiraFieldType, string> CustomFieldIds = new()
-        {
-            { JiraFieldType.Area, "customfield_10113" },
-            { JiraFieldType.Application, "customfield_10114" }
-        };
+{
+    { JiraFieldType.Area, "customfield_10113" },
+    { JiraFieldType.Application, "customfield_10114" },
+    { JiraFieldType.Consulente, "customfield_10238" }
+};
 
         /// <summary>
         /// Mappatura field type -> Nome campo JQL
         /// </summary>
         public static readonly Dictionary<JiraFieldType, string> JqlFieldNames = new()
-        {
-            { JiraFieldType.Organization, "\"Client/Organization\"" },
-            { JiraFieldType.Status, "status" },
-            { JiraFieldType.Priority, "priority" },
-            { JiraFieldType.IssueType, "type" },
-            { JiraFieldType.Area, "\"Area\"" },
-            { JiraFieldType.Application, "\"Applicativo\"" },
-            { JiraFieldType.Assignee, "assignee" },
-            { JiraFieldType.Project, "project" }
-        };
+{
+         { JiraFieldType.Organization, "\"Client/Organization\"" },
+         { JiraFieldType.Status, "status" },
+         { JiraFieldType.Priority, "priority" },
+         { JiraFieldType.IssueType, "type" },
+         { JiraFieldType.Area, "\"Area\"" },
+         { JiraFieldType.Application, "\"Applicativo\"" },
+         { JiraFieldType.Assignee, "assignee" },
+         { JiraFieldType.Consulente, "\"Consulente\"" }, 
+         { JiraFieldType.Project, "project" }
+};
 
         /// <summary>
         /// Mappatura field type -> Nome visualizzazione
         /// </summary>
         public static readonly Dictionary<JiraFieldType, string> DisplayNames = new()
-        {
-            { JiraFieldType.Organization, "Clienti" },
-            { JiraFieldType.Status, "Stati" },
-            { JiraFieldType.Priority, "Priorità" },
-            { JiraFieldType.IssueType, "Tipi" },
-            { JiraFieldType.Area, "Aree" },
-            { JiraFieldType.Application, "Applicativi" },
-            { JiraFieldType.Assignee, "Assegnatari" },
-            { JiraFieldType.Project, "Progetti" }
-        };
+{
+    { JiraFieldType.Organization, "Clienti" },
+    { JiraFieldType.Status, "Stati" },
+    { JiraFieldType.Priority, "Priorità" },
+    { JiraFieldType.IssueType, "Tipi" },
+    { JiraFieldType.Area, "Aree" },
+    { JiraFieldType.Application, "Applicativi" },
+    { JiraFieldType.Assignee, "Assegnatari" },
+    { JiraFieldType.Consulente, "Consulenti" },
+    { JiraFieldType.Project, "Progetti" }
+};
 
         /// <summary>
         /// Ottiene l'endpoint API per un tipo di campo

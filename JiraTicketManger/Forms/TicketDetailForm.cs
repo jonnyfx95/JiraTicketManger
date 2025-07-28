@@ -1,10 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using System.Windows.Forms;
+﻿using JiraTicketManager.Business;
 using JiraTicketManager.Data;
 using JiraTicketManager.Services;
 using JiraTicketManager.UI.Managers;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using JiraTicketManager.Business; 
+using JiraTicketManager.UI.Managers; 
+using System.Linq;
+
 
 namespace JiraTicketManager.Forms
 {
@@ -15,6 +20,7 @@ namespace JiraTicketManager.Forms
         private readonly LoggingService _logger;
         private readonly JiraDataService _dataService;
         private readonly TextBoxManager _textBoxManager;
+        private ComboBoxManager _comboBoxManager;
         private string _currentTicketKey;
         private bool _isLoading = false;
 
@@ -44,10 +50,7 @@ namespace JiraTicketManager.Forms
 
         #region Public Methods
 
-        /// <summary>
-        /// Carica e visualizza un ticket specifico
-        /// </summary>
-        /// <param name="ticketKey">Numero ticket (es: CC-12345)</param>
+
         // <summary>
         /// Carica e visualizza un ticket specifico
         /// </summary>
@@ -64,26 +67,22 @@ namespace JiraTicketManager.Forms
 
                 _logger.LogInfo($"Caricamento ticket: {ticketKey}");
 
-                // Imposta stato loading
                 SetLoadingState(true);
                 _currentTicketKey = ticketKey;
-
-                // Aggiorna titolo form
                 this.Text = $"Caricamento Ticket {ticketKey}...";
 
-                // Crea mappatura completa TextBox → Campo Jira
+                // Inizializza ComboBox prima di caricare i dati
+                await InitializeConsulenteComboBox();
+
+                // Popola tutti i controlli
                 var textBoxMappings = CreateTextBoxMappings();
-
-                // *** NUOVO: Crea mappatura Label → Campo Jira ***
                 var labelMappings = CreateLabelMappings();
-
-                // *** NUOVO: Popola tutti i controlli con una sola chiamata API ***
                 await _textBoxManager.PopulateAllControlsAsync(ticketKey, textBoxMappings, labelMappings);
 
-                // Aggiorna header con info ticket
-                await UpdateHeaderInfo(ticketKey);
+                // Imposta il consulente basandosi sui dati del ticket
+                await SetConsulenteFromCurrentTicket();
 
-                // Aggiorna titolo form
+                await UpdateHeaderInfo(ticketKey);
                 this.Text = $"Dettaglio Ticket - {ticketKey}";
 
                 _logger.LogInfo($"Ticket {ticketKey} caricato con successo");
@@ -91,16 +90,8 @@ namespace JiraTicketManager.Forms
             catch (Exception ex)
             {
                 _logger.LogError($"Errore caricamento ticket {ticketKey}", ex);
-
-                // Mostra errore all'utente
-                MessageBox.Show(
-                    $"Errore durante il caricamento del ticket {ticketKey}:\n\n{ex.Message}",
-                    "Errore Caricamento Ticket",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error
-                );
-
-                // Aggiorna titolo con errore
+                MessageBox.Show($"Errore durante il caricamento del ticket {ticketKey}:\n\n{ex.Message}",
+                    "Errore Caricamento Ticket", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 this.Text = $"Errore Caricamento - {ticketKey}";
             }
             finally
@@ -108,6 +99,8 @@ namespace JiraTicketManager.Forms
                 SetLoadingState(false);
             }
         }
+
+
 
         /// <summary>
         /// Crea la mappatura completa TextBox → Campo Jira
@@ -471,5 +464,155 @@ namespace JiraTicketManager.Forms
         }
 
         #endregion
+
+        #region Popolamento ComboBox
+
+        /// <summary>
+        /// Inizializza e popola la ComboBox Consulente usando JiraFieldType.Consulente
+        /// </summary>
+        private async Task InitializeConsulenteComboBox()
+        {
+            try
+            {
+                _logger?.LogInfo("📋 Inizializzazione cmbConsulente...");
+
+                // Inizializza ComboBoxManager se non presente
+                if (_comboBoxManager == null)
+                {
+                    _comboBoxManager = new ComboBoxManager(_dataService);
+                }
+
+                // Usa il nuovo JiraFieldType.Consulente
+                await _comboBoxManager.LoadAsync(
+                    cmbConsulente,
+                    JiraFieldType.Consulente,  // NUOVO TIPO
+                    "-- Tutti Consulenti --"
+                );
+
+                _logger?.LogInfo("✅ cmbConsulente inizializzata con successo");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError("❌ Errore inizializzazione cmbConsulente", ex);
+                UseFallbackValues();
+            }
+        }
+
+        /// <summary>
+        /// Imposta il consulente selezionato basandosi sui dati del ticket caricato
+        /// </summary>
+        private async Task SetConsulenteFromCurrentTicket()
+        {
+            try
+            {
+                if (cmbConsulente == null || string.IsNullOrEmpty(_currentTicketKey))
+                    return;
+
+                _logger?.LogDebug($"🔍 Impostazione consulente per ticket: {_currentTicketKey}");
+
+                var ticket = await _dataService.GetTicketAsync(_currentTicketKey);
+                if (ticket?.RawData == null)
+                {
+                    cmbConsulente.SelectedIndex = 0;
+                    return;
+                }
+
+                var consulenteValue = ExtractConsulenteFromTicket(ticket.RawData);
+
+                if (string.IsNullOrEmpty(consulenteValue))
+                {
+                    cmbConsulente.SelectedIndex = 0;
+                    return;
+                }
+
+                // Usa GetSelectedOriginalValue del ComboBoxManager per ottenere il valore corretto
+                var items = cmbConsulente.Items.Cast<string>().ToList();
+                var matchingItem = items.FirstOrDefault(item =>
+                    item.Equals(consulenteValue, StringComparison.OrdinalIgnoreCase) ||
+                    item.Contains(consulenteValue, StringComparison.OrdinalIgnoreCase)
+                );
+
+                if (!string.IsNullOrEmpty(matchingItem))
+                {
+                    cmbConsulente.SelectedItem = matchingItem;
+                    _logger?.LogDebug($"✅ Consulente impostato: {matchingItem}");
+                }
+                else
+                {
+                    cmbConsulente.SelectedIndex = 0;
+                    _logger?.LogDebug($"⚠️ Consulente '{consulenteValue}' non trovato, uso default");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"❌ Errore impostazione consulente: {ex.Message}", ex);
+                if (cmbConsulente?.Items.Count > 0)
+                    cmbConsulente.SelectedIndex = 0;
+            }
+        }
+
+        /// <summary>
+        /// Estrae il valore del consulente dal JSON raw del ticket
+        /// </summary>
+        private string ExtractConsulenteFromTicket(Newtonsoft.Json.Linq.JToken rawData)
+        {
+            try
+            {
+                var fields = rawData["fields"];
+                var consulteneField = fields?["customfield_10238"];
+
+                if (consulteneField == null || consulteneField.Type == Newtonsoft.Json.Linq.JTokenType.Null)
+                    return null;
+
+                if (consulteneField.Type == Newtonsoft.Json.Linq.JTokenType.String)
+                {
+                    return consulteneField.ToString();
+                }
+
+                if (consulteneField.Type == Newtonsoft.Json.Linq.JTokenType.Object)
+                {
+                    return consulteneField["value"]?.ToString() ??
+                           consulteneField["displayName"]?.ToString() ??
+                           consulteneField["emailAddress"]?.ToString() ??
+                           consulteneField.ToString();
+                }
+
+                return consulteneField.ToString();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"❌ Errore estrazione consulente da ticket: {ex.Message}", ex);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Fallback ai valori hardcoded
+        /// </summary>
+        private void UseFallbackValues()
+        {
+            try
+            {
+                if (cmbConsulente?.Items.Count == 0)
+                {
+                    _logger?.LogInfo("🔄 Fallback a valori hardcoded...");
+                    cmbConsulente.Items.Clear();
+                    cmbConsulente.Items.Add("-- Tutti Consulenti --");
+                    cmbConsulente.Items.Add("anna.verdi@company.com");
+                    cmbConsulente.Items.Add("marco.neri@company.com");
+                    cmbConsulente.Items.Add("giulia.rossi@company.com");
+                    cmbConsulente.SelectedIndex = 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"❌ Errore fallback: {ex.Message}", ex);
+            }
+        }
+
+        #endregion
+
+
+
     }
 }
