@@ -475,29 +475,35 @@ namespace JiraTicketManager.Forms
         {
             try
             {
-                _logger?.LogInfo("📋 Inizializzazione cmbConsulente...");
+                _logger?.LogInfo("📋 === DEBUG CONSULENTE START ===");
+                _logger?.LogInfo($"📋 cmbConsulente null? {cmbConsulente == null}");
 
-                // Inizializza ComboBoxManager se non presente
                 if (_comboBoxManager == null)
                 {
                     _comboBoxManager = new ComboBoxManager(_dataService);
+                    _logger?.LogInfo("📋 ComboBoxManager creato");
                 }
 
-                // USA LA LOGICA ESISTENTE - Il sistema automaticamente:
-                // 1. IsCustomField(Consulente) = true
-                // 2. DetermineLoadingStrategy() → DirectAPI (CreateMeta)
-                // 3. Se fallisce → fallback a JQLSearch automatico
+                _logger?.LogInfo("📋 Chiamata LoadAsync...");
+
                 await _comboBoxManager.LoadAsync(
                     cmbConsulente,
                     JiraFieldType.Consulente,
                     "-- Tutti Consulenti --"
                 );
 
-                _logger?.LogInfo($"✅ cmbConsulente inizializzata: {cmbConsulente.Items.Count} elementi");
+                _logger?.LogInfo($"📋 LoadAsync completata. Items: {cmbConsulente.Items.Count}");
+
+                for (int i = 0; i < Math.Min(cmbConsulente.Items.Count, 5); i++)
+                {
+                    _logger?.LogInfo($"📋 Item[{i}]: {cmbConsulente.Items[i]}");
+                }
+
+                _logger?.LogInfo("📋 === DEBUG CONSULENTE END ===");
             }
             catch (Exception ex)
             {
-                _logger?.LogError("❌ Errore inizializzazione cmbConsulente", ex);
+                _logger?.LogError($"📋 === DEBUG CONSULENTE ERROR: {ex.Message} ===", ex);
                 UseFallbackValues();
             }
         }
