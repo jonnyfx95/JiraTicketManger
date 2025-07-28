@@ -476,28 +476,32 @@ namespace JiraTicketManager.Forms
             try
             {
                 _logger?.LogInfo("📋 === DEBUG CONSULENTE START ===");
-                _logger?.LogInfo($"📋 cmbConsulente null? {cmbConsulente == null}");
+
+                // ✅ AGGIUNGI TRACKING
+                TrackComboBoxChanges();
 
                 if (_comboBoxManager == null)
                 {
                     _comboBoxManager = new ComboBoxManager(_dataService);
-                    _logger?.LogInfo("📋 ComboBoxManager creato");
                 }
 
-                _logger?.LogInfo("📋 Chiamata LoadAsync...");
+                _logger?.LogInfo($"📋 PRIMA del LoadAsync: SelectedIndex = {cmbConsulente?.SelectedIndex}");
 
-                await _comboBoxManager.LoadAsync(
+                // USA IL NUOVO METODO CHE FA TUTTO
+                await _comboBoxManager.LoadAsyncWithCurrentValue(
                     cmbConsulente,
                     JiraFieldType.Consulente,
-                    "-- Tutti Consulenti --"
+                    "-- Tutti Consulenti --",
+                    progress: null,
+                    _currentTicketKey
                 );
 
+                _logger?.LogInfo($"📋 DOPO LoadAsync: SelectedIndex = {cmbConsulente?.SelectedIndex}, Text = '{cmbConsulente?.Text}'");
                 _logger?.LogInfo($"📋 LoadAsync completata. Items: {cmbConsulente.Items.Count}");
 
-                for (int i = 0; i < Math.Min(cmbConsulente.Items.Count, 5); i++)
-                {
-                    _logger?.LogInfo($"📋 Item[{i}]: {cmbConsulente.Items[i]}");
-                }
+                // ✅ AGGIUNGI DELAY E RICONTROLLA
+                await Task.Delay(2000); // Aspetta 2 secondi
+                _logger?.LogInfo($"📋 DOPO 2 SECONDI: SelectedIndex = {cmbConsulente?.SelectedIndex}, Text = '{cmbConsulente?.Text}'");
 
                 _logger?.LogInfo("📋 === DEBUG CONSULENTE END ===");
             }
@@ -507,6 +511,7 @@ namespace JiraTicketManager.Forms
                 UseFallbackValues();
             }
         }
+
 
         /// <summary>
         /// Imposta il consulente dal ticket corrente
@@ -600,26 +605,47 @@ namespace JiraTicketManager.Forms
         {
             try
             {
+                _logger?.LogWarning("⚠️ === USEFALLBACKVALUES CHIAMATO ===");
+                _logger?.LogWarning($"⚠️ Stack trace: {Environment.StackTrace.Split('\n')[1]}");
+
+
                 if (cmbConsulente != null && cmbConsulente.Items.Count == 0)
                 {
+                    _logger?.LogWarning($"⚠️ UseFallbackValues - ComboBox PRIMA: SelectedIndex = {cmbConsulente.SelectedIndex}");
+
                     _logger?.LogInfo("🔄 Fallback a valori hardcoded...");
                     cmbConsulente.Items.Clear();
                     cmbConsulente.Items.Add("-- Tutti Consulenti --");
-                    cmbConsulente.Items.Add("anna.verdi@company.com");
-                    cmbConsulente.Items.Add("marco.neri@company.com");
-                    cmbConsulente.Items.Add("giulia.rossi@company.com");
+                   
                     cmbConsulente.SelectedIndex = 0;
+
+                    _logger?.LogWarning($"⚠️ UseFallbackValues - ComboBox PRIMA: SelectedIndex = {cmbConsulente.SelectedIndex}");
                 }
             }
             catch (Exception ex)
             {
                 _logger?.LogError($"❌ Errore fallback: {ex.Message}", ex);
+                _logger?.LogWarning($"⚠️ UseFallbackValues - ComboBox PRIMA: SelectedIndex = {cmbConsulente.SelectedIndex}");
             }
         }
 
         #endregion
 
 
+
+        // ELINATE: Questo metodo non è più necessario
+
+        private void TrackComboBoxChanges()
+        {
+            if (cmbConsulente != null)
+            {
+                cmbConsulente.SelectedIndexChanged += (s, e) =>
+                {
+                    _logger?.LogInfo($"🔄 COMBOBOX CHANGED: SelectedIndex = {cmbConsulente.SelectedIndex}, Value = '{cmbConsulente.Text}'");
+                    _logger?.LogInfo($"🔄 Stack trace: {Environment.StackTrace.Split('\n')[1]}");
+                };
+            }
+        }
 
 
     }

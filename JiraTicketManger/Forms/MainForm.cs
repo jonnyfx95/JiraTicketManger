@@ -2407,8 +2407,19 @@ namespace JiraTicketManager
 #if DEBUG
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            // F9 - Esegui tutti i test di sviluppo
-            if (keyData == Keys.F9)
+
+
+            
+                // F1 - Test specifico Consulente
+                if (keyData == Keys.F1)
+                {
+                    _ = _devTests?.TestConsulenteAPIs();
+                    return true;
+                }
+
+
+                // F9 - Esegui tutti i test di sviluppo
+                if (keyData == Keys.F9)
             {
                 _ = RunDevTestsAsync();
                 return true;
@@ -2441,6 +2452,7 @@ namespace JiraTicketManager
                 _ = _devTests?.TestWorkspaceObjectResolution();
                 return true;
             }
+
 
 
 

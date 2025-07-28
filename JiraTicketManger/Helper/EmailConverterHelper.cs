@@ -212,5 +212,62 @@ namespace JiraTicketManager.Helpers
                 }
             }
         }
+
+        /// <summary>
+        /// Converte username in formato display per ComboBox
+        /// Es: "andrea.rossi" → "ANDREA ROSSI"
+        /// </summary>
+        /// <param name="username">Username formato punto (es: "andrea.rossi")</param>
+        /// <returns>Nome formattato per display (es: "ANDREA ROSSI")</returns>
+        public static string FormatUsernameForDisplay(string username)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(username))
+                {
+                    _logger.LogWarning("FormatUsernameForDisplay: Username vuoto o null");
+                    return "";
+                }
+
+                _logger.LogDebug($"Formattazione username per display: '{username}'");
+
+                // Se contiene @, estrai solo la parte prima della @
+                if (username.Contains("@"))
+                {
+                    username = username.Split('@')[0];
+                }
+
+                // ✅ CASI SPECIALI - Gestione nomi composti
+                var specialCases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "NICOLAGIOVANNI.LUPO", "NICOLA GIOVANNI LUPO" },
+            { "JONATHAN.FELIXDASILVA", "JONATHAN FELIX DA SILVA" },
+            { "FRANCESCAFELICITA.MAIELLO", "FRANCESCA FELICITA MAIELLO" },
+            { "GIANNILORENZO.ZULLI", "GIANNI LORENZO ZULLI" },
+            {"RAZVANALEXANDRU.BARABANCEA", "RAZVAN ALEXANDRU BARABANCEA"}
+
+        };
+
+                // Controlla se è un caso speciale
+                var upperUsername = username.ToUpper();
+                if (specialCases.ContainsKey(upperUsername))
+                {
+                    var specialResult = specialCases[upperUsername];
+                    _logger.LogDebug($"Caso speciale applicato: '{username}' → '{specialResult}'");
+                    return specialResult;
+                }
+
+                // ✅ LOGICA NORMALE - Converti punti in spazi e maiuscolo
+                string displayName = username.Replace(".", " ").ToUpper().Trim();
+
+                _logger.LogDebug($"Username '{username}' → Display: '{displayName}'");
+                return displayName;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("FormatUsernameForDisplay", ex);
+                return username; // Fallback al valore originale
+            }
+        }
     }
 }

@@ -83,7 +83,7 @@
 {
     { JiraFieldType.Area, "customfield_10113" },
     { JiraFieldType.Application, "customfield_10114" },
-    { JiraFieldType.Consulente, "customfield_10238" }
+    { JiraFieldType.Consulente, "customfield_10238" }  // ✅ AGGIUNTO
 };
 
         /// <summary>
@@ -166,7 +166,7 @@
         {
             return fieldType == JiraFieldType.Area ||
                    fieldType == JiraFieldType.Application ||
-                   fieldType == JiraFieldType.Consulente ||
+                   fieldType == JiraFieldType.Consulente ||  // ✅ AGGIUNTO
                    fieldType == JiraFieldType.CustomField;
         }
 

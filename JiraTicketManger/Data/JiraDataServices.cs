@@ -1,6 +1,7 @@
 ﻿using JiraTicketManager.Business;
 using JiraTicketManager.Data.Converters;
 using JiraTicketManager.Data.Models;
+using JiraTicketManager.Helpers;
 using JiraTicketManager.Services;
 using JiraTicketManager.Services;
 using JiraTicketManager.Utilities;
@@ -161,7 +162,7 @@ namespace JiraTicketManager.Data
             }
         }
 
-        public async Task<List<JiraField>> GetFieldValuesAsync(JiraFieldType fieldType, IProgress<string> progress = null)
+        public async Task<List<JiraField>> GetFieldValuesAsync(JiraFieldType fieldType, IProgress<string> progress = null, string ticketKey = null)
         {
             try
             {
@@ -184,7 +185,7 @@ namespace JiraTicketManager.Data
                 // 2. 🔄 ESECUZIONE STRATEGIA
                 List<string> rawValues = strategy switch
                 {
-                    LoadingStrategy.DirectAPI => await LoadFromDirectAPI(fieldType, progress),
+                    LoadingStrategy.DirectAPI => await LoadFromDirectAPI(fieldType, progress, ticketKey), // ✅ MODIFICA: Aggiunto ticketKey
                     LoadingStrategy.JQLSearch => await LoadFromJQLSearch(fieldType, progress),
                     LoadingStrategy.ServiceDeskAPI => await LoadFromServiceDeskAPI(fieldType, progress),
                     LoadingStrategy.Hybrid => await LoadFromHybridStrategy(fieldType, progress),
@@ -340,10 +341,11 @@ namespace JiraTicketManager.Data
 
         #region Loading Strategy Implementation
 
+       
         /// <summary>
         /// Carica valori da API dirette (Stati, Priorità, Tipi)
         /// </summary>
-        private async Task<List<string>> LoadFromDirectAPI(JiraFieldType fieldType, IProgress<string> progress)
+        private async Task<List<string>> LoadFromDirectAPI(JiraFieldType fieldType, IProgress<string> progress, string ticketKey = null)
         {
             try
             {
@@ -439,6 +441,70 @@ namespace JiraTicketManager.Data
                     return distinctOrganizations;
                 }
 
+                // ✅ GESTIONE CONSULENTE - EditMeta API con ticket dinamico
+                if (fieldType == JiraFieldType.Consulente)
+                {
+                    _logger.LogInfo($"👤 Caricamento Consulente tramite EditMeta API");
+                    progress?.Report("Caricamento consulenti...");
+
+                    // ✅ USA IL TICKET KEY PASSATO COME PARAMETRO
+                    if (string.IsNullOrEmpty(ticketKey))
+                    {
+                        _logger.LogWarning("❌ Ticket key non fornito per Consulente, uso fallback");
+                        throw new ArgumentException("Ticket key richiesto per caricare i consulenti");
+                    }
+
+                    var editMetaUrl = $"{Domain}/rest/api/2/issue/{ticketKey}/editmeta";
+
+                    using var editMetaRequest = new HttpRequestMessage(HttpMethod.Get, editMetaUrl);
+                    editMetaRequest.Headers.Add("Authorization", $"Basic {credentials}");
+                    editMetaRequest.Headers.Add("Accept", "application/json");
+
+                    using var editMetaResponse = await httpClient.SendAsync(editMetaRequest);
+
+                    if (!editMetaResponse.IsSuccessStatusCode)
+                    {
+                        var errorContent = await editMetaResponse.Content.ReadAsStringAsync();
+                        _logger.LogError($"EditMeta API error: {editMetaResponse.StatusCode} - {errorContent}");
+                        throw new HttpRequestException($"EditMeta API Error: {editMetaResponse.StatusCode}");
+                    }
+
+                    var editMetaJson = await editMetaResponse.Content.ReadAsStringAsync();
+                    var editMetaObj = JObject.Parse(editMetaJson);
+
+                    var consulenti = new List<string>();
+
+                    // Estrai allowedValues del campo customfield_10238
+                    var fields = editMetaObj["fields"];
+                    if (fields != null && fields["customfield_10238"] != null)
+                    {
+                        var allowedValues = fields["customfield_10238"]["allowedValues"];
+                        if (allowedValues != null)
+                        {
+                            foreach (var allowedValue in allowedValues)
+                            {
+                                var value = allowedValue["value"]?.ToString();
+                                if (!string.IsNullOrEmpty(value))
+                                {
+                                    var displayValue = EmailConverterHelper.FormatUsernameForDisplay(value);
+                                    consulenti.Add(displayValue);
+                                }
+                            }
+                        }
+                    }
+
+                    if (consulenti.Count > 0)
+                    {
+                        _logger.LogInfo($"✅ Caricati {consulenti.Count} consulenti");
+                        return consulenti.OrderBy(c => c).ToList();
+                    }
+                    else
+                    {
+                        _logger.LogWarning("❌ Nessun consulenti trovati");
+                        return new List<string>();
+                    }
+                }
+
                 // GESTIONE CUSTOM FIELD
                 if (JiraFieldTypeHelper.IsCustomField(fieldType))
                 {
@@ -515,10 +581,10 @@ namespace JiraTicketManager.Data
                         .ToList();
 
                     var excludedAssignees = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "Dania Zaccara", "Daniela La Duca", "Edoardo Lembo",
-                "Francisca Gori", "Giovanni Piccolo", "Valerio Vocale", "Francesco Dembech"
-            };
+    {
+        "Dania Zaccara", "Daniela La Duca", "Edoardo Lembo",
+        "Francisca Gori", "Giovanni Piccolo", "Valerio Vocale", "Francesco Dembech"
+    };
 
                     finalFieldValues = assigneeNames.Where(assignee => !excludedAssignees.Contains(assignee)).ToList();
                     _logger.LogInfo($"🔍 Assegnatari filtrati: {string.Join(", ", finalFieldValues)}");
@@ -539,9 +605,9 @@ namespace JiraTicketManager.Data
                 if (fieldType == JiraFieldType.Priority)
                 {
                     var allowedPriorities = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "Alta", "Media", "Bassa"
-            };
+    {
+        "Alta", "Media", "Bassa"
+    };
                     finalFieldValues = finalFieldValues.Where(priority => allowedPriorities.Contains(priority)).ToList();
                     _logger.LogInfo($"🔍 Priorità filtrate: {string.Join(", ", finalFieldValues)}");
                 }
@@ -897,7 +963,7 @@ namespace JiraTicketManager.Data
             {
                 "customfield_10113" => JiraFieldType.Area,
                 "customfield_10114" => JiraFieldType.Application,
-                "customfield_10238" => JiraFieldType.CustomField, // Consulente
+                "customfield_10238" => JiraFieldType.Consulente, // ✅ CORRETTO (era CustomField)
                 _ => JiraFieldType.CustomField
             };
         }

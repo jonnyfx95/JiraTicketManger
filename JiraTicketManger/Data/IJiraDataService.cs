@@ -59,7 +59,7 @@ namespace JiraTicketManager.Data
         /// <summary>
         /// Carica i valori per un tipo di campo specifico
         /// </summary>
-        Task<List<JiraField>> GetFieldValuesAsync(JiraFieldType fieldType, IProgress<string> progress = null);
+        Task<List<JiraField>> GetFieldValuesAsync(JiraFieldType fieldType, IProgress<string> progress = null, string ticketKey = null);
         /// <summary>
         /// Carica valori per un custom field specifico
         /// </summary>

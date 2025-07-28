@@ -13,6 +13,8 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Net.Http;
+using System.Linq;
 
 namespace JiraTicketManager.Testing
 {
@@ -116,6 +118,14 @@ namespace JiraTicketManager.Testing
             var result13 = await TestDependencyQueryGeneration();
             totalTests++; if (result13) passedTests++;
             LogTest("");
+
+            // ✅ NUOVO TEST CONSULENTE
+            LogTest("🔍 Test 14: API Campo Consulente");
+            var result14 = await TestConsulenteAPIs();
+            totalTests++; if (result14) passedTests++;
+            LogTest("");
+
+
 
 
             // Risultati finali
@@ -2942,6 +2952,226 @@ namespace JiraTicketManager.Testing
 
 
         #endregion
+
+        /// <summary>
+        /// Test per verificare le API disponibili per il campo Consulente (customfield_10238)
+        /// </summary>
+        public async Task<bool> TestConsulenteAPIs()
+        {
+            LogTest("🧪 === TEST API CONSULENTE ===");
+
+            try
+            {
+                var settingsService = SettingsService.CreateDefault();
+                var (domain, username, token) = settingsService.GetJiraCredentials();
+
+                var httpClient = new HttpClient();
+                var auth = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($"{username}:{token}"));
+
+                // Test 1: Field configuration
+                LogTest("📋 Test 1: Field configuration");
+                await TestFieldConfig(httpClient, auth, domain);
+
+                // Test 2: CreateMeta per progetto CC
+                LogTest("📋 Test 2: CreateMeta per progetto CC");
+                await TestCreateMeta(httpClient, auth, domain);
+
+                // Test 3: Ricerca valori esistenti tramite JQL
+                LogTest("📋 Test 3: Valori esistenti tramite JQL");
+                await TestExistingValues(httpClient, auth, domain);
+
+                // Test 4: User picker API (se è un campo utente)
+                LogTest("📋 Test 4: User picker API");
+                await TestUserPickerAPI(httpClient, auth, domain);
+
+                LogTest("✅ Test Consulente API completato");
+
+                // Salva e apri il file di log
+                await SaveAndOpenTestLog();
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ Errore test Consulente API: {ex.Message}");
+
+                // Salva e apri il file di log anche in caso di errore
+                await SaveAndOpenTestLog();
+
+                return false;
+            }
+        }
+
+        private async Task TestFieldConfig(HttpClient httpClient, string auth, string domain)
+        {
+            try
+            {
+                var fieldUrl = $"{domain}/rest/api/2/field/customfield_10238";
+
+                using var request = new HttpRequestMessage(HttpMethod.Get, fieldUrl);
+                request.Headers.Add("Authorization", $"Basic {auth}");
+                request.Headers.Add("Accept", "application/json");
+
+                using var response = await httpClient.SendAsync(request);
+                var content = await response.Content.ReadAsStringAsync();
+
+                LogTest($"   Status: {response.StatusCode}");
+                LogTest($"   Response: {content.Substring(0, Math.Min(200, content.Length))}...");
+            }
+            catch (Exception ex)
+            {
+                LogTest($"   ❌ Errore: {ex.Message}");
+            }
+        }
+
+        private async Task TestCreateMeta(HttpClient httpClient, string auth, string domain)
+        {
+            try
+            {
+                var createMetaUrl = $"{domain}/rest/api/2/issue/createmeta?projectKeys=CC&expand=projects.issuetypes.fields.customfield_10238";
+
+                using var request = new HttpRequestMessage(HttpMethod.Get, createMetaUrl);
+                request.Headers.Add("Authorization", $"Basic {auth}");
+                request.Headers.Add("Accept", "application/json");
+
+                using var response = await httpClient.SendAsync(request);
+                var content = await response.Content.ReadAsStringAsync();
+
+                LogTest($"   Status: {response.StatusCode}");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = JObject.Parse(content);
+                    LogTest($"   Projects found: {json["projects"]?.Count() ?? 0}");
+
+                    // Cerca il campo customfield_10238
+                    var field = json.SelectToken("$.projects[*].issuetypes[*].fields.customfield_10238");
+                    if (field != null)
+                    {
+                        LogTest($"   Campo trovato: {field["name"]}");
+                        LogTest($"   Tipo: {field["schema"]?["type"]}");
+                        LogTest($"   HasDefaultValue: {field["hasDefaultValue"]}");
+                        LogTest($"   Required: {field["required"]}");
+
+                        var allowedValues = field["allowedValues"];
+                        if (allowedValues != null)
+                        {
+                            LogTest($"   AllowedValues count: {allowedValues.Count()}");
+                            foreach (var value in allowedValues.Take(5))
+                            {
+                                LogTest($"      - {value["value"] ?? value["displayName"] ?? value}");
+                            }
+                        }
+                        else
+                        {
+                            LogTest("   ⚠️ Nessun allowedValues trovato");
+                        }
+                    }
+                    else
+                    {
+                        LogTest("   ❌ Campo customfield_10238 non trovato in CreateMeta");
+                    }
+                }
+                else
+                {
+                    LogTest($"   ❌ Error: {content.Substring(0, Math.Min(200, content.Length))}...");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogTest($"   ❌ Errore: {ex.Message}");
+            }
+        }
+
+        private async Task TestExistingValues(HttpClient httpClient, string auth, string domain)
+        {
+            try
+            {
+                var jql = "project = CC AND customfield_10238 IS NOT EMPTY ORDER BY updated DESC";
+                var searchUrl = $"{domain}/rest/api/2/search?jql={Uri.EscapeDataString(jql)}&maxResults=50&fields=customfield_10238";
+
+                using var request = new HttpRequestMessage(HttpMethod.Get, searchUrl);
+                request.Headers.Add("Authorization", $"Basic {auth}");
+                request.Headers.Add("Accept", "application/json");
+
+                using var response = await httpClient.SendAsync(request);
+                var content = await response.Content.ReadAsStringAsync();
+
+                LogTest($"   Status: {response.StatusCode}");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = JObject.Parse(content);
+                    var total = json["total"]?.Value<int>() ?? 0;
+                    LogTest($"   Ticket con campo popolato: {total}");
+
+                    var uniqueValues = new HashSet<string>();
+                    var issues = json["issues"] as JArray;
+
+                    foreach (var issue in issues ?? new JArray())
+                    {
+                        var fieldValue = issue["fields"]?["customfield_10238"];
+                        if (fieldValue != null)
+                        {
+                            var valueStr = fieldValue.ToString();
+                            if (!string.IsNullOrEmpty(valueStr))
+                            {
+                                uniqueValues.Add(valueStr);
+                            }
+                        }
+                    }
+
+                    LogTest($"   Valori unici trovati: {uniqueValues.Count}");
+                    foreach (var value in uniqueValues.Take(5))
+                    {
+                        LogTest($"      - {value}");
+                    }
+                }
+                else
+                {
+                    LogTest($"   ❌ Error: {content.Substring(0, Math.Min(200, content.Length))}...");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogTest($"   ❌ Errore: {ex.Message}");
+            }
+        }
+
+        private async Task TestUserPickerAPI(HttpClient httpClient, string auth, string domain)
+        {
+            try
+            {
+                var userUrl = $"{domain}/rest/api/2/user/assignable/search?project=CC&maxResults=50";
+
+                using var request = new HttpRequestMessage(HttpMethod.Get, userUrl);
+                request.Headers.Add("Authorization", $"Basic {auth}");
+                request.Headers.Add("Accept", "application/json");
+
+                using var response = await httpClient.SendAsync(request);
+                var content = await response.Content.ReadAsStringAsync();
+
+                LogTest($"   Status: {response.StatusCode}");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = JArray.Parse(content);
+                    LogTest($"   Utenti assignabili: {json.Count}");
+
+                    foreach (var user in json.Take(5))
+                    {
+                        var email = user["emailAddress"]?.ToString();
+                        var displayName = user["displayName"]?.ToString();
+                        LogTest($"      - {displayName} ({email})");
+                    }
+                }
+                else
+                {
+                    LogTest($"   ❌ Error: {content.Substring(0, Math.Min(200, content.Length))}...");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogTest($"   ❌ Errore: {ex.Message}");
+            }
+        }
 
 
     }
