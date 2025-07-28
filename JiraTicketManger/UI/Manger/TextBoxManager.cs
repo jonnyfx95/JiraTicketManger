@@ -352,11 +352,9 @@ namespace JiraTicketManager.UI.Managers
         {
             return jiraField switch
             {
-                // === CAMPI REPORTER CORRETTI ===
+                // === CAMPI STANDARD ===
                 "reporter" => "Reporter",
                 "reporter.emailAddress" => "ReporterEmail",
-
-                // === CAMPI STANDARD ===
                 "assignee" => "Assignee",
                 "status" => "Status",
                 "priority" => "Priority",
@@ -381,6 +379,7 @@ namespace JiraTicketManager.UI.Managers
                 _ => jiraField
             };
         }
+
 
         /// <summary>
         /// Imposta valore in TextBox thread-safe

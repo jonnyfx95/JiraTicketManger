@@ -21,6 +21,7 @@ namespace JiraTicketManager.Forms
         private readonly JiraDataService _dataService;
         private readonly TextBoxManager _textBoxManager;
         private ComboBoxManager _comboBoxManager;
+
         private string _currentTicketKey;
         private bool _isLoading = false;
 
@@ -71,15 +72,15 @@ namespace JiraTicketManager.Forms
                 _currentTicketKey = ticketKey;
                 this.Text = $"Caricamento Ticket {ticketKey}...";
 
-                // Inizializza ComboBox prima di caricare i dati
+                // ⭐ AGGIUNGERE: Inizializza ComboBox
                 await InitializeConsulenteComboBox();
 
-                // Popola tutti i controlli
+                // Popola tutti i controlli (codice esistente)
                 var textBoxMappings = CreateTextBoxMappings();
                 var labelMappings = CreateLabelMappings();
                 await _textBoxManager.PopulateAllControlsAsync(ticketKey, textBoxMappings, labelMappings);
 
-                // Imposta il consulente basandosi sui dati del ticket
+                // ⭐ AGGIUNGERE: Imposta consulente dal ticket
                 await SetConsulenteFromCurrentTicket();
 
                 await UpdateHeaderInfo(ticketKey);
@@ -482,14 +483,17 @@ namespace JiraTicketManager.Forms
                     _comboBoxManager = new ComboBoxManager(_dataService);
                 }
 
-                // Usa il nuovo JiraFieldType.Consulente
+                // USA LA LOGICA ESISTENTE - Il sistema automaticamente:
+                // 1. IsCustomField(Consulente) = true
+                // 2. DetermineLoadingStrategy() → DirectAPI (CreateMeta)
+                // 3. Se fallisce → fallback a JQLSearch automatico
                 await _comboBoxManager.LoadAsync(
                     cmbConsulente,
-                    JiraFieldType.Consulente,  // NUOVO TIPO
+                    JiraFieldType.Consulente,
                     "-- Tutti Consulenti --"
                 );
 
-                _logger?.LogInfo("✅ cmbConsulente inizializzata con successo");
+                _logger?.LogInfo($"✅ cmbConsulente inizializzata: {cmbConsulente.Items.Count} elementi");
             }
             catch (Exception ex)
             {
@@ -499,7 +503,7 @@ namespace JiraTicketManager.Forms
         }
 
         /// <summary>
-        /// Imposta il consulente selezionato basandosi sui dati del ticket caricato
+        /// Imposta il consulente dal ticket corrente
         /// </summary>
         private async Task SetConsulenteFromCurrentTicket()
         {
@@ -525,7 +529,7 @@ namespace JiraTicketManager.Forms
                     return;
                 }
 
-                // Usa GetSelectedOriginalValue del ComboBoxManager per ottenere il valore corretto
+                // Cerca matching nella ComboBox
                 var items = cmbConsulente.Items.Cast<string>().ToList();
                 var matchingItem = items.FirstOrDefault(item =>
                     item.Equals(consulenteValue, StringComparison.OrdinalIgnoreCase) ||
@@ -540,7 +544,7 @@ namespace JiraTicketManager.Forms
                 else
                 {
                     cmbConsulente.SelectedIndex = 0;
-                    _logger?.LogDebug($"⚠️ Consulente '{consulenteValue}' non trovato, uso default");
+                    _logger?.LogDebug($"⚠️ Consulente '{consulenteValue}' non trovato");
                 }
             }
             catch (Exception ex)
@@ -552,7 +556,7 @@ namespace JiraTicketManager.Forms
         }
 
         /// <summary>
-        /// Estrae il valore del consulente dal JSON raw del ticket
+        /// Estrae consulente dal ticket
         /// </summary>
         private string ExtractConsulenteFromTicket(Newtonsoft.Json.Linq.JToken rawData)
         {
@@ -565,23 +569,20 @@ namespace JiraTicketManager.Forms
                     return null;
 
                 if (consulteneField.Type == Newtonsoft.Json.Linq.JTokenType.String)
-                {
                     return consulteneField.ToString();
-                }
 
                 if (consulteneField.Type == Newtonsoft.Json.Linq.JTokenType.Object)
                 {
                     return consulteneField["value"]?.ToString() ??
                            consulteneField["displayName"]?.ToString() ??
-                           consulteneField["emailAddress"]?.ToString() ??
-                           consulteneField.ToString();
+                           consulteneField["emailAddress"]?.ToString();
                 }
 
                 return consulteneField.ToString();
             }
             catch (Exception ex)
             {
-                _logger?.LogError($"❌ Errore estrazione consulente da ticket: {ex.Message}", ex);
+                _logger?.LogError($"❌ Errore estrazione consulente: {ex.Message}", ex);
                 return null;
             }
         }
@@ -593,7 +594,7 @@ namespace JiraTicketManager.Forms
         {
             try
             {
-                if (cmbConsulente?.Items.Count == 0)
+                if (cmbConsulente != null && cmbConsulente.Items.Count == 0)
                 {
                     _logger?.LogInfo("🔄 Fallback a valori hardcoded...");
                     cmbConsulente.Items.Clear();
@@ -611,6 +612,7 @@ namespace JiraTicketManager.Forms
         }
 
         #endregion
+
 
 
 

@@ -166,6 +166,7 @@
         {
             return fieldType == JiraFieldType.Area ||
                    fieldType == JiraFieldType.Application ||
+                   fieldType == JiraFieldType.Consulente ||
                    fieldType == JiraFieldType.CustomField;
         }
 

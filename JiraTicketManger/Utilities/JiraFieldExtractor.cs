@@ -27,6 +27,9 @@ namespace JiraTicketManager.Utilities
             ["Type"] = new FieldConfig { Path = "issuetype", SubFields = ["name", "displayName"], DefaultValue = "Task" },
             ["Reporter"] = new FieldConfig { Path = "reporter", SubFields = ["displayName", "name", "emailAddress"], DefaultValue = "Unknown" },
 
+            //
+            ["ConsulenteEmail"] = new FieldConfig { Path = "customfield_10238", IsCustomField = true, DefaultValue = "" },
+
             // Date
             ["Created"] = new FieldConfig { Path = "created", IsDate = true },
             ["Updated"] = new FieldConfig { Path = "updated", IsDate = true },
