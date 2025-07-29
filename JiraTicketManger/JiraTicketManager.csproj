@@ -10,9 +10,6 @@
     <EnableDefaultItems>true</EnableDefaultItems>
     <!-- Configurazione DPI identica al VB.NET -->
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
-    <!-- ⚠️ AGGIUNTO: Configurazione per COM Interop Outlook -->
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,16 +18,14 @@
     <None Remove="logs\**" />
   </ItemGroup>
 
-  <!-- 📦 PACKAGE REFERENCES CON OUTLOOK CORRETTO -->
+  <!-- 📦 PACKAGE REFERENCES PULITI - NESSUN OUTLOOK -->
   <ItemGroup>
-    <!-- ⚠️ OUTLOOK: Versione più recente disponibile su NuGet -->
-    <PackageReference Include="Microsoft.Office.Interop.Outlook" Version="15.0.4797.1004" />
-    
     <!-- Package esistenti dal progetto originale -->
+    <PackageReference Include="Microsoft.Office.Interop.Outlook" Version="15.0.4797.1004" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3351.48" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
-    
+
     <!-- Package aggiuntivi presenti nel VB.NET -->
     <PackageReference Include="ClosedXML" Version="0.105.0" />
     <PackageReference Include="MimeKit" Version="4.12.0" />
@@ -124,9 +119,4 @@
     <!-- 📊 Messaggio di log -->
     <Message Text="DLL e file XML Publish spostati nella cartella libs (stile VB.NET)" Importance="high" />
   </Target>
-
-  <!-- ⚠️ AGGIUNTO: Assembly Binding Redirect per Office Interop -->
-  <ItemGroup>
-    <None Include="app.config" />
-  </ItemGroup>
 </Project>

@@ -1,13 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using System.Linq;
-using JiraTicketManager.Business;
+﻿using JiraTicketManager.Business;
 using JiraTicketManager.Data;
+using JiraTicketManager.Helpers;
 using JiraTicketManager.Services;
 using JiraTicketManager.UI.Managers;
-using JiraTicketManager.Helpers;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 
 
 
@@ -27,7 +29,7 @@ namespace JiraTicketManager.Forms
         private bool _isLoading = false;
 
         private readonly EmailTemplateService _emailTemplateService;
-        private readonly OutlookIntegrationService _outlookService;
+        private readonly OutlookHybridService _outlookService;
 
         // === STATO PIANIFICAZIONE ===
         private bool _isPlanningEnabled = false;
@@ -54,7 +56,7 @@ namespace JiraTicketManager.Forms
 
             // === INIZIALIZZA SERVIZI PIANIFICAZIONE (READONLY) ===
             _emailTemplateService = new EmailTemplateService();
-            _outlookService = new OutlookIntegrationService();
+            _outlookService = new OutlookHybridService();
             _toastService = WindowsToastService.CreateDefault();
 
             // Setup iniziale
@@ -245,6 +247,7 @@ namespace JiraTicketManager.Forms
                 _logger.LogError("Errore setup planning event handlers", ex);
             }
         }
+
 
 
         /// <summary>
@@ -978,7 +981,6 @@ namespace JiraTicketManager.Forms
                 if (!isAvailable)
                 {
                     _logger.LogWarning("Outlook non disponibile - pianificazione limitata");
-                    // Potresti voler disabilitare o avvisare l'utente
                 }
             }
             catch (Exception ex)
@@ -1059,8 +1061,6 @@ namespace JiraTicketManager.Forms
         /// </summary>
         private async void OnPianificaClick(object sender, EventArgs e)
         {
-            TestOutlookDiagnosticAdvanced();
-
             try
             {
                 _logger.LogInfo("=== INIZIO PIANIFICAZIONE ===");
@@ -1077,7 +1077,7 @@ namespace JiraTicketManager.Forms
                 }
 
                 // Raccoglie dati dai campi UI
-                var planningData = CollectPlanningTicketData();  
+                var planningData = CollectPlanningTicketData();
                 if (planningData == null)
                 {
                     return;
@@ -1087,35 +1087,57 @@ namespace JiraTicketManager.Forms
                 var emailContent = GenerateEmailContent(planningData);
                 if (string.IsNullOrWhiteSpace(emailContent.HtmlBody))
                 {
-                    //_toastService.ShowError("Errore nella generazione del contenuto email");
+                    ShowError("Errore Generazione", "Errore nella generazione del contenuto email");
                     return;
                 }
 
                 // Prepara dati email per Outlook
                 var emailData = PrepareEmailData(planningData, emailContent.HtmlBody);
 
-                // Apre Outlook con email precompilata
-                var success = await _outlookService.OpenEmailAsync(emailData);
+                // ⚠️ TENTATIVO OUTLOOK CON FALLBACK AUTOMATICO
+                bool outlookSuccess = false;
 
-                if (success)
+                try
                 {
-                    _logger.LogInfo("Email Outlook aperta con successo");
-                    //_toastService.ShowError("Email di pianificazione preparata e aperta in Outlook");
+                    // Tenta di aprire Outlook
+                    outlookSuccess = await _outlookService.OpenEmailAsync(emailData);
 
-                    // Genera e aggiunge commento Jira
-                    await AddJiraCommentAsync(planningData, emailContent.TextBody);
+                    if (outlookSuccess)
+                    {
+                        _logger.LogInfo("Email Outlook aperta con successo");
+                        ShowSuccess("Pianificazione Completata", "Email di pianificazione preparata e aperta in Outlook");
+                    }
                 }
-                else
+                catch (Exception outlookEx)
                 {
-                   // ShowError("Errore nell'apertura di Outlook. Verificare che Outlook sia installato e funzionante.");
+                    _logger.LogWarning($"Outlook non disponibile: {outlookEx.Message}");
+                    outlookSuccess = false;
                 }
+
+                // ⚠️ FALLBACK SE OUTLOOK NON FUNZIONA
+                if (!outlookSuccess)
+                {
+                    _logger.LogInfo("Outlook non disponibile - attivo fallback");
+
+                    // Mostra finestra con dati email
+                    ShowEmailDataWindow(emailData, emailContent.TextBody);
+
+                    // Prova metodi alternativi
+                    TryAlternativeEmailMethods(emailData);
+
+                    ShowSuccess("Pianificazione Completata",
+                        "Email preparata! Outlook non disponibile - utilizza i dati mostrati per invio manuale.");
+                }
+
+                // Genera commento Jira (sempre)
+                await AddJiraCommentAsync(planningData, emailContent.TextBody);
 
                 _logger.LogInfo("=== FINE PIANIFICAZIONE ===");
             }
             catch (Exception ex)
             {
                 _logger.LogError("Errore durante pianificazione", ex);
-                //ShowError($"Errore durante la pianificazione: {ex.Message}");
+                ShowError("Errore Pianificazione", $"Errore durante la pianificazione: {ex.Message}");
             }
             finally
             {
@@ -1201,14 +1223,14 @@ namespace JiraTicketManager.Forms
             }
         }
 
-        private OutlookIntegrationService.EmailData PrepareEmailData(PlanningTicketData data, string htmlContent)
+        private OutlookHybridService.EmailData PrepareEmailData(PlanningTicketData data, string htmlContent)
         {
             try
             {
                 _logger.LogInfo("Preparazione dati email per Outlook");
 
                 // Usa il metodo helper di OutlookIntegrationService
-                var emailData = OutlookIntegrationService.PrepareEmailFromTicketData(
+                var emailData = OutlookHybridService.PrepareEmailFromTicketData(
                     data.ClientName,
                     data.TicketKey,
                     data.Description,
@@ -1367,149 +1389,266 @@ namespace JiraTicketManager.Forms
 
         #endregion
 
+
+        // ========================================================================
+        // METODI FALLBACK
+        // ========================================================================
+
         /// <summary>
-        /// Test diagnostico approfondito per Outlook
-        /// AGGIUNGI TEMPORANEAMENTE per debugging
+        /// Mostra finestra con i dati email quando Outlook non è disponibile
         /// </summary>
-        private async void TestOutlookDiagnosticAdvanced()
+        private void ShowEmailDataWindow(OutlookHybridService.EmailData emailData, string textContent)
         {
             try
             {
-                _logger.LogInfo("=== DIAGNOSI OUTLOOK AVANZATA ===");
-
-                // Test 1: Verifica registro Windows per Outlook
-                try
+                var emailForm = new Form
                 {
-                    using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Office\ClickToRun\Configuration");
-                    if (key != null)
-                    {
-                        var version = key.GetValue("VersionToReport");
-                        _logger.LogInfo($"Office ClickToRun Version: {version}");
-                    }
-                    else
-                    {
-                        _logger.LogInfo("ClickToRun non trovato, verifica installazione MSI");
-                    }
-                }
-                catch (Exception regEx)
+                    Text = "📧 Dati Email Pianificazione - Outlook Non Disponibile",
+                    Size = new Size(900, 700),
+                    StartPosition = FormStartPosition.CenterParent,
+                    FormBorderStyle = FormBorderStyle.Sizable,
+                    MinimumSize = new Size(700, 500),
+                    MaximizeBox = true,
+                    ShowIcon = true
+                };
+
+                // Panel principale
+                var mainPanel = new TableLayoutPanel
                 {
-                    _logger.LogWarning($"Errore lettura registro: {regEx.Message}");
-                }
+                    Dock = DockStyle.Fill,
+                    ColumnCount = 1,
+                    RowCount = 3,
+                    Padding = new Padding(10)
+                };
+                mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                mainPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+                mainPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-                // Test 2: Verifica creazione COM diretta
-                try
+                // Header con istruzioni
+                var lblHeader = new Label
                 {
-                    _logger.LogInfo("Test creazione COM diretta...");
-                    var comType = Type.GetTypeFromProgID("Outlook.Application");
-                    if (comType == null)
-                    {
-                        _logger.LogError("Outlook.Application ProgID non trovato nel registro");
-                        ShowError("Outlook Error", "Outlook non è registrato correttamente nel sistema");
-                        return;
-                    }
+                    Text = "⚠️ Outlook non disponibile. Utilizza questi dati per inviare l'email manualmente:",
+                    Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                    ForeColor = Color.DarkOrange,
+                    AutoSize = true,
+                    Margin = new Padding(0, 0, 0, 10)
+                };
 
-                    _logger.LogInfo($"ProgID trovato: {comType.FullName}");
-                }
-                catch (Exception comEx)
+                // TextBox con dati email
+                var txtEmailData = new TextBox
                 {
-                    _logger.LogError($"Errore ProgID: {comEx.Message}");
-                }
+                    Multiline = true,
+                    ReadOnly = true,
+                    ScrollBars = ScrollBars.Both,
+                    Dock = DockStyle.Fill,
+                    Font = new Font("Consolas", 9),
+                    BackColor = Color.White,
+                    Text = BuildEmailDisplayText(emailData, textContent)
+                };
 
-                // Test 3: Verifica assembly Interop
-                try
+                // Panel pulsanti
+                var buttonPanel = new FlowLayoutPanel
                 {
-                    _logger.LogInfo("Test assembly Interop...");
-                    var interopAssembly = typeof(Microsoft.Office.Interop.Outlook.Application).Assembly;
-                    _logger.LogInfo($"Interop Assembly: {interopAssembly.FullName}");
-                    _logger.LogInfo($"Interop Location: {interopAssembly.Location}");
-                }
-                catch (Exception interopEx)
+                    FlowDirection = FlowDirection.RightToLeft,
+                    AutoSize = true,
+                    Dock = DockStyle.Fill
+                };
+
+                // Pulsante Copia Tutto
+                var btnCopyAll = new Button
                 {
-                    _logger.LogError($"Errore Interop Assembly: {interopEx.Message}");
-                }
-
-                // Test 4: Tentativo creazione step-by-step
-                Microsoft.Office.Interop.Outlook.Application outlookApp = null;
-                try
+                    Text = "📋 Copia Tutto",
+                    Size = new Size(120, 35),
+                    UseVisualStyleBackColor = true
+                };
+                btnCopyAll.Click += (s, e) =>
                 {
-                    _logger.LogInfo("Tentativo creazione Outlook.Application...");
-                    outlookApp = new Microsoft.Office.Interop.Outlook.Application();
+                    Clipboard.SetText(txtEmailData.Text);
+                    ShowSuccess("Copiato", "Tutti i dati email copiati negli appunti");
+                };
 
-                    _logger.LogInfo("Outlook.Application creata con successo!");
-
-                    // Test versione
-                    var version = outlookApp.Version;
-                    _logger.LogInfo($"Outlook Version: {version}");
-
-                    // Test namespace
-                    var nameSpace = outlookApp.GetNamespace("MAPI");
-                    _logger.LogInfo("MAPI Namespace ottenuto con successo");
-
-                    // Test creazione MailItem
-                    var mailItem = (Microsoft.Office.Interop.Outlook.MailItem)outlookApp.CreateItem(
-                        Microsoft.Office.Interop.Outlook.OlItemType.olMailItem);
-                    _logger.LogInfo("MailItem creato con successo");
-
-                    // Test impostazione proprietà
-                    mailItem.Subject = "Test Pianificazione JiraTicketManager";
-                    mailItem.Body = "Test di integrazione Outlook";
-                    _logger.LogInfo("Proprietà MailItem impostate con successo");
-
-                    // Cleanup
-                    if (mailItem != null)
-                    {
-                        System.Runtime.InteropServices.Marshal.ReleaseComObject(mailItem);
-                        _logger.LogInfo("MailItem rilasciato");
-                    }
-
-                    if (nameSpace != null)
-                    {
-                        System.Runtime.InteropServices.Marshal.ReleaseComObject(nameSpace);
-                        _logger.LogInfo("Namespace rilasciato");
-                    }
-
-                    ShowSuccess("Test Outlook", "Outlook funziona correttamente! Il problema dovrebbe essere risolto.");
-                }
-                catch (System.Runtime.InteropServices.COMException comException)
+                // Pulsante Copia Solo Email
+                var btnCopyEmails = new Button
                 {
-                    _logger.LogError($"COM Exception: {comException.Message}");
-                    _logger.LogError($"HRESULT: 0x{comException.HResult:X8}");
-                    _logger.LogError($"Source: {comException.Source}");
-
-                    var errorMessage = comException.HResult switch
-                    {
-                        unchecked((int)0x80040154) => "Outlook non è registrato correttamente (REGDB_E_CLASSNOTREG)",
-                        unchecked((int)0x800401F0) => "COM non inizializzato (CO_E_NOTINITIALIZED)",
-                        unchecked((int)0x80070005) => "Accesso negato a Outlook (E_ACCESSDENIED)",
-                        _ => $"Errore COM non riconosciuto: 0x{comException.HResult:X8}"
-                    };
-
-                    ShowError("COM Error", errorMessage);
-                }
-                finally
+                    Text = "📧 Copia Email",
+                    Size = new Size(120, 35),
+                    UseVisualStyleBackColor = true
+                };
+                btnCopyEmails.Click += (s, e) =>
                 {
-                    if (outlookApp != null)
-                    {
-                        try
-                        {
-                            System.Runtime.InteropServices.Marshal.ReleaseComObject(outlookApp);
-                            _logger.LogInfo("Outlook.Application rilasciato");
-                        }
-                        catch (Exception releaseEx)
-                        {
-                            _logger.LogError($"Errore rilascio COM: {releaseEx.Message}");
-                        }
-                    }
-                }
+                    var emails = $"A: {emailData.To}\nCC: {emailData.Cc}";
+                    Clipboard.SetText(emails);
+                    ShowSuccess("Copiato", "Indirizzi email copiati negli appunti");
+                };
 
-                _logger.LogInfo("=== FINE DIAGNOSI OUTLOOK ===");
+                // Pulsante Salva File
+                var btnSave = new Button
+                {
+                    Text = "💾 Salva File",
+                    Size = new Size(120, 35),
+                    UseVisualStyleBackColor = true
+                };
+                btnSave.Click += (s, e) => SaveEmailToFile(emailData, textContent);
+
+                // Pulsante Mailto (alternativo)
+                var btnMailto = new Button
+                {
+                    Text = "🔗 Apri MailTo",
+                    Size = new Size(120, 35),
+                    UseVisualStyleBackColor = true
+                };
+                btnMailto.Click += (s, e) => TryMailToUrl(emailData);
+
+                // Pulsante Chiudi
+                var btnClose = new Button
+                {
+                    Text = "✖️ Chiudi",
+                    Size = new Size(120, 35),
+                    UseVisualStyleBackColor = true
+                };
+                btnClose.Click += (s, e) => emailForm.Close();
+
+                // Assembla tutto
+                buttonPanel.Controls.AddRange(new Control[] { btnClose, btnMailto, btnSave, btnCopyEmails, btnCopyAll });
+                mainPanel.Controls.Add(lblHeader, 0, 0);
+                mainPanel.Controls.Add(txtEmailData, 0, 1);
+                mainPanel.Controls.Add(buttonPanel, 0, 2);
+                emailForm.Controls.Add(mainPanel);
+
+                // Mostra la finestra
+                emailForm.ShowDialog(this);
             }
             catch (Exception ex)
             {
-                _logger.LogError("Errore generale test Outlook", ex);
-                ShowError("Test Error", $"Errore durante il test: {ex.Message}");
+                _logger.LogError("Errore visualizzazione dati email", ex);
             }
         }
 
+        /// <summary>
+        /// Costruisce il testo da visualizzare nella finestra
+        /// </summary>
+        private string BuildEmailDisplayText(OutlookHybridService.EmailData emailData, string textContent)
+        {
+            var sb = new StringBuilder();
+
+            sb.AppendLine("📧 DATI EMAIL PIANIFICAZIONE");
+            sb.AppendLine("=" + new string('=', 60));
+            sb.AppendLine();
+            sb.AppendLine($"A: {emailData.To}");
+            sb.AppendLine($"CC: {emailData.Cc}");
+            if (!string.IsNullOrWhiteSpace(emailData.Bcc))
+                sb.AppendLine($"BCC: {emailData.Bcc}");
+            sb.AppendLine($"Oggetto: {emailData.Subject}");
+            sb.AppendLine();
+            sb.AppendLine("CONTENUTO TESTO:");
+            sb.AppendLine("-" + new string('-', 59));
+            sb.AppendLine(textContent);
+            sb.AppendLine();
+            sb.AppendLine("CONTENUTO HTML:");
+            sb.AppendLine("-" + new string('-', 59));
+            sb.AppendLine(emailData.BodyHtml);
+            sb.AppendLine();
+            sb.AppendLine("📋 ISTRUZIONI:");
+            sb.AppendLine("1. Copia gli indirizzi email (A e CC)");
+            sb.AppendLine("2. Apri il tuo client email preferito");
+            sb.AppendLine("3. Incolla destinatari e oggetto");
+            sb.AppendLine("4. Copia e incolla il contenuto");
+            sb.AppendLine();
+            sb.AppendLine($"Generato il: {DateTime.Now:dd/MM/yyyy HH:mm:ss}");
+            sb.AppendLine("Da: JiraTicketManager - Sistema Pianificazione");
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Salva i dati email in un file
+        /// </summary>
+        private void SaveEmailToFile(OutlookHybridService.EmailData emailData, string textContent)
+        {
+            try
+            {
+                using var saveDialog = new SaveFileDialog
+                {
+                    Filter = "File Email (*.eml)|*.eml|File Testo (*.txt)|*.txt|Tutti i file (*.*)|*.*",
+                    DefaultExt = "txt",
+                    FileName = $"Email_Pianificazione_{DateTime.Now:yyyyMMdd_HHmmss}.txt"
+                };
+
+                if (saveDialog.ShowDialog() == DialogResult.OK)
+                {
+                    var content = BuildEmailDisplayText(emailData, textContent);
+                    File.WriteAllText(saveDialog.FileName, content, Encoding.UTF8);
+
+                    ShowSuccess("File Salvato", $"Email salvata in:\n{saveDialog.FileName}");
+                    _logger.LogInfo($"Email fallback salvata: {saveDialog.FileName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore salvataggio email", ex);
+                ShowError("Errore Salvataggio", $"Errore nel salvataggio: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Tenta metodi alternativi per aprire email
+        /// </summary>
+        private void TryAlternativeEmailMethods(OutlookHybridService.EmailData emailData)
+        {
+            try
+            {
+                // Metodo 1: MailTo URL (funziona con qualsiasi client email)
+                TryMailToUrl(emailData);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Metodi alternativi falliti: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Tenta di aprire email con MailTo URL
+        /// </summary>
+        private bool TryMailToUrl(OutlookHybridService.EmailData emailData)
+        {
+            try
+            {
+                _logger.LogInfo("Tentativo apertura MailTo URL");
+
+                var mailtoUrl = $"mailto:{Uri.EscapeDataString(emailData.To)}";
+                var parameters = new List<string>();
+
+                if (!string.IsNullOrWhiteSpace(emailData.Cc))
+                    parameters.Add($"cc={Uri.EscapeDataString(emailData.Cc)}");
+
+                if (!string.IsNullOrWhiteSpace(emailData.Subject))
+                    parameters.Add($"subject={Uri.EscapeDataString(emailData.Subject)}");
+
+                // Converti HTML a testo per mailto
+                if (!string.IsNullOrWhiteSpace(emailData.BodyText))
+                {
+                    var textBody = emailData.BodyText.Length > 1000
+                        ? emailData.BodyText.Substring(0, 1000) + "..."
+                        : emailData.BodyText;
+                    parameters.Add($"body={Uri.EscapeDataString(textBody)}");
+                }
+
+                if (parameters.Any())
+                    mailtoUrl += "?" + string.Join("&", parameters);
+
+                Process.Start(new ProcessStartInfo(mailtoUrl) { UseShellExecute = true });
+
+                _logger.LogInfo("MailTo URL aperto con successo");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"MailTo URL fallito: {ex.Message}");
+                return false;
+            }
+        }
+
+
     }
+
 }
