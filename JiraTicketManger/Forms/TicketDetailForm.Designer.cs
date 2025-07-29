@@ -76,8 +76,13 @@ namespace JiraTicketManager.Forms
             lblDescriptionTitle = new Label();
             pnlRight = new Panel();
             pnlTeamPlanning = new Panel();
+            txtWBS = new TextBox();
             lblWBS = new Label();
-            txtPM = new TextBox();
+            lblCommerciale = new Label();
+            cmbCommerciale = new ComboBox();
+            txtResponsabile = new TextBox();
+            lblResponsabile = new Label();
+            cmbPM = new ComboBox();
             lblPM = new Label();
             cmbConsulente = new ComboBox();
             lblConsulente = new Label();
@@ -85,8 +90,6 @@ namespace JiraTicketManager.Forms
             pnlOrganization = new Panel();
             txtClientePartner = new TextBox();
             lblClientePartner = new Label();
-            cmbCommerciale = new TextBox();
-            lblCommerciale = new Label();
             txtApplicativo = new TextBox();
             lblApplicativo = new Label();
             txtArea = new TextBox();
@@ -124,9 +127,6 @@ namespace JiraTicketManager.Forms
             txtRichiedente = new TextBox();
             lblRichiedente = new Label();
             lblContactTitle = new Label();
-            lblResponsabile = new Label();
-            txtResponsabile = new TextBox();
-            txtWBS = new TextBox();
             pnlHeader.SuspendLayout();
             pnlTicketInfo.SuspendLayout();
             pnlMetadata.SuspendLayout();
@@ -621,7 +621,7 @@ namespace JiraTicketManager.Forms
             pnlTeamPlanning.Controls.Add(cmbCommerciale);
             pnlTeamPlanning.Controls.Add(txtResponsabile);
             pnlTeamPlanning.Controls.Add(lblResponsabile);
-            pnlTeamPlanning.Controls.Add(txtPM);
+            pnlTeamPlanning.Controls.Add(cmbPM);
             pnlTeamPlanning.Controls.Add(lblPM);
             pnlTeamPlanning.Controls.Add(cmbConsulente);
             pnlTeamPlanning.Controls.Add(lblConsulente);
@@ -631,29 +631,84 @@ namespace JiraTicketManager.Forms
             pnlTeamPlanning.Size = new Size(360, 246);
             pnlTeamPlanning.TabIndex = 1;
             // 
+            // txtWBS
+            // 
+            txtWBS.BackColor = Color.White;
+            txtWBS.BorderStyle = BorderStyle.FixedSingle;
+            txtWBS.Font = new Font("Segoe UI", 9F);
+            txtWBS.ForeColor = Color.FromArgb(73, 80, 87);
+            txtWBS.Location = new Point(90, 149);
+            txtWBS.Name = "txtWBS";
+            txtWBS.ReadOnly = true;
+            txtWBS.Size = new Size(255, 23);
+            txtWBS.TabIndex = 8;
+            txtWBS.Text = "WBS-2025-DEMO-001";
+            // 
             // lblWBS
             // 
             lblWBS.AutoSize = true;
             lblWBS.Font = new Font("Segoe UI", 9F);
             lblWBS.ForeColor = Color.FromArgb(52, 73, 94);
-            lblWBS.Location = new Point(3, 156);
+            lblWBS.Location = new Point(3, 151);
             lblWBS.Name = "lblWBS";
             lblWBS.Size = new Size(34, 15);
             lblWBS.TabIndex = 7;
             lblWBS.Text = "WBS:";
             // 
-            // txtPM
+            // lblCommerciale
             // 
-            txtPM.BackColor = Color.White;
-            txtPM.BorderStyle = BorderStyle.FixedSingle;
-            txtPM.Font = new Font("Segoe UI", 9F);
-            txtPM.ForeColor = Color.FromArgb(73, 80, 87);
-            txtPM.Location = new Point(90, 62);
-            txtPM.Name = "txtPM";
-            txtPM.ReadOnly = true;
-            txtPM.Size = new Size(255, 23);
-            txtPM.TabIndex = 4;
-            txtPM.Text = "project.manager@company.com";
+            lblCommerciale.AutoSize = true;
+            lblCommerciale.Font = new Font("Segoe UI", 9F);
+            lblCommerciale.ForeColor = Color.FromArgb(52, 73, 94);
+            lblCommerciale.Location = new Point(2, 93);
+            lblCommerciale.Name = "lblCommerciale";
+            lblCommerciale.Size = new Size(81, 15);
+            lblCommerciale.TabIndex = 7;
+            lblCommerciale.Text = "Commerciale:";
+            // 
+            // cmbCommerciale
+            // 
+            cmbCommerciale.BackColor = Color.White;
+            cmbCommerciale.Font = new Font("Segoe UI", 9F);
+            cmbCommerciale.ForeColor = Color.FromArgb(73, 80, 87);
+            cmbCommerciale.Location = new Point(90, 91);
+            cmbCommerciale.Name = "cmbCommerciale";
+            cmbCommerciale.Size = new Size(255, 23);
+            cmbCommerciale.TabIndex = 8;
+            // 
+            // txtResponsabile
+            // 
+            txtResponsabile.BackColor = Color.White;
+            txtResponsabile.BorderStyle = BorderStyle.FixedSingle;
+            txtResponsabile.Font = new Font("Segoe UI", 9F);
+            txtResponsabile.ForeColor = Color.FromArgb(73, 80, 87);
+            txtResponsabile.Location = new Point(90, 120);
+            txtResponsabile.Name = "txtResponsabile";
+            txtResponsabile.ReadOnly = true;
+            txtResponsabile.Size = new Size(255, 23);
+            txtResponsabile.TabIndex = 6;
+            txtResponsabile.Text = "Antonio Bianchi";
+            // 
+            // lblResponsabile
+            // 
+            lblResponsabile.AutoSize = true;
+            lblResponsabile.Font = new Font("Segoe UI", 9F);
+            lblResponsabile.ForeColor = Color.FromArgb(52, 73, 94);
+            lblResponsabile.Location = new Point(2, 122);
+            lblResponsabile.Name = "lblResponsabile";
+            lblResponsabile.Size = new Size(79, 15);
+            lblResponsabile.TabIndex = 5;
+            lblResponsabile.Text = "Responsabile:";
+            // 
+            // cmbPM
+            // 
+            cmbPM.BackColor = Color.White;
+            cmbPM.Font = new Font("Segoe UI", 9F);
+            cmbPM.ForeColor = Color.FromArgb(73, 80, 87);
+            cmbPM.Location = new Point(90, 62);
+            cmbPM.Name = "cmbPM";
+            cmbPM.Size = new Size(255, 23);
+            cmbPM.TabIndex = 4;
             // 
             // lblPM
             // 
@@ -683,7 +738,7 @@ namespace JiraTicketManager.Forms
             lblConsulente.AutoSize = true;
             lblConsulente.Font = new Font("Segoe UI", 9F);
             lblConsulente.ForeColor = Color.FromArgb(52, 73, 94);
-            lblConsulente.Location = new Point(9, 35);
+            lblConsulente.Location = new Point(5, 35);
             lblConsulente.Name = "lblConsulente";
             lblConsulente.Size = new Size(70, 15);
             lblConsulente.TabIndex = 1;
@@ -741,29 +796,6 @@ namespace JiraTicketManager.Forms
             lblClientePartner.Size = new Size(48, 15);
             lblClientePartner.TabIndex = 9;
             lblClientePartner.Text = "Partner:";
-            // 
-            // cmbCommerciale
-            // 
-            cmbCommerciale.BackColor = Color.White;
-            cmbCommerciale.BorderStyle = BorderStyle.FixedSingle;
-            cmbCommerciale.Font = new Font("Segoe UI", 9F);
-            cmbCommerciale.ForeColor = Color.FromArgb(73, 80, 87);
-            cmbCommerciale.Location = new Point(90, 91);
-            cmbCommerciale.Name = "cmbCommerciale";
-            cmbCommerciale.ReadOnly = true;
-            cmbCommerciale.Size = new Size(255, 23);
-            cmbCommerciale.TabIndex = 8;
-            // 
-            // lblCommerciale
-            // 
-            lblCommerciale.AutoSize = true;
-            lblCommerciale.Font = new Font("Segoe UI", 9F);
-            lblCommerciale.ForeColor = Color.FromArgb(52, 73, 94);
-            lblCommerciale.Location = new Point(2, 99);
-            lblCommerciale.Name = "lblCommerciale";
-            lblCommerciale.Size = new Size(81, 15);
-            lblCommerciale.TabIndex = 7;
-            lblCommerciale.Text = "Commerciale:";
             // 
             // txtApplicativo
             // 
@@ -1211,43 +1243,6 @@ namespace JiraTicketManager.Forms
             lblContactTitle.TabIndex = 0;
             lblContactTitle.Text = "👤 RICHIEDENTE";
             // 
-            // lblResponsabile
-            // 
-            lblResponsabile.AutoSize = true;
-            lblResponsabile.Font = new Font("Segoe UI", 9F);
-            lblResponsabile.ForeColor = Color.FromArgb(52, 73, 94);
-            lblResponsabile.Location = new Point(0, 126);
-            lblResponsabile.Name = "lblResponsabile";
-            lblResponsabile.Size = new Size(79, 15);
-            lblResponsabile.TabIndex = 5;
-            lblResponsabile.Text = "Responsabile:";
-            // 
-            // txtResponsabile
-            // 
-            txtResponsabile.BackColor = Color.White;
-            txtResponsabile.BorderStyle = BorderStyle.FixedSingle;
-            txtResponsabile.Font = new Font("Segoe UI", 9F);
-            txtResponsabile.ForeColor = Color.FromArgb(73, 80, 87);
-            txtResponsabile.Location = new Point(90, 120);
-            txtResponsabile.Name = "txtResponsabile";
-            txtResponsabile.ReadOnly = true;
-            txtResponsabile.Size = new Size(255, 23);
-            txtResponsabile.TabIndex = 6;
-            txtResponsabile.Text = "Antonio Bianchi";
-            // 
-            // txtWBS
-            // 
-            txtWBS.BackColor = Color.White;
-            txtWBS.BorderStyle = BorderStyle.FixedSingle;
-            txtWBS.Font = new Font("Segoe UI", 9F);
-            txtWBS.ForeColor = Color.FromArgb(73, 80, 87);
-            txtWBS.Location = new Point(90, 149);
-            txtWBS.Name = "txtWBS";
-            txtWBS.ReadOnly = true;
-            txtWBS.Size = new Size(255, 23);
-            txtWBS.TabIndex = 8;
-            txtWBS.Text = "WBS-2025-DEMO-001";
-            // 
             // TicketDetailForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -1387,7 +1382,7 @@ namespace JiraTicketManager.Forms
         private Label lblApplicativo;
         private TextBox txtApplicativo;
         private Label lblCommerciale;
-        private TextBox cmbCommerciale;
+        private ComboBox cmbCommerciale;
         private Label lblClientePartner;
         private TextBox txtClientePartner;
 
@@ -1397,7 +1392,7 @@ namespace JiraTicketManager.Forms
         private Label lblConsulente;
         private ComboBox cmbConsulente;
         private Label lblPM;
-        private TextBox txtPM;
+        private ComboBox cmbPM;
         private Label lblWBS;
 
         // === ACTION BAR BUTTONS ===

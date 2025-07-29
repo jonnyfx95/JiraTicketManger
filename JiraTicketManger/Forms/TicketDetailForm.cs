@@ -126,11 +126,11 @@ namespace JiraTicketManager.Forms
                 [txtCliente] = "customfield_10117",         // ✅ "UNIONE PEDEMONTANA PARMENSE"
                 [txtArea] = "customfield_10113",            // ✅ "Sistema Informativo Territoriale"
                 [txtApplicativo] = "customfield_10114",     // ✅ "Sistema Informativo Territoriale -> NewSed.Net"
-                [cmbCommerciale] = "customfield_10272",     // ❌ Spesso NULL (facoltativo)
+               
                 [txtClientePartner] = "customfield_10103",  // ❌ Spesso NULL (facoltativo)
 
                 // === RIGHT PANEL - TEAM PLANNING ===
-                [txtPM] = "customfield_10271",              // ❌ Spesso NULL (facoltativo)
+             
                                                             // [txtResponsabile] = "",                  // TODO: Logica custom futura
                 [txtWBS] = "customfield_10096",             // ❌ Spesso NULL (facoltativo)
 
@@ -215,11 +215,11 @@ namespace JiraTicketManager.Forms
                 [txtCliente] = "customfield_10117",        // Cliente
                 [txtArea] = "customfield_10113",           // Area
                 [txtApplicativo] = "customfield_10114",    // Applicativo
-                [cmbCommerciale] = "customfield_10272",    // Commerciale (mail)
+                
                 [txtClientePartner] = "customfield_10103", // Cliente Partner
 
                 // === RIGHT PANEL - TEAM PLANNING ===
-                [txtPM] = "customfield_10271",             // P.M. (mail)
+                 
                
                 [txtWBS] = "customfield_10096",            // WBS
 
