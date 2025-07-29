@@ -1,15 +1,15 @@
-﻿using JiraTicketManager.Business;
-using JiraTicketManager.Data;
-using JiraTicketManager.Services;
-using JiraTicketManager.UI.Managers;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using JiraTicketManager.Business; 
-using JiraTicketManager.UI.Managers; 
 using System.Linq;
+using JiraTicketManager.Business;
+using JiraTicketManager.Data;
+using JiraTicketManager.Services;
+using JiraTicketManager.UI.Managers;
 using JiraTicketManager.Helpers;
+
+
 
 
 namespace JiraTicketManager.Forms
@@ -26,6 +26,16 @@ namespace JiraTicketManager.Forms
         private string _currentTicketKey;
         private bool _isLoading = false;
 
+        private readonly EmailTemplateService _emailTemplateService;
+        private readonly OutlookIntegrationService _outlookService;
+
+        // === STATO PIANIFICAZIONE ===
+        private bool _isPlanningEnabled = false;
+        private string _currentEmailPreview = "";
+        private string _currentHtmlContent = "";
+
+        private readonly WindowsToastService _toastService;
+
         #endregion
 
         #region Constructor
@@ -34,7 +44,7 @@ namespace JiraTicketManager.Forms
         {
             InitializeComponent();
 
-            // Inizializza servizi
+            // Inizializza servizi esistenti
             _logger = LoggingService.CreateForComponent("TicketDetailForm");
 
             // Usa i servizi esistenti della MainForm
@@ -42,11 +52,19 @@ namespace JiraTicketManager.Forms
             _dataService = new JiraDataService(apiService);
             _textBoxManager = new TextBoxManager(_dataService);
 
+            // === INIZIALIZZA SERVIZI PIANIFICAZIONE (READONLY) ===
+            _emailTemplateService = new EmailTemplateService();
+            _outlookService = new OutlookIntegrationService();
+            _toastService = WindowsToastService.CreateDefault();
+
             // Setup iniziale
             SetupForm();
 
-            _logger.LogInfo("TicketDetailForm inizializzata");
+            _logger.LogInfo("TicketDetailForm inizializzata con servizi pianificazione");
         }
+
+
+
 
         #endregion
 
@@ -128,12 +146,12 @@ namespace JiraTicketManager.Forms
                 [txtCliente] = "customfield_10117",         // ✅ "UNIONE PEDEMONTANA PARMENSE"
                 [txtArea] = "customfield_10113",            // ✅ "Sistema Informativo Territoriale"
                 [txtApplicativo] = "customfield_10114",     // ✅ "Sistema Informativo Territoriale -> NewSed.Net"
-                
+
                 [txtClientePartner] = "customfield_10103",  // ❌ Spesso NULL (facoltativo)
 
                 // === RIGHT PANEL - TEAM PLANNING ===
-              
-                                                     
+
+
                 [txtWBS] = "customfield_10096",             // ❌ Spesso NULL (facoltativo)
 
                 // === NUOVI CAMPI PIANIFICAZIONE ===
@@ -193,6 +211,10 @@ namespace JiraTicketManager.Forms
                 // Setup event handlers (se necessari)
                 this.Load += OnFormLoad;
                 this.FormClosing += OnFormClosing;
+                SetupPlanningEventHandlers();
+
+
+
 
                 _logger.LogDebug("Form setup completato");
             }
@@ -201,6 +223,29 @@ namespace JiraTicketManager.Forms
                 _logger.LogError("Errore setup form", ex);
             }
         }
+
+        private void SetupPlanningEventHandlers()
+        {
+            try
+            {
+                // === EVENT HANDLERS PIANIFICAZIONE ===
+                btnPianifica.Click += OnPianificaClick;
+                cmbTipoPianificazione.SelectedIndexChanged += OnTemplateChanged;
+
+                // === SETUP TEMPLATE COMBOBOX ===
+                SetupTemplateComboBox();
+
+                // === VERIFICA OUTLOOK DISPONIBILITÀ ===
+                _ = CheckOutlookAvailabilityAsync();
+
+                _logger.LogInfo("Event handlers pianificazione configurati");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore setup planning event handlers", ex);
+            }
+        }
+
 
         /// <summary>
         /// Crea la mappatura completa TextBox → Campo Jira
@@ -223,12 +268,12 @@ namespace JiraTicketManager.Forms
                 [txtCliente] = "customfield_10117",        // Cliente
                 [txtArea] = "customfield_10113",           // Area
                 [txtApplicativo] = "customfield_10114",    // Applicativo
-                
+
                 [txtClientePartner] = "customfield_10103", // Cliente Partner
 
                 // === RIGHT PANEL - TEAM PLANNING ===
-                 
-               
+
+
                 [txtWBS] = "customfield_10096",            // WBS
 
                 // === CENTER PANEL - DESCRIPTION ===
@@ -678,9 +723,793 @@ namespace JiraTicketManager.Forms
 
         #endregion
 
+        #region METODI HELPER PIANIFICAZIONE
+
+        /// <summary>
+        /// Configura la ComboBox dei template con i tipi disponibili
+        /// </summary>
+        private void SetupTemplateComboBox()
+        {
+            try
+            {
+                _logger.LogInfo("Setup template ComboBox");
+
+                // Pulisci e popola con i template disponibili
+                cmbTipoPianificazione.Items.Clear();
+                cmbTipoPianificazione.Items.Add("Seleziona tipo pianificazione...");
+
+                var availableTemplates = EmailTemplateService.GetAvailableTemplates();
+                foreach (var template in availableTemplates)
+                {
+                    cmbTipoPianificazione.Items.Add(template.Value);
+                }
+
+                cmbTipoPianificazione.SelectedIndex = 0;
+                _logger.LogInfo($"Template ComboBox configurata con {availableTemplates.Count} template");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore setup template ComboBox", ex);
+            }
+        }
+
+        /// <summary>
+        /// Ottiene il tipo di template selezionato
+        /// </summary>
+        private EmailTemplateService.TemplateType? GetSelectedTemplateType()
+        {
+            if (cmbTipoPianificazione.SelectedIndex <= 0)
+                return null;
+
+            // Mappa indice ComboBox a TemplateType
+            return cmbTipoPianificazione.SelectedIndex switch
+            {
+                1 => EmailTemplateService.TemplateType.SingleIntervention,
+                2 => EmailTemplateService.TemplateType.MultipleInterventions,
+                3 => EmailTemplateService.TemplateType.ToBeAgreed,
+                _ => null
+            };
+        }
+
+        /// <summary>
+        /// Ottiene il valore selezionato da una ComboBox in modo sicuro
+        /// </summary>
+        private string GetSelectedComboValue(ComboBox comboBox)
+        {
+            if (comboBox?.SelectedItem == null || comboBox.SelectedIndex <= 0)
+                return "";
+
+            return comboBox.SelectedItem.ToString();
+        }
+
+        /// <summary>
+        /// Mostra messaggio di errore usando il sistema Toast integrato
+        /// </summary>
+        private void ShowError(string title, string message)
+        {
+            _toastService.ShowError(title, message);
+            _logger.LogError($"Errore pianificazione mostrato: {title} - {message}");
+        }
+
+        /// <summary>
+        /// Mostra messaggio di successo usando il sistema Toast integrato
+        /// </summary>
+        private void ShowSuccess(string title, string message)
+        {
+            _toastService.ShowSuccess(title, message);
+            _logger.LogInfo($"Successo pianificazione: {title} - {message}");
+        }
+
+        /// <summary>
+        /// Mostra messaggio informativo usando il sistema Toast integrato
+        /// </summary>
+        private void ShowInfo(string title, string message)
+        {
+            _toastService.ShowInfo(title, message);
+            _logger.LogInfo($"Info pianificazione: {title} - {message}");
+        }
+
+        /// <summary>
+        /// Verifica se un ComboBox ha una selezione valida
+        /// </summary>
+        private bool HasValidSelection(ComboBox comboBox)
+        {
+            return comboBox != null && comboBox.SelectedIndex > 0 && comboBox.SelectedItem != null;
+        }
+
+        /// <summary>
+        /// Pulisce e formatta una stringa di input
+        /// </summary>
+        private string CleanInputString(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return "";
+
+            return input.Trim()
+                        .Replace("\r\n", " ")
+                        .Replace("\n", " ")
+                        .Replace("\r", " ")
+                        .Replace("  ", " ");
+        }
+
+        /// <summary>
+        /// Valida se un campo di testo ha contenuto valido
+        /// </summary>
+        private bool IsValidTextInput(TextBox textBox)
+        {
+            return textBox != null && !string.IsNullOrWhiteSpace(textBox.Text) && textBox.Text.Trim().Length > 0;
+        }
+
+        /// <summary>
+        /// Ottiene il testo sicuro da un TextBox
+        /// </summary>
+        private string GetSafeTextValue(TextBox textBox)
+        {
+            if (textBox?.Text == null)
+                return "";
+
+            return CleanInputString(textBox.Text);
+        }
+
+        /// <summary>
+        /// Verifica se tutti i campi obbligatori sono compilati
+        /// </summary>
+        private bool AreRequiredFieldsValid()
+        {
+            var requiredFields = new[]
+            {
+        (txtCliente, "Cliente"),
+        (txtDescrizione, "Descrizione")
+    };
+
+            foreach (var (textBox, fieldName) in requiredFields)
+            {
+                if (!IsValidTextInput(textBox))
+                {
+                    ShowError("Campo Obbligatorio", $"Il campo '{fieldName}' è obbligatorio");
+                    textBox?.Focus();
+                    return false;
+                }
+            }
+
+            var requiredCombos = new[]
+            {
+        (cmbConsulente, "Consulente"),
+        (cmbTipoPianificazione, "Tipo Pianificazione")
+    };
+
+            foreach (var (comboBox, fieldName) in requiredCombos)
+            {
+                if (!HasValidSelection(comboBox))
+                {
+                    ShowError("Campo Obbligatorio", $"Selezionare un valore per '{fieldName}'");
+                    comboBox?.Focus();
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Resetta lo stato della pianificazione
+        /// </summary>
+        private void ResetPlanningState()
+        {
+            _isPlanningEnabled = false;
+            _currentEmailPreview = "";
+            _currentHtmlContent = "";
+
+            btnPianifica.Enabled = false;
+            btnPianifica.Text = "📅 Pianifica";
+
+            if (cmbTipoPianificazione != null)
+                cmbTipoPianificazione.SelectedIndex = 0;
+        }
+
+        /// <summary>
+        /// Abilita/disabilita i controlli di pianificazione
+        /// </summary>
+        private void SetPlanningControlsEnabled(bool enabled)
+        {
+            var planningControls = new Control[]
+            {
+        cmbTipoPianificazione,
+        txtDataIntervento,
+        txtOraIntervento,
+        txtEffort,
+        cmbConsulente,
+        cmbPM,
+        cmbCommerciale
+            };
+
+            foreach (var control in planningControls)
+            {
+                if (control != null)
+                    control.Enabled = enabled;
+            }
+        }
+
+        /// <summary>
+        /// Formatta la data per la visualizzazione
+        /// </summary>
+        private string FormatDateForDisplay(string dateInput)
+        {
+            if (string.IsNullOrWhiteSpace(dateInput))
+                return "Data da definire";
+
+            // Prova a parsare e riformattare la data
+            if (DateTime.TryParse(dateInput, out DateTime parsedDate))
+            {
+                return parsedDate.ToString("dd/MM/yyyy");
+            }
+
+            return CleanInputString(dateInput);
+        }
+
+        /// <summary>
+        /// Formatta l'ora per la visualizzazione
+        /// </summary>
+        private string FormatTimeForDisplay(string timeInput)
+        {
+            if (string.IsNullOrWhiteSpace(timeInput))
+                return "Ora da definire";
+
+            // Prova a parsare e riformattare l'ora
+            if (TimeSpan.TryParse(timeInput, out TimeSpan parsedTime))
+            {
+                return parsedTime.ToString(@"hh\:mm");
+            }
+
+            return CleanInputString(timeInput);
+        }
 
 
-      
+        /// <summary>
+        /// Verifica se Outlook è disponibile nel sistema
+        /// </summary>
+        private async Task CheckOutlookAvailabilityAsync()
+        {
+            try
+            {
+                var isAvailable = await _outlookService.IsOutlookAvailableAsync();
+                _logger.LogInfo($"Outlook disponibile: {isAvailable}");
+
+                if (!isAvailable)
+                {
+                    _logger.LogWarning("Outlook non disponibile - pianificazione limitata");
+                    // Potresti voler disabilitare o avvisare l'utente
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore verifica Outlook", ex);
+            }
+        }
+
+        // <summary>
+        /// Event handler per cambio template
+        /// </summary>
+        private void OnTemplateChanged(object sender, EventArgs e)
+        {
+            try
+            {
+                _logger.LogInfo($"Template cambiato - Index: {cmbTipoPianificazione.SelectedIndex}");
+
+                // Abilita/disabilita pianificazione basato su selezione
+                _isPlanningEnabled = cmbTipoPianificazione.SelectedIndex > 0;
+                btnPianifica.Enabled = _isPlanningEnabled;
+
+                if (_isPlanningEnabled)
+                {
+                    // Genera anteprima se i dati sono disponibili
+                    UpdateEmailPreview();
+                }
+                else
+                {
+                    // Pulisci anteprima
+                    _currentEmailPreview = "";
+                    _currentHtmlContent = "";
+                }
+
+                _logger.LogInfo($"Pianificazione abilitata: {_isPlanningEnabled}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore cambio template", ex);
+            }
+        }
+
+        /// <summary>
+        /// Aggiorna l'anteprima email (se hai un controllo per mostrarla)
+        /// </summary>
+        private void UpdateEmailPreview()
+        {
+            try
+            {
+                if (!_isPlanningEnabled)
+                    return;
+
+                var templateType = GetSelectedTemplateType();
+                if (templateType == null)
+                    return;
+
+                // Genera anteprima con dati correnti
+                _currentEmailPreview = _emailTemplateService.GenerateTextPreview(
+                    templateType.Value,
+                    GetSelectedComboValue(cmbConsulente) ?? "Consulente",
+                    txtDataIntervento?.Text ?? "Data da definire",
+                    txtOraIntervento?.Text ?? "Ora da definire",
+                    txtTelefono?.Text ?? "Telefono"
+                );
+
+                _logger.LogInfo($"Anteprima email aggiornata - {_currentEmailPreview.Length} caratteri");
+
+                // Se hai un controllo per mostrare l'anteprima, aggiornalo qui
+                // txtAnteprimaEmail.Text = _currentEmailPreview;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore aggiornamento anteprima", ex);
+            }
+        }
+
+        /// <summary>
+        /// Event handler principale per il pulsante Pianifica
+        /// </summary>
+        private async void OnPianificaClick(object sender, EventArgs e)
+        {
+            TestOutlookDiagnosticAdvanced();
+
+            try
+            {
+                _logger.LogInfo("=== INIZIO PIANIFICAZIONE ===");
+
+                // Disabilita pulsante durante elaborazione
+                btnPianifica.Enabled = false;
+                btnPianifica.Text = "⏳ Elaborazione...";
+                this.Cursor = Cursors.WaitCursor;
+
+                // Validazione dati
+                if (!ValidatePlanningData())
+                {
+                    return;
+                }
+
+                // Raccoglie dati dai campi UI
+                var planningData = CollectPlanningTicketData();  
+                if (planningData == null)
+                {
+                    return;
+                }
+
+                // Genera contenuto email
+                var emailContent = GenerateEmailContent(planningData);
+                if (string.IsNullOrWhiteSpace(emailContent.HtmlBody))
+                {
+                    //_toastService.ShowError("Errore nella generazione del contenuto email");
+                    return;
+                }
+
+                // Prepara dati email per Outlook
+                var emailData = PrepareEmailData(planningData, emailContent.HtmlBody);
+
+                // Apre Outlook con email precompilata
+                var success = await _outlookService.OpenEmailAsync(emailData);
+
+                if (success)
+                {
+                    _logger.LogInfo("Email Outlook aperta con successo");
+                    //_toastService.ShowError("Email di pianificazione preparata e aperta in Outlook");
+
+                    // Genera e aggiunge commento Jira
+                    await AddJiraCommentAsync(planningData, emailContent.TextBody);
+                }
+                else
+                {
+                   // ShowError("Errore nell'apertura di Outlook. Verificare che Outlook sia installato e funzionante.");
+                }
+
+                _logger.LogInfo("=== FINE PIANIFICAZIONE ===");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore durante pianificazione", ex);
+                //ShowError($"Errore durante la pianificazione: {ex.Message}");
+            }
+            finally
+            {
+                // Ripristina stato UI
+                btnPianifica.Enabled = true;
+                btnPianifica.Text = "📅 Pianifica";
+                this.Cursor = Cursors.Default;
+            }
+        }
+
+        /// <summary>
+        /// Aggiunge commento Jira con dettagli della pianificazione
+        /// </summary>
+        private async Task AddJiraCommentAsync(PlanningTicketData data, string textContent)
+        {
+            try
+            {
+                _logger.LogInfo("Aggiunta commento Jira");
+
+                // Genera commento usando EmailTemplateService
+                var comment = _emailTemplateService.GenerateJiraComment(
+                    data.TemplateType,
+                    data.ConsultantName,
+                    data.InterventionDate,
+                    data.InterventionTime,
+                    data.ClientPhone,
+                    data.ResponsiblePerson,
+                    data.ProjectManager,
+                    data.Commercial,
+                    data.ReporterEmail,
+                    data.TicketKey,
+                    data.ClientName,
+                    data.Description,
+                    data.WBS
+                );
+
+                // Aggiunge commento tramite API (da implementare se necessario)
+                // await _dataService.AddCommentAsync(data.TicketKey, comment);
+
+                _logger.LogInfo($"Commento Jira generato - Lunghezza: {comment.Length}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore aggiunta commento Jira", ex);
+                // Non bloccare il flusso se il commento fallisce
+            }
+        }
+
+        /// <summary>
+        /// Genera il contenuto email usando EmailTemplateService
+        /// </summary>
+        private (string HtmlBody, string TextBody) GenerateEmailContent(PlanningTicketData data)
+        {
+            try
+            {
+                _logger.LogInfo($"Generazione contenuto email - Template: {data.TemplateType}");
+
+                // Genera HTML per email
+                var htmlContent = _emailTemplateService.GenerateHtmlContent(
+                    data.TemplateType,
+                    data.ConsultantName,
+                    data.InterventionDate,
+                    data.InterventionTime,
+                    data.ClientPhone
+                );
+
+                // Genera testo per anteprima/commento
+                var textContent = _emailTemplateService.GenerateTextPreview(
+                    data.TemplateType,
+                    data.ConsultantName,
+                    data.InterventionDate,
+                    data.InterventionTime,
+                    data.ClientPhone
+                );
+
+                _logger.LogInfo($"Contenuto generato - HTML: {htmlContent.Length} char, Text: {textContent.Length} char");
+                return (htmlContent, textContent);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore generazione contenuto", ex);
+                return ("", "");
+            }
+        }
+
+        private OutlookIntegrationService.EmailData PrepareEmailData(PlanningTicketData data, string htmlContent)
+        {
+            try
+            {
+                _logger.LogInfo("Preparazione dati email per Outlook");
+
+                // Usa il metodo helper di OutlookIntegrationService
+                var emailData = OutlookIntegrationService.PrepareEmailFromTicketData(
+                    data.ClientName,
+                    data.TicketKey,
+                    data.Description,
+                    data.WBS,
+                    data.ReporterEmail,
+                    data.ConsultantName,
+                    data.ResponsiblePerson,
+                    data.ProjectManager,
+                    data.Commercial,
+                    htmlContent
+                );
+
+                _logger.LogInfo($"Email data preparata - To: {emailData.To}, CC: {emailData.Cc}");
+                return emailData;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore preparazione email data", ex);
+                throw;
+            }
+        }
+
+        // <summary>
+        /// Raccoglie i dati dai campi UI per la pianificazione
+        /// </summary>
+        private PlanningTicketData CollectPlanningTicketData()
+        {
+            try
+            {
+                _logger.LogInfo("Raccolta dati pianificazione");
+
+                var templateType = GetSelectedTemplateType();
+                if (templateType == null)
+                {
+                    _logger.LogError("Template type non valido");
+                    return null;
+                }
+
+                var data = new PlanningTicketData
+                {
+                    TicketKey = _currentTicketKey,
+                    TemplateType = templateType.Value,
+
+                    // Dati base ticket
+                    ClientName = txtCliente?.Text?.Trim() ?? "",
+                    Description = txtDescrizione?.Text?.Trim() ?? "",
+
+                    // Dati intervento
+                    ConsultantName = GetSelectedComboValue(cmbConsulente),
+                    InterventionDate = txtDataIntervento?.Text?.Trim() ?? "",
+                    InterventionTime = txtOraIntervento?.Text?.Trim() ?? "",
+                    ClientPhone = txtTelefono?.Text?.Trim() ?? "",
+
+                    // Dati team
+                    ProjectManager = GetSelectedComboValue(cmbPM),
+                    Commercial = GetSelectedComboValue(cmbCommerciale),
+                    ResponsiblePerson = txtResponsabile?.Text?.Trim() ?? "",
+
+                    // Dati organizzazione
+                    WBS = txtWBS?.Text?.Trim() ?? "",
+                    Area = txtArea?.Text?.Trim() ?? "",
+                    ReporterEmail = txtEmail?.Text?.Trim() ?? ""
+                };
+
+                _logger.LogInfo($"Dati raccolti per template: {data.TemplateType}");
+                return data;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore raccolta dati", ex);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Valida i dati necessari per la pianificazione
+        /// </summary>
+        private bool ValidatePlanningData()
+        {
+            try
+            {
+                _logger.LogInfo("Validazione dati pianificazione");
+
+                // Verifica template selezionato
+                if (cmbTipoPianificazione.SelectedIndex <= 0)
+                {
+                    ShowError("Pianificazione", "Selezionare un tipo di pianificazione");
+                    return false;
+                }
+
+                // Verifica ticket caricato
+                if (string.IsNullOrWhiteSpace(_currentTicketKey))
+                {
+                    ShowError("Pianificazione", "Nessun ticket caricato");
+                    return false;
+                }
+
+                // Verifica campi obbligatori
+                if (string.IsNullOrWhiteSpace(txtCliente?.Text))
+                {
+                    ShowError("Pianificazione", "Cliente non disponibile");
+                    return false;
+                }
+
+                // Verifica consulente selezionato
+                if (cmbConsulente?.SelectedIndex <= 0)
+                {
+                    ShowError("Pianificazione", "Selezionare un consulente");
+                    return false;
+                }
+
+                _logger.LogInfo("Validazione completata con successo");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore validazione dati", ex);
+                ShowError("Errore Validazione", "Errore durante la validazione dei dati");
+                return false;
+            }
+        }
+
+        #endregion
+
+
+        #region MODELLO DATI PIANIFICAZIONE
+
+        /// <summary>
+        /// Modello per i dati della pianificazione ticket
+        /// </summary>
+        private class PlanningTicketData
+        {
+            public string TicketKey { get; set; } = "";
+            public EmailTemplateService.TemplateType TemplateType { get; set; }
+
+            // Dati base ticket
+            public string ClientName { get; set; } = "";
+            public string Description { get; set; } = "";
+
+            // Dati intervento
+            public string ConsultantName { get; set; } = "";
+            public string InterventionDate { get; set; } = "";
+            public string InterventionTime { get; set; } = "";
+            public string ClientPhone { get; set; } = "";
+
+            // Dati team
+            public string ProjectManager { get; set; } = "";
+            public string Commercial { get; set; } = "";
+            public string ResponsiblePerson { get; set; } = "";
+
+            // Dati organizzazione
+            public string WBS { get; set; } = "";
+            public string Area { get; set; } = "";
+            public string ReporterEmail { get; set; } = "";
+        }
+
+        #endregion
+
+        /// <summary>
+        /// Test diagnostico approfondito per Outlook
+        /// AGGIUNGI TEMPORANEAMENTE per debugging
+        /// </summary>
+        private async void TestOutlookDiagnosticAdvanced()
+        {
+            try
+            {
+                _logger.LogInfo("=== DIAGNOSI OUTLOOK AVANZATA ===");
+
+                // Test 1: Verifica registro Windows per Outlook
+                try
+                {
+                    using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Office\ClickToRun\Configuration");
+                    if (key != null)
+                    {
+                        var version = key.GetValue("VersionToReport");
+                        _logger.LogInfo($"Office ClickToRun Version: {version}");
+                    }
+                    else
+                    {
+                        _logger.LogInfo("ClickToRun non trovato, verifica installazione MSI");
+                    }
+                }
+                catch (Exception regEx)
+                {
+                    _logger.LogWarning($"Errore lettura registro: {regEx.Message}");
+                }
+
+                // Test 2: Verifica creazione COM diretta
+                try
+                {
+                    _logger.LogInfo("Test creazione COM diretta...");
+                    var comType = Type.GetTypeFromProgID("Outlook.Application");
+                    if (comType == null)
+                    {
+                        _logger.LogError("Outlook.Application ProgID non trovato nel registro");
+                        ShowError("Outlook Error", "Outlook non è registrato correttamente nel sistema");
+                        return;
+                    }
+
+                    _logger.LogInfo($"ProgID trovato: {comType.FullName}");
+                }
+                catch (Exception comEx)
+                {
+                    _logger.LogError($"Errore ProgID: {comEx.Message}");
+                }
+
+                // Test 3: Verifica assembly Interop
+                try
+                {
+                    _logger.LogInfo("Test assembly Interop...");
+                    var interopAssembly = typeof(Microsoft.Office.Interop.Outlook.Application).Assembly;
+                    _logger.LogInfo($"Interop Assembly: {interopAssembly.FullName}");
+                    _logger.LogInfo($"Interop Location: {interopAssembly.Location}");
+                }
+                catch (Exception interopEx)
+                {
+                    _logger.LogError($"Errore Interop Assembly: {interopEx.Message}");
+                }
+
+                // Test 4: Tentativo creazione step-by-step
+                Microsoft.Office.Interop.Outlook.Application outlookApp = null;
+                try
+                {
+                    _logger.LogInfo("Tentativo creazione Outlook.Application...");
+                    outlookApp = new Microsoft.Office.Interop.Outlook.Application();
+
+                    _logger.LogInfo("Outlook.Application creata con successo!");
+
+                    // Test versione
+                    var version = outlookApp.Version;
+                    _logger.LogInfo($"Outlook Version: {version}");
+
+                    // Test namespace
+                    var nameSpace = outlookApp.GetNamespace("MAPI");
+                    _logger.LogInfo("MAPI Namespace ottenuto con successo");
+
+                    // Test creazione MailItem
+                    var mailItem = (Microsoft.Office.Interop.Outlook.MailItem)outlookApp.CreateItem(
+                        Microsoft.Office.Interop.Outlook.OlItemType.olMailItem);
+                    _logger.LogInfo("MailItem creato con successo");
+
+                    // Test impostazione proprietà
+                    mailItem.Subject = "Test Pianificazione JiraTicketManager";
+                    mailItem.Body = "Test di integrazione Outlook";
+                    _logger.LogInfo("Proprietà MailItem impostate con successo");
+
+                    // Cleanup
+                    if (mailItem != null)
+                    {
+                        System.Runtime.InteropServices.Marshal.ReleaseComObject(mailItem);
+                        _logger.LogInfo("MailItem rilasciato");
+                    }
+
+                    if (nameSpace != null)
+                    {
+                        System.Runtime.InteropServices.Marshal.ReleaseComObject(nameSpace);
+                        _logger.LogInfo("Namespace rilasciato");
+                    }
+
+                    ShowSuccess("Test Outlook", "Outlook funziona correttamente! Il problema dovrebbe essere risolto.");
+                }
+                catch (System.Runtime.InteropServices.COMException comException)
+                {
+                    _logger.LogError($"COM Exception: {comException.Message}");
+                    _logger.LogError($"HRESULT: 0x{comException.HResult:X8}");
+                    _logger.LogError($"Source: {comException.Source}");
+
+                    var errorMessage = comException.HResult switch
+                    {
+                        unchecked((int)0x80040154) => "Outlook non è registrato correttamente (REGDB_E_CLASSNOTREG)",
+                        unchecked((int)0x800401F0) => "COM non inizializzato (CO_E_NOTINITIALIZED)",
+                        unchecked((int)0x80070005) => "Accesso negato a Outlook (E_ACCESSDENIED)",
+                        _ => $"Errore COM non riconosciuto: 0x{comException.HResult:X8}"
+                    };
+
+                    ShowError("COM Error", errorMessage);
+                }
+                finally
+                {
+                    if (outlookApp != null)
+                    {
+                        try
+                        {
+                            System.Runtime.InteropServices.Marshal.ReleaseComObject(outlookApp);
+                            _logger.LogInfo("Outlook.Application rilasciato");
+                        }
+                        catch (Exception releaseEx)
+                        {
+                            _logger.LogError($"Errore rilascio COM: {releaseEx.Message}");
+                        }
+                    }
+                }
+
+                _logger.LogInfo("=== FINE DIAGNOSI OUTLOOK ===");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore generale test Outlook", ex);
+                ShowError("Test Error", $"Errore durante il test: {ex.Message}");
+            }
+        }
 
     }
 }
