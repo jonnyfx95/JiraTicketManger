@@ -454,7 +454,8 @@ namespace JiraTicketManager.Services
                             "&fields=key,summary,status,priority,assignee,reporter,issuetype,created,updated,description,resolutiondate," +
                             "customfield_10117,customfield_10113,customfield_10114,customfield_10172," +
                             "customfield_10136,customfield_10074,customfield_10103,customfield_10271," +
-                            "customfield_10272,customfield_10238,customfield_10096";
+                            "customfield_10272,customfield_10238,customfield_10096," +
+                            "customfield_10116,customfield_10133,customfield_10089";
 
                 _logger.LogDebug($"API Call URL: {url}");
 

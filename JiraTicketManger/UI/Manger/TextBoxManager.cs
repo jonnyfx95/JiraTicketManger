@@ -276,6 +276,7 @@ namespace JiraTicketManager.UI.Managers
 
 
 
+
         // <summary>
         /// Formatta la descrizione per una migliore leggibilità
         /// </summary>
@@ -373,8 +374,13 @@ namespace JiraTicketManager.UI.Managers
                 "customfield_10074" => "Telefono",
                 "customfield_10271" => "PMEmail",
                 "customfield_10272" => "CommercialeEmail",
-                "customfield_10238" => "ConsulenteEmail",  
+                "customfield_10238" => "ConsulenteEmail",
                 "customfield_10096" => "WBS",
+
+                // === 🆕 NUOVI CAMPI PIANIFICAZIONE ===
+                "customfield_10116" => "DataIntervento",    // 🆕 Data Intervento
+                "customfield_10133" => "OraIntervento",     // 🆕 Ora Intervento
+                "customfield_10089" => "Effort",            // 🆕 Effort
 
                 _ => jiraField
             };
@@ -692,6 +698,8 @@ namespace JiraTicketManager.UI.Managers
 
         #endregion
 
+        #region LoadApiData
+#endregion
 
     }
 }

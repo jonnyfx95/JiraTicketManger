@@ -128,13 +128,19 @@ namespace JiraTicketManager.Forms
                 [txtCliente] = "customfield_10117",         // ✅ "UNIONE PEDEMONTANA PARMENSE"
                 [txtArea] = "customfield_10113",            // ✅ "Sistema Informativo Territoriale"
                 [txtApplicativo] = "customfield_10114",     // ✅ "Sistema Informativo Territoriale -> NewSed.Net"
-               
+                
                 [txtClientePartner] = "customfield_10103",  // ❌ Spesso NULL (facoltativo)
 
                 // === RIGHT PANEL - TEAM PLANNING ===
-             
-                                                            // [txtResponsabile] = "",                  // TODO: Logica custom futura
+              
+                                                     
                 [txtWBS] = "customfield_10096",             // ❌ Spesso NULL (facoltativo)
+
+                // === NUOVI CAMPI PIANIFICAZIONE ===
+                [txtDataIntervento] = "customfield_10116",  // 🆕 Data Intervento 
+                [txtOraIntervento] = "customfield_10133",   // 🆕 Ora Intervento 
+                [txtEffort] = "customfield_10089",          // 🆕 Effort (campo corretto!)
+                                                            // txtWBS già presente sopra
 
                 // === CENTER PANEL - DESCRIPTION (TESTATO E FUNZIONANTE) ===
                 [txtDescrizione] = "description"            // ✅ "Buongiorno dovendo modificare il tracciato..."

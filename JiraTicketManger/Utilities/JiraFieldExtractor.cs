@@ -26,8 +26,6 @@ namespace JiraTicketManager.Utilities
             ["Assignee"] = new FieldConfig { Path = "assignee", SubFields = ["displayName", "name", "emailAddress"], DefaultValue = "Unassigned" },
             ["Type"] = new FieldConfig { Path = "issuetype", SubFields = ["name", "displayName"], DefaultValue = "Task" },
             ["Reporter"] = new FieldConfig { Path = "reporter", SubFields = ["displayName", "name", "emailAddress"], DefaultValue = "Unknown" },
-
-            //
             ["ConsulenteEmail"] = new FieldConfig { Path = "customfield_10238", IsCustomField = true, DefaultValue = "" },
 
             // Date
@@ -39,7 +37,16 @@ namespace JiraTicketManager.Utilities
             ["Cliente"] = new FieldConfig { Path = "customfield_10117", IsCustomField = true, DefaultValue = "" },
             ["Area"] = new FieldConfig { Path = "customfield_10113", IsCustomField = true, DefaultValue = "" },
             ["Applicativo"] = new FieldConfig { Path = "customfield_10114", IsCustomField = true, DefaultValue = "" },
-            ["ClientePartner"] = new FieldConfig { Path = "customfield_10053", IsCustomField = true, DefaultValue = "" },
+            ["ClientePartner"] = new FieldConfig { Path = "customfield_10103", IsCustomField = true, DefaultValue = "" },
+            ["Telefono"] = new FieldConfig { Path = "customfield_10074", IsCustomField = true, DefaultValue = "" },
+            ["PMEmail"] = new FieldConfig { Path = "customfield_10271", IsCustomField = true, DefaultValue = "" },
+            ["CommercialeEmail"] = new FieldConfig { Path = "customfield_10272", IsCustomField = true, DefaultValue = "" },
+            ["WBS"] = new FieldConfig { Path = "customfield_10096", IsCustomField = true, DefaultValue = "" },
+
+            // === 🆕 NUOVI CAMPI PIANIFICAZIONE ===
+            ["DataIntervento"] = new FieldConfig { Path = "customfield_10116", IsCustomField = true, DefaultValue = "" },
+            ["OraIntervento"] = new FieldConfig { Path = "customfield_10133", IsCustomField = true, DefaultValue = "" },
+            ["Effort"] = new FieldConfig { Path = "customfield_10089", IsCustomField = true, DefaultValue = "" },
 
             // Altri campi
             ["Description"] = new FieldConfig { Path = "description", DefaultValue = "" }
