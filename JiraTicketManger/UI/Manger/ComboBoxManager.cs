@@ -1132,14 +1132,10 @@ namespace JiraTicketManager.UI.Managers
         /// Carica ComboBox e imposta il valore corrente dal ticket
         /// </summary>
         public async Task LoadAsyncWithCurrentValue(ComboBox comboBox, JiraFieldType fieldType,
-            string defaultText = null, IProgress<string> progress = null, string ticketKey = null)
+     string defaultText, IProgress<string> progress = null, string ticketKey = null)
         {
-            if (comboBox == null) throw new ArgumentNullException(nameof(comboBox));
-
             try
             {
-                _logger.LogInfo($"Caricamento {fieldType} con valore corrente per ComboBox '{comboBox.Name}'");
-
                 // 1. Carica tutti i valori (logica esistente)
                 await LoadAsync(comboBox, fieldType, defaultText, progress, ticketKey);
 
@@ -1158,6 +1154,7 @@ namespace JiraTicketManager.UI.Managers
             }
         }
 
+
         /// <summary>
         /// Imposta il valore corrente del consulente nella ComboBox - CON DEBUG DETTAGLIATO
         /// </summary>
@@ -1165,14 +1162,11 @@ namespace JiraTicketManager.UI.Managers
         {
             try
             {
-                _logger.LogInfo($"🔍 === DEBUG CONSULENTE CORRENTE START ===");
-                _logger.LogInfo($"🔍 Ticket: {ticketKey}");
-
                 // Carica il ticket corrente
                 var ticket = await _dataService.GetTicketAsync(ticketKey);
                 if (ticket?.RawData == null)
                 {
-                    _logger.LogWarning("❌ Ticket o RawData non disponibili");
+                    _logger.LogWarning("Ticket o RawData non disponibili per consulente");
                     return;
                 }
 
@@ -1182,7 +1176,7 @@ namespace JiraTicketManager.UI.Managers
 
                 if (consulteneField == null || consulteneField.Type == JTokenType.Null)
                 {
-                    _logger.LogInfo("❌ Campo consulente vuoto nel ticket");
+                    _logger.LogInfo("Campo consulente vuoto nel ticket");
                     comboBox.SelectedIndex = 0;
                     return;
                 }
@@ -1197,101 +1191,68 @@ namespace JiraTicketManager.UI.Managers
                 {
                     consulteneValueRaw = consulteneField["value"]?.ToString() ??
                                          consulteneField["name"]?.ToString() ??
-                                         consulteneField["displayName"]?.ToString() ?? "";
+                                         consulteneField["displayName"]?.ToString() ??
+                                         consulteneField["emailAddress"]?.ToString();
                 }
 
                 if (string.IsNullOrEmpty(consulteneValueRaw))
                 {
-                    _logger.LogWarning("❌ Valore consulente estratto vuoto");
+                    _logger.LogInfo("Valore consulente vuoto nel ticket");
                     comboBox.SelectedIndex = 0;
                     return;
                 }
 
-                _logger.LogInfo($"🔍 Valore grezzo dal ticket: '{consulteneValueRaw}'");
+                _logger.LogInfo($"Valore grezzo dal ticket: '{consulteneValueRaw}'");
 
-                // ✅ LOGICA CORRETTA: Confronta valore grezzo del ticket con valori grezzi della ComboBox
-                var items = comboBox.Items.Cast<string>().ToList();
-
-                for (int i = 0; i < items.Count; i++)
+                // Cerca match nella ComboBox usando valori grezzi
+                for (int i = 0; i < comboBox.Items.Count; i++)
                 {
-                    // Converti l'item della ComboBox INDIETRO al formato grezzo per il confronto
-                    var itemDisplayValue = items[i];
+                    var displayValue = comboBox.Items[i].ToString();
 
-                    // Salta il default
-                    if (itemDisplayValue.StartsWith("--") || itemDisplayValue.Contains("["))
-                        continue;
+                    // Converte display → grezzo per confronto
+                    var rawValue = ConvertDisplayToRaw(displayValue);
 
-                    // Converti l'item display INDIETRO al formato grezzo
-                    var itemRawValue = ConvertDisplayToRaw(itemDisplayValue);
-
-                    _logger.LogDebug($"🔍 Confronto: ticket='{consulteneValueRaw}' vs combo='{itemRawValue}' (display='{itemDisplayValue}')");
-
-                    // Match con valore grezzo
-                    if (itemRawValue.Equals(consulteneValueRaw, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(rawValue, consulteneValueRaw, StringComparison.OrdinalIgnoreCase))
                     {
                         comboBox.SelectedIndex = i;
-                        _logger.LogInfo($"✅ MATCH GREZZO: Trovato '{consulteneValueRaw}' → display '{itemDisplayValue}' all'indice {i}");
+                        _logger.LogInfo($"Match trovato: '{consulteneValueRaw}' → display '{displayValue}' all'indice {i}");
                         return;
                     }
                 }
 
-                // Se non trova match esatto, prova match parziale
-                _logger.LogInfo("🔍 Tentativo match parziale...");
-                for (int i = 1; i < items.Count; i++)
-                {
-                    var itemRawValue = ConvertDisplayToRaw(items[i]);
-
-                    if (itemRawValue.Contains(consulteneValueRaw, StringComparison.OrdinalIgnoreCase) ||
-                        consulteneValueRaw.Contains(itemRawValue, StringComparison.OrdinalIgnoreCase))
-                    {
-                        comboBox.SelectedIndex = i;
-                        _logger.LogInfo($"⚠️ MATCH PARZIALE: '{consulteneValueRaw}' ≈ '{itemRawValue}' → '{items[i]}' all'indice {i}");
-                        return;
-                    }
-                }
-
-                _logger.LogWarning($"❌ NESSUN MATCH: Consulente '{consulteneValueRaw}' non trovato");
+                // Se non trova match, resta sul default
+                _logger.LogWarning($"Nessun match trovato per consulente: '{consulteneValueRaw}'");
                 comboBox.SelectedIndex = 0;
-
-                _logger.LogInfo($"🔍 === DEBUG CONSULENTE CORRENTE END ===");
             }
             catch (Exception ex)
             {
-                _logger.LogError($"❌ Errore impostazione consulente corrente: {ex.Message}", ex);
-                if (comboBox?.Items.Count > 0)
-                    comboBox.SelectedIndex = 0;
+                _logger.LogError($"Errore impostazione consulente corrente: {ex.Message}", ex);
+                comboBox.SelectedIndex = 0;
             }
         }
 
+
         private string ConvertDisplayToRaw(string displayValue)
         {
-            try
+            if (string.IsNullOrEmpty(displayValue)) return "";
+
+            // Casi speciali per nomi composti
+            var specialCases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        { "NICOLA GIOVANNI LUPO", "NICOLAGIOVANNI.LUPO" },
+        { "JONATHAN FELIX DA SILVA", "JONATHAN.FELIXDASILVA" },
+        { "FRANCESCA FELICITA MAIELLO", "FRANCESCAFELICITA.MAIELLO" },
+        { "GIANNI LORENZO ZULLI", "GIANNILORENZO.ZULLI" },
+        { "RAZVAN ALEXANDRU BARABANCEA", "RAZVANALEXANDRU.BARABANCEA" }
+    };
+
+            if (specialCases.TryGetValue(displayValue, out var specialRaw))
             {
-                if (string.IsNullOrEmpty(displayValue))
-                    return "";
-
-                // ✅ CASI SPECIALI INVERSI
-                var inverseSpecialCases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "NICOLA GIOVANNI LUPO", "NICOLAGIOVANNI.LUPO" },
-            { "JONATHAN FELIX DA SILVA", "JONATHAN.FELIXDASILVA" },
-            { "FRANCESCA FELICITA MAIELLO", "FRANCESCAFELICITA.MAIELLO" },
-            { "GIANNI LORENZO ZULLI", "GIANNILORENZO.ZULLI" },
-            { "RAZVAN ALEXANDRU BARABANCEA", "RAZVANALEXANDRU.BARABANCEA" }
-        };
-
-                if (inverseSpecialCases.ContainsKey(displayValue))
-                {
-                    return inverseSpecialCases[displayValue];
-                }
-
-                // ✅ LOGICA NORMALE INVERSA: ANDREA ROSSI → andrea.rossi
-                return displayValue.Replace(" ", ".").ToLower();
+                return specialRaw;
             }
-            catch
-            {
-                return displayValue;
-            }
+
+            // Conversione normale: spazi → punti, maiuscolo → minuscolo
+            return displayValue.Replace(" ", ".").ToLowerInvariant();
         }
 
     }

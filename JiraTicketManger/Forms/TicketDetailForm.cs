@@ -9,6 +9,7 @@ using System.Windows.Forms;
 using JiraTicketManager.Business; 
 using JiraTicketManager.UI.Managers; 
 using System.Linq;
+using JiraTicketManager.Helpers;
 
 
 namespace JiraTicketManager.Forms
@@ -80,8 +81,8 @@ namespace JiraTicketManager.Forms
                 var labelMappings = CreateLabelMappings();
                 await _textBoxManager.PopulateAllControlsAsync(ticketKey, textBoxMappings, labelMappings);
 
-                // ⭐ AGGIUNGERE: Imposta consulente dal ticket
-                await SetConsulenteFromCurrentTicket();
+                SetResponsabileFromArea();
+
 
                 await UpdateHeaderInfo(ticketKey);
                 this.Text = $"Dettaglio Ticket - {ticketKey}";
@@ -125,7 +126,7 @@ namespace JiraTicketManager.Forms
                 [txtCliente] = "customfield_10117",         // ✅ "UNIONE PEDEMONTANA PARMENSE"
                 [txtArea] = "customfield_10113",            // ✅ "Sistema Informativo Territoriale"
                 [txtApplicativo] = "customfield_10114",     // ✅ "Sistema Informativo Territoriale -> NewSed.Net"
-                [txtCommerciale] = "customfield_10272",     // ❌ Spesso NULL (facoltativo)
+                [cmbCommerciale] = "customfield_10272",     // ❌ Spesso NULL (facoltativo)
                 [txtClientePartner] = "customfield_10103",  // ❌ Spesso NULL (facoltativo)
 
                 // === RIGHT PANEL - TEAM PLANNING ===
@@ -214,12 +215,12 @@ namespace JiraTicketManager.Forms
                 [txtCliente] = "customfield_10117",        // Cliente
                 [txtArea] = "customfield_10113",           // Area
                 [txtApplicativo] = "customfield_10114",    // Applicativo
-                [txtCommerciale] = "customfield_10272",    // Commerciale (mail)
+                [cmbCommerciale] = "customfield_10272",    // Commerciale (mail)
                 [txtClientePartner] = "customfield_10103", // Cliente Partner
 
                 // === RIGHT PANEL - TEAM PLANNING ===
                 [txtPM] = "customfield_10271",             // P.M. (mail)
-                [txtResponsabile] = "assignee",            // Responsabile (temporaneo)
+               
                 [txtWBS] = "customfield_10096",            // WBS
 
                 // === CENTER PANEL - DESCRIPTION ===
@@ -390,6 +391,30 @@ namespace JiraTicketManager.Forms
 
         #region Private Methods - Helpers
 
+        // <summary>
+        /// Calcola e imposta il responsabile basato sull'area
+        /// </summary>
+        private void SetResponsabileFromArea()
+        {
+            try
+            {
+                var area = txtArea.Text;
+                var responsabile = ResponsabileHelper.DeterminaResponsabile(area);
+
+                if (string.IsNullOrWhiteSpace(responsabile))
+                    responsabile = "[Campo non disponibile]";
+
+                txtResponsabile.Text = responsabile;
+
+                _logger?.LogDebug($"Responsabile determinato per area '{area}': {responsabile}");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"Errore determinazione responsabile: {ex.Message}", ex);
+                txtResponsabile.Text = "[Errore calcolo responsabile]";
+            }
+        }
+
         /// <summary>
         /// Ottiene icona per tipo issue
         /// </summary>
@@ -475,19 +500,12 @@ namespace JiraTicketManager.Forms
         {
             try
             {
-                _logger?.LogInfo("📋 === DEBUG CONSULENTE START ===");
-
-                // ✅ AGGIUNGI TRACKING
-                TrackComboBoxChanges();
-
                 if (_comboBoxManager == null)
                 {
                     _comboBoxManager = new ComboBoxManager(_dataService);
                 }
 
-                _logger?.LogInfo($"📋 PRIMA del LoadAsync: SelectedIndex = {cmbConsulente?.SelectedIndex}");
-
-                // USA IL NUOVO METODO CHE FA TUTTO
+                // USA IL METODO CHE CARICA E IMPOSTA IL VALORE CORRENTE
                 await _comboBoxManager.LoadAsyncWithCurrentValue(
                     cmbConsulente,
                     JiraFieldType.Consulente,
@@ -495,22 +513,14 @@ namespace JiraTicketManager.Forms
                     progress: null,
                     _currentTicketKey
                 );
-
-                _logger?.LogInfo($"📋 DOPO LoadAsync: SelectedIndex = {cmbConsulente?.SelectedIndex}, Text = '{cmbConsulente?.Text}'");
-                _logger?.LogInfo($"📋 LoadAsync completata. Items: {cmbConsulente.Items.Count}");
-
-                // ✅ AGGIUNGI DELAY E RICONTROLLA
-                await Task.Delay(2000); // Aspetta 2 secondi
-                _logger?.LogInfo($"📋 DOPO 2 SECONDI: SelectedIndex = {cmbConsulente?.SelectedIndex}, Text = '{cmbConsulente?.Text}'");
-
-                _logger?.LogInfo("📋 === DEBUG CONSULENTE END ===");
             }
             catch (Exception ex)
             {
-                _logger?.LogError($"📋 === DEBUG CONSULENTE ERROR: {ex.Message} ===", ex);
+                _logger?.LogError($"Errore inizializzazione ComboBox Consulente: {ex.Message}", ex);
                 UseFallbackValues();
             }
         }
+
 
 
         /// <summary>
@@ -605,27 +615,17 @@ namespace JiraTicketManager.Forms
         {
             try
             {
-                _logger?.LogWarning("⚠️ === USEFALLBACKVALUES CHIAMATO ===");
-                _logger?.LogWarning($"⚠️ Stack trace: {Environment.StackTrace.Split('\n')[1]}");
-
-
-                if (cmbConsulente != null && cmbConsulente.Items.Count == 0)
+                if (cmbConsulente != null && cmbConsulente.Items.Count <= 1)
                 {
-                    _logger?.LogWarning($"⚠️ UseFallbackValues - ComboBox PRIMA: SelectedIndex = {cmbConsulente.SelectedIndex}");
-
-                    _logger?.LogInfo("🔄 Fallback a valori hardcoded...");
+                    _logger?.LogInfo("🔄 Fallback a valori hardcoded (ComboBox vuota)...");
                     cmbConsulente.Items.Clear();
                     cmbConsulente.Items.Add("-- Tutti Consulenti --");
-                   
                     cmbConsulente.SelectedIndex = 0;
-
-                    _logger?.LogWarning($"⚠️ UseFallbackValues - ComboBox PRIMA: SelectedIndex = {cmbConsulente.SelectedIndex}");
                 }
             }
             catch (Exception ex)
             {
                 _logger?.LogError($"❌ Errore fallback: {ex.Message}", ex);
-                _logger?.LogWarning($"⚠️ UseFallbackValues - ComboBox PRIMA: SelectedIndex = {cmbConsulente.SelectedIndex}");
             }
         }
 
@@ -633,20 +633,7 @@ namespace JiraTicketManager.Forms
 
 
 
-        // ELINATE: Questo metodo non è più necessario
-
-        private void TrackComboBoxChanges()
-        {
-            if (cmbConsulente != null)
-            {
-                cmbConsulente.SelectedIndexChanged += (s, e) =>
-                {
-                    _logger?.LogInfo($"🔄 COMBOBOX CHANGED: SelectedIndex = {cmbConsulente.SelectedIndex}, Value = '{cmbConsulente.Text}'");
-                    _logger?.LogInfo($"🔄 Stack trace: {Environment.StackTrace.Split('\n')[1]}");
-                };
-            }
-        }
-
+      
 
     }
 }
