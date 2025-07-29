@@ -73,8 +73,10 @@ namespace JiraTicketManager.Forms
                 _currentTicketKey = ticketKey;
                 this.Text = $"Caricamento Ticket {ticketKey}...";
 
-                // ⭐ AGGIUNGERE: Inizializza ComboBox
-                await InitializeConsulenteComboBox();
+                // Inizializza ComboBox
+                await InitializeUserPickerComboBox(cmbConsulente, JiraFieldType.Consulente, "-- Tutti Consulenti --");
+                await InitializeUserPickerComboBox(cmbPM, JiraFieldType.PM, "-- Tutti PM --");
+                await InitializeUserPickerComboBox(cmbCommerciale, JiraFieldType.Commerciale, "-- Tutti Commerciali --");
 
                 // Popola tutti i controlli (codice esistente)
                 var textBoxMappings = CreateTextBoxMappings();
@@ -496,7 +498,7 @@ namespace JiraTicketManager.Forms
         /// <summary>
         /// Inizializza e popola la ComboBox Consulente usando JiraFieldType.Consulente
         /// </summary>
-        private async Task InitializeConsulenteComboBox()
+        private async Task InitializeUserPickerComboBox(ComboBox comboBox, JiraFieldType fieldType, string defaultText)
         {
             try
             {
@@ -507,19 +509,58 @@ namespace JiraTicketManager.Forms
 
                 // USA IL METODO CHE CARICA E IMPOSTA IL VALORE CORRENTE
                 await _comboBoxManager.LoadAsyncWithCurrentValue(
-                    cmbConsulente,
-                    JiraFieldType.Consulente,
-                    "-- Tutti Consulenti --",
+                    comboBox,
+                    fieldType,
+                    defaultText,
                     progress: null,
                     _currentTicketKey
                 );
+
+                _logger?.LogInfo($"✅ {fieldType} inizializzato con successo");
             }
             catch (Exception ex)
             {
-                _logger?.LogError($"Errore inizializzazione ComboBox Consulente: {ex.Message}", ex);
-                UseFallbackValues();
+                _logger?.LogError($"❌ Errore inizializzazione ComboBox {fieldType}: {ex.Message}", ex);
+
+                // Fallback generico
+                if (comboBox != null)
+                {
+                    comboBox.Items.Clear();
+                    comboBox.Items.Add(defaultText);
+                    comboBox.SelectedIndex = 0;
+                }
             }
         }
+
+        private async Task InitializeAllUserPickerComboBoxes()
+        {
+            try
+            {
+                _logger?.LogInfo("🔄 Inizializzazione tutte le ComboBox User Picker...");
+
+                // Definisci tutte le ComboBox user picker
+                var userPickerComboBoxes = new[]
+                {
+            (comboBox: cmbConsulente, fieldType: JiraFieldType.Consulente, defaultText: "-- Tutti Consulenti --"),
+            (comboBox: cmbPM, fieldType: JiraFieldType.PM, defaultText: "-- Tutti PM --"),
+            (comboBox: cmbCommerciale, fieldType: JiraFieldType.Commerciale, defaultText: "-- Tutti Commerciali --")
+        };
+
+                // Carica tutte in parallelo per performance
+                var tasks = userPickerComboBoxes.Select(combo =>
+                    InitializeUserPickerComboBox(combo.comboBox, combo.fieldType, combo.defaultText)
+                );
+
+                await Task.WhenAll(tasks);
+
+                _logger?.LogInfo("✅ Tutte le ComboBox User Picker inizializzate");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"❌ Errore inizializzazione ComboBox User Picker: {ex.Message}", ex);
+            }
+        }
+
 
 
 

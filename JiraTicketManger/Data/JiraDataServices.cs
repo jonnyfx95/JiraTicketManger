@@ -278,18 +278,6 @@ namespace JiraTicketManager.Data
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
         #endregion
 
         #region Batch Operations
@@ -441,17 +429,20 @@ namespace JiraTicketManager.Data
                     return distinctOrganizations;
                 }
 
-                // ✅ GESTIONE CONSULENTE - EditMeta API con ticket dinamico
-                if (fieldType == JiraFieldType.Consulente)
+                // ✅ Gestisce Consulente, PM e Commerciale con stessa logica - EditMeta API con ticket dinamico
+                var userPickerFields = new[] { JiraFieldType.Consulente, JiraFieldType.PM, JiraFieldType.Commerciale };
+
+                if (userPickerFields.Contains(fieldType))
                 {
-                    _logger.LogInfo($"👤 Caricamento Consulente tramite EditMeta API");
-                    progress?.Report("Caricamento consulenti...");
+                    var customFieldId = JiraFieldTypeHelper.GetCustomFieldId(fieldType);
+                    _logger.LogInfo($"👤 Caricamento {fieldType} tramite EditMeta API (campo: {customFieldId})");
+                    progress?.Report($"Caricamento {JiraFieldTypeHelper.GetDisplayName(fieldType)}...");
 
                     // ✅ USA IL TICKET KEY PASSATO COME PARAMETRO
                     if (string.IsNullOrEmpty(ticketKey))
                     {
-                        _logger.LogWarning("❌ Ticket key non fornito per Consulente, uso fallback");
-                        throw new ArgumentException("Ticket key richiesto per caricare i consulenti");
+                        _logger.LogWarning($"❌ Ticket key non fornito per {fieldType}, uso fallback");
+                        throw new ArgumentException($"Ticket key richiesto per caricare {fieldType}");
                     }
 
                     var editMetaUrl = $"{Domain}/rest/api/2/issue/{ticketKey}/editmeta";
@@ -472,13 +463,13 @@ namespace JiraTicketManager.Data
                     var editMetaJson = await editMetaResponse.Content.ReadAsStringAsync();
                     var editMetaObj = JObject.Parse(editMetaJson);
 
-                    var consulenti = new List<string>();
+                    var userPickerValues = new List<string>();
 
-                    // Estrai allowedValues del campo customfield_10238
+                    // ✅ ESTRAI allowedValues del campo specifico (generico)
                     var fields = editMetaObj["fields"];
-                    if (fields != null && fields["customfield_10238"] != null)
+                    if (fields != null && fields[customFieldId] != null)
                     {
-                        var allowedValues = fields["customfield_10238"]["allowedValues"];
+                        var allowedValues = fields[customFieldId]["allowedValues"];
                         if (allowedValues != null)
                         {
                             foreach (var allowedValue in allowedValues)
@@ -487,20 +478,20 @@ namespace JiraTicketManager.Data
                                 if (!string.IsNullOrEmpty(value))
                                 {
                                     var displayValue = EmailConverterHelper.FormatUsernameForDisplay(value);
-                                    consulenti.Add(displayValue);
+                                    userPickerValues.Add(displayValue);
                                 }
                             }
                         }
                     }
 
-                    if (consulenti.Count > 0)
+                    if (userPickerValues.Count > 0)
                     {
-                        _logger.LogInfo($"✅ Caricati {consulenti.Count} consulenti");
-                        return consulenti.OrderBy(c => c).ToList();
+                        _logger.LogInfo($"✅ Caricati {userPickerValues.Count} valori per {fieldType}");
+                        return userPickerValues.OrderBy(c => c).ToList();
                     }
                     else
                     {
-                        _logger.LogWarning("❌ Nessun consulenti trovati");
+                        _logger.LogWarning($"❌ Nessun valore trovato per {fieldType}");
                         return new List<string>();
                     }
                 }
@@ -954,16 +945,18 @@ namespace JiraTicketManager.Data
         }
 
 
-
-
-
+        /// <summary>
+        /// Ottiene il JiraFieldType dal Custom Field ID
+        /// </summary>
         private JiraFieldType GetFieldTypeFromCustomFieldId(string fieldId)
         {
             return fieldId switch
             {
                 "customfield_10113" => JiraFieldType.Area,
                 "customfield_10114" => JiraFieldType.Application,
-                "customfield_10238" => JiraFieldType.Consulente, // ✅ CORRETTO (era CustomField)
+                "customfield_10238" => JiraFieldType.Consulente,
+                "customfield_10271" => JiraFieldType.PM,           // ✅ NUOVO
+                "customfield_10272" => JiraFieldType.Commerciale,  // ✅ NUOVO
                 _ => JiraFieldType.CustomField
             };
         }

@@ -1132,17 +1132,25 @@ namespace JiraTicketManager.UI.Managers
         /// Carica ComboBox e imposta il valore corrente dal ticket
         /// </summary>
         public async Task LoadAsyncWithCurrentValue(ComboBox comboBox, JiraFieldType fieldType,
-     string defaultText, IProgress<string> progress = null, string ticketKey = null)
+    string defaultText, IProgress<string> progress = null, string ticketKey = null)
         {
             try
             {
+                _logger.LogInfo($"Caricamento {fieldType} con valore corrente per ComboBox '{comboBox.Name}'");
+
                 // 1. Carica tutti i valori (logica esistente)
                 await LoadAsync(comboBox, fieldType, defaultText, progress, ticketKey);
 
-                // 2. Imposta il valore corrente se è per Consulente e abbiamo un ticketKey
-                if (fieldType == JiraFieldType.Consulente && !string.IsNullOrEmpty(ticketKey))
+                // 2. ✅ AGGIORNATO: Imposta il valore corrente per TUTTI i campi user picker
+                var userPickerFields = new[] {
+            JiraFieldType.Consulente,
+            JiraFieldType.PM,           // ✅ NUOVO
+            JiraFieldType.Commerciale   // ✅ NUOVO
+        };
+
+                if (userPickerFields.Contains(fieldType) && !string.IsNullOrEmpty(ticketKey))
                 {
-                    await SetConsulenteCurrentValue(comboBox, ticketKey);
+                    await SetUserPickerCurrentValue(comboBox, fieldType, ticketKey);
                 }
 
                 _logger.LogInfo($"Caricamento con valore corrente completato per {fieldType}");
@@ -1156,103 +1164,153 @@ namespace JiraTicketManager.UI.Managers
 
 
         /// <summary>
-        /// Imposta il valore corrente del consulente nella ComboBox - CON DEBUG DETTAGLIATO
+        /// Imposta il valore corrente per campi user picker (Consulente, PM, Commerciale)
+        /// RENAMED da SetConsulenteCurrentValue + aggiunto fieldType per genericità
         /// </summary>
-        private async Task SetConsulenteCurrentValue(ComboBox comboBox, string ticketKey)
+        private async Task SetUserPickerCurrentValue(ComboBox comboBox, JiraFieldType fieldType, string ticketKey)
         {
             try
             {
+                // ✅ MAPPING COMPLETO FIELDTYPE → CUSTOMFIELD
+                var userPickerFields = new Dictionary<JiraFieldType, string>
+        {
+            { JiraFieldType.Consulente, "customfield_10238" },
+            { JiraFieldType.PM, "customfield_10271" },           // ✅ NUOVO
+            { JiraFieldType.Commerciale, "customfield_10272" }   // ✅ NUOVO
+        };
+
+                if (!userPickerFields.TryGetValue(fieldType, out var customFieldId))
+                {
+                    _logger.LogError($"❌ Campo {fieldType} non supportato per user picker");
+                    comboBox.SelectedIndex = 0;
+                    return;
+                }
+
+                _logger.LogInfo($"🔍 Impostazione {fieldType} per ticket: {ticketKey}");
+
                 // Carica il ticket corrente
                 var ticket = await _dataService.GetTicketAsync(ticketKey);
                 if (ticket?.RawData == null)
                 {
-                    _logger.LogWarning("Ticket o RawData non disponibili per consulente");
+                    _logger.LogWarning("Ticket o RawData non disponibili");
                     return;
                 }
 
-                // Estrai il valore del consulente dal ticket
+                // ✅ ESTRAI IL VALORE DEL CAMPO (generico)
                 var fields = ticket.RawData["fields"];
-                var consulteneField = fields?["customfield_10238"];
+                var userPickerField = fields?[customFieldId];
 
-                if (consulteneField == null || consulteneField.Type == JTokenType.Null)
+                if (userPickerField == null || userPickerField.Type == JTokenType.Null)
                 {
-                    _logger.LogInfo("Campo consulente vuoto nel ticket");
+                    _logger.LogInfo($"Campo {fieldType} vuoto nel ticket");
                     comboBox.SelectedIndex = 0;
                     return;
                 }
 
-                // Estrai il valore grezzo del consulente
-                string consulteneValueRaw = "";
-                if (consulteneField.Type == JTokenType.String)
+                // Estrai il valore grezzo del campo
+                string userPickerValueRaw = "";
+                if (userPickerField.Type == JTokenType.String)
                 {
-                    consulteneValueRaw = consulteneField.ToString();
+                    userPickerValueRaw = userPickerField.ToString();
                 }
-                else if (consulteneField.Type == JTokenType.Object)
+                else if (userPickerField.Type == JTokenType.Object)
                 {
-                    consulteneValueRaw = consulteneField["value"]?.ToString() ??
-                                         consulteneField["name"]?.ToString() ??
-                                         consulteneField["displayName"]?.ToString() ??
-                                         consulteneField["emailAddress"]?.ToString();
+                    userPickerValueRaw = userPickerField["value"]?.ToString() ??
+                                         userPickerField["name"]?.ToString() ??
+                                         userPickerField["displayName"]?.ToString() ?? "";
                 }
 
-                if (string.IsNullOrEmpty(consulteneValueRaw))
+                if (string.IsNullOrEmpty(userPickerValueRaw))
                 {
-                    _logger.LogInfo("Valore consulente vuoto nel ticket");
+                    _logger.LogInfo($"Valore {fieldType} estratto vuoto");
                     comboBox.SelectedIndex = 0;
                     return;
                 }
 
-                _logger.LogInfo($"Valore grezzo dal ticket: '{consulteneValueRaw}'");
+                _logger.LogInfo($"Valore grezzo dal ticket: '{userPickerValueRaw}'");
 
-                // Cerca match nella ComboBox usando valori grezzi
-                for (int i = 0; i < comboBox.Items.Count; i++)
+                // ✅ MATCHING LOGIC (identica a prima, ma generica)
+                var items = comboBox.Items.Cast<string>().ToList();
+
+                for (int i = 0; i < items.Count; i++)
                 {
-                    var displayValue = comboBox.Items[i].ToString();
+                    var itemDisplayValue = items[i];
 
-                    // Converte display → grezzo per confronto
-                    var rawValue = ConvertDisplayToRaw(displayValue);
+                    // Salta il default
+                    if (itemDisplayValue.StartsWith("--") || itemDisplayValue.Contains("["))
+                        continue;
 
-                    if (string.Equals(rawValue, consulteneValueRaw, StringComparison.OrdinalIgnoreCase))
+                    // Converti l'item display INDIETRO al formato grezzo
+                    var itemRawValue = ConvertUserDisplayToRaw(itemDisplayValue);
+
+                    // Match con valore grezzo
+                    if (itemRawValue.Equals(userPickerValueRaw, StringComparison.OrdinalIgnoreCase))
                     {
                         comboBox.SelectedIndex = i;
-                        _logger.LogInfo($"Match trovato: '{consulteneValueRaw}' → display '{displayValue}' all'indice {i}");
+                        _logger.LogInfo($"✅ MATCH: Trovato '{userPickerValueRaw}' → display '{itemDisplayValue}' all'indice {i}");
                         return;
                     }
                 }
 
-                // Se non trova match, resta sul default
-                _logger.LogWarning($"Nessun match trovato per consulente: '{consulteneValueRaw}'");
+                // Se non trova match esatto, prova match parziale
+                for (int i = 1; i < items.Count; i++)
+                {
+                    var itemRawValue = ConvertUserDisplayToRaw(items[i]);
+
+                    if (itemRawValue.Contains(userPickerValueRaw, StringComparison.OrdinalIgnoreCase) ||
+                        userPickerValueRaw.Contains(itemRawValue, StringComparison.OrdinalIgnoreCase))
+                    {
+                        comboBox.SelectedIndex = i;
+                        _logger.LogInfo($"⚠️ MATCH PARZIALE: '{userPickerValueRaw}' ≈ '{itemRawValue}' all'indice {i}");
+                        return;
+                    }
+                }
+
+                _logger.LogWarning($"❌ NESSUN MATCH: {fieldType} '{userPickerValueRaw}' non trovato");
                 comboBox.SelectedIndex = 0;
+
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Errore impostazione consulente corrente: {ex.Message}", ex);
-                comboBox.SelectedIndex = 0;
+                _logger.LogError($"❌ Errore impostazione {fieldType}: {ex.Message}", ex);
+                if (comboBox?.Items.Count > 0)
+                    comboBox.SelectedIndex = 0;
             }
         }
 
 
-        private string ConvertDisplayToRaw(string displayValue)
+        /// <summary>
+        /// Converte valore display in valore grezzo per matching campi user picker
+        /// </summary>
+        private string ConvertUserDisplayToRaw(string displayValue)
         {
-            if (string.IsNullOrEmpty(displayValue)) return "";
-
-            // Casi speciali per nomi composti
-            var specialCases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-    {
-        { "NICOLA GIOVANNI LUPO", "NICOLAGIOVANNI.LUPO" },
-        { "JONATHAN FELIX DA SILVA", "JONATHAN.FELIXDASILVA" },
-        { "FRANCESCA FELICITA MAIELLO", "FRANCESCAFELICITA.MAIELLO" },
-        { "GIANNI LORENZO ZULLI", "GIANNILORENZO.ZULLI" },
-        { "RAZVAN ALEXANDRU BARABANCEA", "RAZVANALEXANDRU.BARABANCEA" }
-    };
-
-            if (specialCases.TryGetValue(displayValue, out var specialRaw))
+            try
             {
-                return specialRaw;
-            }
+                if (string.IsNullOrEmpty(displayValue))
+                    return "";
 
-            // Conversione normale: spazi → punti, maiuscolo → minuscolo
-            return displayValue.Replace(" ", ".").ToLowerInvariant();
+                // ✅ CASI SPECIALI INVERSI (per nomi composti)
+                var inverseSpecialCases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "NICOLA GIOVANNI LUPO", "NICOLAGIOVANNI.LUPO" },
+            { "JONATHAN FELIX DA SILVA", "JONATHAN.FELIXDASILVA" },
+            { "FRANCESCA FELICITA MAIELLO", "FRANCESCAFELICITA.MAIELLO" },
+            { "GIANNI LORENZO ZULLI", "GIANNILORENZO.ZULLI" },
+            { "RAZVAN ALEXANDRU BARABANCEA", "RAZVANALEXANDRU.BARABANCEA" }
+        };
+
+                if (inverseSpecialCases.TryGetValue(displayValue, out var specialRaw))
+                {
+                    return specialRaw;
+                }
+
+                // ✅ LOGICA NORMALE INVERSA: "ANDREA ROSSI" → "andrea.rossi"
+                return displayValue.Replace(" ", ".").ToLower();
+            }
+            catch
+            {
+                return displayValue;
+            }
         }
 
     }

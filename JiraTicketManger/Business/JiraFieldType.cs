@@ -46,16 +46,25 @@
         /// </summary>
         Project,
 
-        /// Consulente (customfield_10238) - API: search con distinct values
+        /// <summary>
+        /// Consulente (customfield_10238) - API: EditMeta con allowedValues
         /// </summary>
         Consulente,
+
+        /// <summary>
+        /// ✅ NUOVO: PM (customfield_10271) - API: EditMeta con allowedValues
+        /// </summary>
+        PM,
+
+        /// <summary>
+        /// ✅ NUOVO: Commerciale (customfield_10272) - API: EditMeta con allowedValues
+        /// </summary>
+        Commerciale,
 
         /// <summary>
         /// Custom field generico - richiede field ID
         /// </summary>
         CustomField
-
-
     }
 
     /// <summary>
@@ -83,7 +92,9 @@
 {
     { JiraFieldType.Area, "customfield_10113" },
     { JiraFieldType.Application, "customfield_10114" },
-    { JiraFieldType.Consulente, "customfield_10238" }  // ✅ AGGIUNTO
+    { JiraFieldType.Consulente, "customfield_10238" },
+    { JiraFieldType.PM, "customfield_10271" },           // ✅ NUOVO
+    { JiraFieldType.Commerciale, "customfield_10272" }   // ✅ NUOVO
 };
 
         /// <summary>
@@ -91,15 +102,17 @@
         /// </summary>
         public static readonly Dictionary<JiraFieldType, string> JqlFieldNames = new()
 {
-         { JiraFieldType.Organization, "\"Client/Organization\"" },
-         { JiraFieldType.Status, "status" },
-         { JiraFieldType.Priority, "priority" },
-         { JiraFieldType.IssueType, "type" },
-         { JiraFieldType.Area, "\"Area\"" },
-         { JiraFieldType.Application, "\"Applicativo\"" },
-         { JiraFieldType.Assignee, "assignee" },
-         { JiraFieldType.Consulente, "\"Consulente\"" }, 
-         { JiraFieldType.Project, "project" }
+    { JiraFieldType.Organization, "\"Client/Organization\"" },
+    { JiraFieldType.Status, "status" },
+    { JiraFieldType.Priority, "priority" },
+    { JiraFieldType.IssueType, "type" },
+    { JiraFieldType.Area, "\"Area\"" },
+    { JiraFieldType.Application, "\"Applicativo\"" },
+    { JiraFieldType.Assignee, "assignee" },
+    { JiraFieldType.Consulente, "\"Consulente\"" },
+    { JiraFieldType.PM, "\"PM\"" },                     // ✅ NUOVO
+    { JiraFieldType.Commerciale, "\"Commerciale\"" },   // ✅ NUOVO
+    { JiraFieldType.Project, "project" }
 };
 
         /// <summary>
@@ -115,6 +128,8 @@
     { JiraFieldType.Application, "Applicativi" },
     { JiraFieldType.Assignee, "Assegnatari" },
     { JiraFieldType.Consulente, "Consulenti" },
+    { JiraFieldType.PM, "Project Manager" },            // ✅ NUOVO
+    { JiraFieldType.Commerciale, "Commerciali" },       // ✅ NUOVO
     { JiraFieldType.Project, "Progetti" }
 };
 
@@ -166,7 +181,9 @@
         {
             return fieldType == JiraFieldType.Area ||
                    fieldType == JiraFieldType.Application ||
-                   fieldType == JiraFieldType.Consulente ||  // ✅ AGGIUNTO
+                   fieldType == JiraFieldType.Consulente ||
+                   fieldType == JiraFieldType.PM ||           // ✅ NUOVO
+                   fieldType == JiraFieldType.Commerciale ||  // ✅ NUOVO
                    fieldType == JiraFieldType.CustomField;
         }
 

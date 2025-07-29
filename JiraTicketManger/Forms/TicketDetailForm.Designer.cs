@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DocumentFormat.OpenXml.Office2016.Drawing.ChartDrawing;
+using System;
 using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
@@ -104,9 +105,9 @@ namespace JiraTicketManager.Forms
             pnlPlanningIntervento = new Panel();
             txtEffort = new TextBox();
             lblEffort = new Label();
-            dtpOraIntervento = new DateTimePicker();
+            txtOraIntervento = new TextBox();
             lblOraIntervento = new Label();
-            dtpDataIntervento = new DateTimePicker();
+            txtDataIntervento = new TextBox();
             lblDataIntervento = new Label();
             cmbTipoPianificazione = new ComboBox();
             lblTipoPianificazione = new Label();
@@ -936,9 +937,9 @@ namespace JiraTicketManager.Forms
             pnlPlanningIntervento.BorderStyle = BorderStyle.FixedSingle;
             pnlPlanningIntervento.Controls.Add(txtEffort);
             pnlPlanningIntervento.Controls.Add(lblEffort);
-            pnlPlanningIntervento.Controls.Add(dtpOraIntervento);
+            pnlPlanningIntervento.Controls.Add(txtOraIntervento);
             pnlPlanningIntervento.Controls.Add(lblOraIntervento);
-            pnlPlanningIntervento.Controls.Add(dtpDataIntervento);
+            pnlPlanningIntervento.Controls.Add(txtDataIntervento);
             pnlPlanningIntervento.Controls.Add(lblDataIntervento);
             pnlPlanningIntervento.Controls.Add(cmbTipoPianificazione);
             pnlPlanningIntervento.Controls.Add(lblTipoPianificazione);
@@ -970,16 +971,14 @@ namespace JiraTicketManager.Forms
             lblEffort.TabIndex = 7;
             lblEffort.Text = "Effort (h):";
             // 
-            // dtpOraIntervento
+            // txtOraIntervento
             // 
-            dtpOraIntervento.Font = new Font("Segoe UI", 9F);
-            dtpOraIntervento.Format = DateTimePickerFormat.Time;
-            dtpOraIntervento.Location = new Point(255, 62);
-            dtpOraIntervento.Name = "dtpOraIntervento";
-            dtpOraIntervento.ShowUpDown = true;
-            dtpOraIntervento.Size = new Size(90, 23);
-            dtpOraIntervento.TabIndex = 6;
-            dtpOraIntervento.Value = new DateTime(2025, 1, 27, 9, 0, 0, 0);
+            txtOraIntervento.Font = new Font("Segoe UI", 9F);
+            txtOraIntervento.Location = new Point(255, 62);
+            txtOraIntervento.Name = "txtOraIntervento";
+            txtOraIntervento.Size = new Size(90, 23);
+            txtOraIntervento.TabIndex = 6;
+         
             // 
             // lblOraIntervento
             // 
@@ -992,15 +991,14 @@ namespace JiraTicketManager.Forms
             lblOraIntervento.TabIndex = 5;
             lblOraIntervento.Text = "Ora:";
             // 
-            // dtpDataIntervento
+            // txtDataIntervento
             // 
-            dtpDataIntervento.Font = new Font("Segoe UI", 9F);
-            dtpDataIntervento.Format = DateTimePickerFormat.Short;
-            dtpDataIntervento.Location = new Point(80, 62);
-            dtpDataIntervento.Name = "dtpDataIntervento";
-            dtpDataIntervento.Size = new Size(130, 23);
-            dtpDataIntervento.TabIndex = 4;
-            dtpDataIntervento.Value = new DateTime(2025, 1, 29, 0, 0, 0, 0);
+            txtDataIntervento.Font = new Font("Segoe UI", 9F);
+            txtDataIntervento.Location = new Point(80, 62);
+            txtDataIntervento.Name = "txtDataIntervento";
+            txtDataIntervento.Size = new Size(130, 23);
+            txtDataIntervento.TabIndex = 4;
+            
             // 
             // lblDataIntervento
             // 
@@ -1350,9 +1348,9 @@ namespace JiraTicketManager.Forms
         private Label lblTipoPianificazione;
         private ComboBox cmbTipoPianificazione;
         private Label lblDataIntervento;
-        private DateTimePicker dtpDataIntervento;
+        private TextBox txtDataIntervento;
         private Label lblOraIntervento;
-        private DateTimePicker dtpOraIntervento;
+        private TextBox txtOraIntervento;
         private Label lblEffort;
         private TextBox txtEffort;
 
