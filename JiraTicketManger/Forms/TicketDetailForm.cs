@@ -5,6 +5,7 @@ using JiraTicketManager.Helpers;
 using JiraTicketManager.Services;
 using JiraTicketManager.Services.Activity;
 using JiraTicketManager.UI.Managers;
+using JiraTicketManager.UI.Managers.Activity;
 using JiraTicketManager.UI.Manger.Activity;
 using System;
 using System.Collections.Generic;
@@ -51,6 +52,8 @@ namespace JiraTicketManager.Forms
         public TicketDetailForm()
         {
             InitializeComponent();
+
+            SetupActivityTabListViews();
 
             // Inizializza servizi esistenti
             _logger = LoggingService.CreateForComponent("TicketDetailForm");
@@ -135,6 +138,13 @@ namespace JiraTicketManager.Forms
 
                
                 _logger.LogInfo($"🎯 ACTIVITY SUMMARY: C={summary.CommentsCount}, H={summary.HistoryCount}, A={summary.AttachmentsCount}");
+
+                var activityTabManager = ActivityTabManagerFactory.CreateFromApiService(apiService);
+                if (tcActivity != null)
+                {
+                    await activityTabManager.LoadActivityTabsAsync(tcActivity, ticketKey,
+                        new Progress<string>(s => _logger.LogInfo($"Progress: {s}")));
+                }
             }
             catch (Exception ex)
             {
@@ -477,6 +487,70 @@ namespace JiraTicketManager.Forms
             {
                 _logger.LogError("Errore pulizia campi", ex);
             }
+        }
+
+
+        private void SetupActivityTabListViews()
+        {
+            // Setup ListView Comments - CON MIGLIORAMENTI
+            if (lvComments != null)
+            {
+                lvComments.Columns.Clear();
+                lvComments.Columns.Add("👤 Autore", 180);        // Più largo per emoji
+                lvComments.Columns.Add("📅 Data", 130);          // Leggermente più largo
+                lvComments.Columns.Add("💬 Commento", 350);      // Un po' più stretto
+                lvComments.Columns.Add("👁️ Visibilità", 120);    // NUOVA COLONNA per visibilità
+
+                // Migliora l'aspetto generale
+                lvComments.FullRowSelect = true;
+                lvComments.GridLines = true;
+                lvComments.View = View.Details;
+                lvComments.Font = new Font("Segoe UI", 9F);
+                lvComments.BackColor = Color.White;
+
+                _logger.LogInfo("ListView Comments configurato con emoji e visibilità");
+            }
+
+            // Setup ListView History - CON ICONE MIGLIORATE
+            if (lvHistory != null)
+            {
+                lvHistory.Columns.Clear();
+                lvHistory.Columns.Add("⚡ Azione", 140);         // Più largo per icone
+                lvHistory.Columns.Add("📅 Data", 130);
+                lvHistory.Columns.Add("🔄 Modifiche", 320);     // Più largo per "Da → A"
+                lvHistory.Columns.Add("👤 Autore", 160);        // Più largo per nomi completi
+
+                // Migliora l'aspetto
+                lvHistory.FullRowSelect = true;
+                lvHistory.GridLines = true;
+                lvHistory.View = View.Details;
+                lvHistory.Font = new Font("Segoe UI", 9F);
+                lvHistory.BackColor = Color.White;
+
+                _logger.LogInfo("ListView History configurato con icone migliorate");
+            }
+
+            // Setup ListView Attachments - CON ICONE FILE
+            if (lvAttachments != null)
+            {
+                lvAttachments.Columns.Clear();
+                lvAttachments.Columns.Add("📁 File", 280);       // Più largo per icone + nome
+                lvAttachments.Columns.Add("📏 Dimensione", 100);
+                lvAttachments.Columns.Add("📅 Data", 130);
+                lvAttachments.Columns.Add("👤 Autore", 150);
+                lvAttachments.Columns.Add("🔍 Azioni", 100);     // NUOVA COLONNA per azioni
+
+                // Migliora l'aspetto
+                lvAttachments.FullRowSelect = true;
+                lvAttachments.GridLines = true;
+                lvAttachments.View = View.Details;
+                lvAttachments.Font = new Font("Segoe UI", 9F);
+                lvAttachments.BackColor = Color.White;
+
+                _logger.LogInfo("ListView Attachments configurato con icone file");
+            }
+
+            _logger.LogInfo("✨ Tutti i ListView configurati con stili moderni");
         }
 
         #endregion

@@ -248,37 +248,129 @@ namespace JiraTicketManager.UI.Managers.Activity
                 // Crea l'elemento ListView
                 var item = new ListViewItem();
 
-                // Colonna 1: Autore con emoji avatar
+                // Colonna 1: Autore con emoji avatar MIGLIORATO
                 var authorText = $"{comment.AvatarEmoji} {comment.AuthorDisplayName ?? comment.Author}";
                 item.Text = authorText;
 
                 // Colonna 2: Data formattata
                 item.SubItems.Add(comment.FormattedCreated);
 
-                // Colonna 3: Corpo del commento (pulito)
+                // Colonna 3: Corpo del commento (pulito e troncato intelligentemente)
                 var bodyText = comment.CleanBody ?? comment.Body ?? "[Commento vuoto]";
-                // Limita lunghezza per ListView
-                if (bodyText.Length > 200)
-                    bodyText = bodyText.Substring(0, 200) + "...";
+                // Tronca in modo intelligente mantenendo parole intere
+                if (bodyText.Length > 150)
+                {
+                    var truncated = bodyText.Substring(0, 150);
+                    var lastSpace = truncated.LastIndexOf(' ');
+                    if (lastSpace > 100) // Solo se ha senso
+                        truncated = truncated.Substring(0, lastSpace);
+                    bodyText = truncated + "...";
+                }
                 item.SubItems.Add(bodyText);
 
-                // Colonna 4: Visibilità
-                item.SubItems.Add(comment.VisibilityDescription);
+                // Colonna 4: Visibilità con emoji e descrizione
+                var visibilityText = GetVisibilityDisplayText(comment);
+                item.SubItems.Add(visibilityText);
 
-                // Stile visivo basato su proprietà del commento
-                ApplyCommentStyling(item, comment);
+                // NUOVO: Stile visivo avanzato basato su proprietà del commento
+                ApplyAdvancedCommentStyling(item, comment);
 
                 // Salva l'oggetto commento nel Tag per uso futuro
                 item.Tag = comment;
 
                 // Aggiungi al ListView
                 _commentsListView.Items.Add(item);
+
+                _logger.LogDebug($"Commento aggiunto con emoji: {authorText}");
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Errore aggiunta commento al ListView: {ex.Message}");
             }
         }
+
+        // <summary>
+        /// Ottiene il testo di visualizzazione per la visibilità del commento
+        /// </summary>
+        private string GetVisibilityDisplayText(JiraComment comment)
+        {
+            if (comment.IsInternal)
+                return "🔒 Interno";
+
+            if (!string.IsNullOrEmpty(comment.VisibilityType))
+            {
+                return comment.VisibilityType.ToLower() switch
+                {
+                    "group" => $"👥 {comment.VisibilityValue ?? "Gruppo"}",
+                    "role" => $"🎭 {comment.VisibilityValue ?? "Ruolo"}",
+                    _ => $"🔐 {comment.VisibilityValue ?? comment.VisibilityType}"
+                };
+            }
+
+            return "👁️ Pubblico";
+        }
+
+        // <summary>
+        /// Applica stile visivo avanzato al commento nel ListView
+        /// </summary>
+        private void ApplyAdvancedCommentStyling(ListViewItem item, JiraComment comment)
+        {
+            // COLORI DI BASE
+            var defaultColor = Color.FromArgb(33, 37, 41);      // Nero scuro moderno
+            var defaultBackColor = Color.White;
+
+            // Stile per commenti privati/interni - MIGLIORATO
+            if (comment.IsPrivate)
+            {
+                item.BackColor = Color.FromArgb(255, 248, 225); // Giallo molto chiaro
+                item.ForeColor = Color.FromArgb(133, 100, 4);   // Marrone dorato
+                item.Font = new Font("Segoe UI", 9F, FontStyle.Italic);
+
+                // Aggiungi un bordo visivo simulato con il primo carattere
+                item.Text = "🔒 " + item.Text;
+            }
+            else
+            {
+                item.BackColor = defaultBackColor;
+                item.ForeColor = defaultColor;
+            }
+
+            // Evidenzia commenti modificati
+            if (comment.IsEdited)
+            {
+                item.ForeColor = Color.FromArgb(108, 117, 125); // Grigio
+                                                                // Aggiungi indicatore di modifica
+                var dateSubItem = item.SubItems[1];
+                dateSubItem.Text += " ✏️";
+            }
+
+            // Evidenzia commenti recenti (meno di 24 ore) - MIGLIORATO
+            var hoursOld = (DateTime.Now - comment.Created).TotalHours;
+            if (hoursOld < 24)
+            {
+                item.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+
+                // Gradazione di "freschezza"
+                if (hoursOld < 1)
+                {
+                    item.BackColor = Color.FromArgb(225, 248, 255); // Azzurro molto chiaro
+                    item.Text = "🆕 " + item.Text;
+                }
+                else if (hoursOld < 6)
+                {
+                    item.BackColor = Color.FromArgb(240, 248, 255); // Azzurro leggerissimo
+                }
+            }
+
+            // Stile per commenti lunghi
+            var bodySubItem = item.SubItems[2];
+            if (bodySubItem.Text.Contains("..."))
+            {
+                bodySubItem.Font = new Font("Segoe UI", 8.5F); // Leggermente più piccolo
+                bodySubItem.ForeColor = Color.FromArgb(73, 80, 87);
+            }
+        }
+
 
         /// <summary>
         /// Applica lo stile visivo al commento nel ListView
