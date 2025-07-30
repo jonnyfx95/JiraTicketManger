@@ -3,7 +3,9 @@ using JiraTicketManager.Data;
 using JiraTicketManager.Data.Converters;
 using JiraTicketManager.Helpers;
 using JiraTicketManager.Services;
+using JiraTicketManager.Services.Activity;
 using JiraTicketManager.UI.Managers;
+using JiraTicketManager.UI.Manger.Activity;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -25,6 +27,9 @@ namespace JiraTicketManager.Forms
         private readonly JiraDataService _dataService;
         private readonly TextBoxManager _textBoxManager;
         private ComboBoxManager _comboBoxManager;
+
+        private IActivityTabManager _activityTabManager;
+
 
         private string _currentTicketKey;
         private bool _isLoading = false;
@@ -115,6 +120,26 @@ namespace JiraTicketManager.Forms
                 this.Text = $"Dettaglio Ticket - {ticketKey}";
 
                 _logger.LogInfo($"Ticket {ticketKey} caricato con successo");
+
+                var apiService = JiraApiService.CreateFromSettings(SettingsService.CreateDefault());
+                var activityService = ActivityServiceFactory.Create(apiService);
+
+                var comments = await activityService.GetCommentsAsync(ticketKey);
+                var attachments = await activityService.GetAttachmentsAsync(ticketKey);
+                var summary = await activityService.GetActivitySummaryAsync(ticketKey);
+
+                _logger.LogInfo($"🔍 TEST ACTIVITY SERVICE RESULTS:");
+                _logger.LogInfo($"   💬 Commenti caricati: {comments?.Count ?? 0}");
+                _logger.LogInfo($"   📎 Allegati caricati: {attachments?.Count ?? 0}");
+                _logger.LogInfo($"   📊 Summary: Comments={summary?.CommentsCount}, History={summary?.HistoryCount}, Attachments={summary?.AttachmentsCount}");
+
+                // Optional: Mostra anche in un MessageBox per test rapido
+                MessageBox.Show($"🔍 TEST ACTIVITY SERVICE:\n\n" +
+                                $"💬 Commenti: {comments?.Count ?? 0}\n" +
+                                $"📎 Allegati: {attachments?.Count ?? 0}\n" +
+                                $"📊 Cronologia: {summary?.HistoryCount ?? 0}\n" +
+                                $"🎯 Totale attività: {summary?.TotalActivityCount ?? 0}",
+                                "Test Activity Service", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
