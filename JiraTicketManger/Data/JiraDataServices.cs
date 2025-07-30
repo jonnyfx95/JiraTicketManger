@@ -329,296 +329,34 @@ namespace JiraTicketManager.Data
 
         #region Loading Strategy Implementation
 
-       
+
         /// <summary>
         /// Carica valori da API dirette (Stati, Priorità, Tipi)
         /// </summary>
+
         private async Task<List<string>> LoadFromDirectAPI(JiraFieldType fieldType, IProgress<string> progress, string ticketKey = null)
         {
             try
             {
-                // DICHIARAZIONI UNICHE ALL'INIZIO
-                var credentials = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($"{_jiraApiService.Username}:{_jiraApiService.Token}"));
-                var httpClient = _jiraApiService.GetType().GetField("_httpClient", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(_jiraApiService) as HttpClient;
+                _logger.LogInfo($"🚀 Caricamento {fieldType} con strategia DirectAPI");
 
-                // GESTIONE ORGANIZATIONS CON PAGINAZIONE
-                if (fieldType == JiraFieldType.Organization)
+                return fieldType switch
                 {
-                    _logger.LogInfo($"🏢 Organizations con paginazione");
-                    progress?.Report("Caricamento organizzazioni...");
-
-                    var allOrganizations = new List<string>();
-                    var start = 0;
-                    var batchSize = 50;
-                    var batchNumber = 1;
-                    var maxBatches = 25; // Aumentato per gestire 1000+ organizzazioni
-                    bool morePages = true;
-
-                    while (morePages && batchNumber <= maxBatches)
-                    {
-                        progress?.Report($"Caricamento organizzazioni... (batch {batchNumber}, trovate {allOrganizations.Count})");
-
-                        var paginatedUrl = $"{Domain}/rest/servicedeskapi/organization?start={start}&limit={batchSize}";
-                        _logger.LogInfo($"📄 Batch {batchNumber}: {paginatedUrl}");
-
-                        using var orgRequest = new HttpRequestMessage(HttpMethod.Get, paginatedUrl);
-                        orgRequest.Headers.Add("Authorization", $"Basic {credentials}");
-                        orgRequest.Headers.Add("Accept", "application/json");
-
-                        using var orgResponse = await httpClient.SendAsync(orgRequest);
-
-                        if (!orgResponse.IsSuccessStatusCode)
-                        {
-                            var errorContent = await orgResponse.Content.ReadAsStringAsync();
-                            _logger.LogWarning($"Organizations API Error batch {batchNumber}: {orgResponse.StatusCode}");
-                            break; // Ferma se errore API
-                        }
-
-                        var orgJson = await orgResponse.Content.ReadAsStringAsync();
-                        var orgRoot = JObject.Parse(orgJson);
-                        var orgValues = orgRoot["values"] as JArray;
-
-                        if (orgValues != null && orgValues.Count > 0)
-                        {
-                            var currentBatchCount = 0;
-                            foreach (var org in orgValues)
-                            {
-                                var orgName = org["name"]?.ToString()?.Trim();
-                                if (!string.IsNullOrWhiteSpace(orgName))
-                                {
-                                    allOrganizations.Add(orgName);
-                                    currentBatchCount++;
-                                }
-                            }
-
-                            _logger.LogInfo($"📦 Batch {batchNumber}: {currentBatchCount} organizzazioni, totale: {allOrganizations.Count}");
-
-                            // LOGICA MIGLIORATA: Continua se il batch è pieno
-                            if (currentBatchCount < batchSize)
-                            {
-                                // Se abbiamo ricevuto meno del limite, siamo alla fine
-                                _logger.LogInfo($"🏁 Fine paginazione: ricevute {currentBatchCount} < {batchSize}");
-                                morePages = false;
-                            }
-                            else
-                            {
-                                // Continua con il prossimo batch
-                                start += batchSize;
-                                batchNumber++;
-
-                                // Piccola pausa per non sovraccaricare l'API
-                                await Task.Delay(100);
-                            }
-                        }
-                        else
-                        {
-                            // Nessun risultato in questo batch
-                            _logger.LogInfo($"📭 Batch {batchNumber}: nessun risultato, fine paginazione");
-                            morePages = false;
-                        }
-                    }
-
-                    if (batchNumber > maxBatches)
-                    {
-                        _logger.LogWarning($"⚠️ Raggiunto limite massimo di {maxBatches} batch");
-                    }
-
-                    var distinctOrganizations = allOrganizations.Distinct().OrderBy(n => n).ToList();
-                    _logger.LogInfo($"🎯 Organizations caricate: {distinctOrganizations.Count} (batch processati: {batchNumber - 1})");
-
-                    return distinctOrganizations;
-                }
-
-                // ✅ Gestisce Consulente, PM e Commerciale con stessa logica - EditMeta API con ticket dinamico
-                var userPickerFields = new[] { JiraFieldType.Consulente, JiraFieldType.PM, JiraFieldType.Commerciale };
-
-                if (userPickerFields.Contains(fieldType))
-                {
-                    var customFieldId = JiraFieldTypeHelper.GetCustomFieldId(fieldType);
-                    _logger.LogInfo($"👤 Caricamento {fieldType} tramite EditMeta API (campo: {customFieldId})");
-                    progress?.Report($"Caricamento {JiraFieldTypeHelper.GetDisplayName(fieldType)}...");
-
-                    // ✅ USA IL TICKET KEY PASSATO COME PARAMETRO
-                    if (string.IsNullOrEmpty(ticketKey))
-                    {
-                        _logger.LogWarning($"❌ Ticket key non fornito per {fieldType}, uso fallback");
-                        throw new ArgumentException($"Ticket key richiesto per caricare {fieldType}");
-                    }
-
-                    var editMetaUrl = $"{Domain}/rest/api/2/issue/{ticketKey}/editmeta";
-
-                    using var editMetaRequest = new HttpRequestMessage(HttpMethod.Get, editMetaUrl);
-                    editMetaRequest.Headers.Add("Authorization", $"Basic {credentials}");
-                    editMetaRequest.Headers.Add("Accept", "application/json");
-
-                    using var editMetaResponse = await httpClient.SendAsync(editMetaRequest);
-
-                    if (!editMetaResponse.IsSuccessStatusCode)
-                    {
-                        var errorContent = await editMetaResponse.Content.ReadAsStringAsync();
-                        _logger.LogError($"EditMeta API error: {editMetaResponse.StatusCode} - {errorContent}");
-                        throw new HttpRequestException($"EditMeta API Error: {editMetaResponse.StatusCode}");
-                    }
-
-                    var editMetaJson = await editMetaResponse.Content.ReadAsStringAsync();
-                    var editMetaObj = JObject.Parse(editMetaJson);
-
-                    var userPickerValues = new List<string>();
-
-                    // ✅ ESTRAI allowedValues del campo specifico (generico)
-                    var fields = editMetaObj["fields"];
-                    if (fields != null && fields[customFieldId] != null)
-                    {
-                        var allowedValues = fields[customFieldId]["allowedValues"];
-                        if (allowedValues != null)
-                        {
-                            foreach (var allowedValue in allowedValues)
-                            {
-                                var value = allowedValue["value"]?.ToString();
-                                if (!string.IsNullOrEmpty(value))
-                                {
-                                    var displayValue = EmailConverterHelper.FormatUsernameForDisplay(value);
-                                    userPickerValues.Add(displayValue);
-                                }
-                            }
-                        }
-                    }
-
-                    if (userPickerValues.Count > 0)
-                    {
-                        _logger.LogInfo($"✅ Caricati {userPickerValues.Count} valori per {fieldType}");
-                        return userPickerValues.OrderBy(c => c).ToList();
-                    }
-                    else
-                    {
-                        _logger.LogWarning($"❌ Nessun valore trovato per {fieldType}");
-                        return new List<string>();
-                    }
-                }
-
-                // GESTIONE CUSTOM FIELD
-                if (JiraFieldTypeHelper.IsCustomField(fieldType))
-                {
-                    var customFieldId = JiraFieldTypeHelper.GetCustomFieldId(fieldType);
-                    var createMetaUrl = $"{Domain}/rest/api/2/issue/createmeta?projectKeys=CC&expand=projects.issuetypes.fields.{customFieldId}.allowedValues";
-
-                    _logger.LogInfo($"🔧 Custom field CreateMeta: {createMetaUrl}");
-                    progress?.Report($"Caricamento {JiraFieldTypeHelper.GetDisplayName(fieldType)} via CreateMeta...");
-
-                    using var createMetaRequest = new HttpRequestMessage(HttpMethod.Get, createMetaUrl);
-                    createMetaRequest.Headers.Add("Authorization", $"Basic {credentials}");
-                    createMetaRequest.Headers.Add("Accept", "application/json");
-
-                    using var createMetaResponse = await httpClient.SendAsync(createMetaRequest);
-
-                    if (!createMetaResponse.IsSuccessStatusCode)
-                    {
-                        var errorContent = await createMetaResponse.Content.ReadAsStringAsync();
-                        throw new HttpRequestException($"CreateMeta Error: {createMetaResponse.StatusCode} - {errorContent}");
-                    }
-
-                    var createMetaJson = await createMetaResponse.Content.ReadAsStringAsync();
-                    var createMeta = JObject.Parse(createMetaJson);
-
-                    var customFieldValues = ExtractAllowedValuesFromCreateMeta(createMeta, customFieldId);
-
-                    _logger.LogInfo($"🔍 Custom field {customFieldId} valori: {string.Join(", ", customFieldValues)}");
-                    return customFieldValues;
-                }
-
-                // ✅ CAMPI STANDARD (riutilizza variabili)
-                var endpoint = JiraFieldTypeHelper.GetApiEndpoint(fieldType);
-                var url = $"{Domain}{endpoint}";
-                _logger.LogInfo($"🔗 API diretta: {url}");
-                progress?.Report($"Chiamata API {JiraFieldTypeHelper.GetDisplayName(fieldType)}...");
-
-                using var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.Add("Authorization", $"Basic {credentials}");
-                request.Headers.Add("Accept", "application/json");
-
-                using var response = await httpClient.SendAsync(request);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    throw new HttpRequestException($"API Error: {response.StatusCode} - {errorContent}");
-                }
-
-                var jsonContent = await response.Content.ReadAsStringAsync();
-                var jsonArray = JArray.Parse(jsonContent);
-
-                List<string> finalFieldValues;
-
-                if (fieldType == JiraFieldType.Status)
-                {
-                    var statusCategoryNames = jsonArray
-                        .Where(item => item["statusCategory"]?["name"] != null)
-                        .Select(item => item["statusCategory"]["name"].ToString().Trim())
-                        .Where(categoryName => !string.IsNullOrEmpty(categoryName))
-                        .Distinct()
-                        .OrderBy(categoryName => categoryName)
-                        .ToList();
-                    finalFieldValues = statusCategoryNames;
-                    _logger.LogInfo($"🔍 StatusCategory trovate: {string.Join(", ", finalFieldValues)}");
-                }
-                else if (fieldType == JiraFieldType.Assignee)
-                {
-                    var assigneeNames = jsonArray
-                        .Where(item => item["displayName"] != null)
-                        .Select(item => item["displayName"].ToString().Trim())
-                        .Where(displayName => !string.IsNullOrEmpty(displayName))
-                        .Distinct()
-                        .OrderBy(displayName => displayName)
-                        .ToList();
-
-                    var excludedAssignees = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        "Dania Zaccara", "Daniela La Duca", "Edoardo Lembo",
-        "Francisca Gori", "Giovanni Piccolo", "Valerio Vocale", "Francesco Dembech"
-    };
-
-                    finalFieldValues = assigneeNames.Where(assignee => !excludedAssignees.Contains(assignee)).ToList();
-                    _logger.LogInfo($"🔍 Assegnatari filtrati: {string.Join(", ", finalFieldValues)}");
-                }
-                else
-                {
-                    var fieldNames = jsonArray
-                        .Where(item => item["name"] != null)
-                        .Select(item => item["name"].ToString().Trim())
-                        .Where(fieldName => !string.IsNullOrEmpty(fieldName))
-                        .Distinct()
-                        .OrderBy(fieldName => fieldName)
-                        .ToList();
-                    finalFieldValues = fieldNames;
-                }
-
-                // Filtri specifici
-                if (fieldType == JiraFieldType.Priority)
-                {
-                    var allowedPriorities = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        "Alta", "Media", "Bassa"
-    };
-                    finalFieldValues = finalFieldValues.Where(priority => allowedPriorities.Contains(priority)).ToList();
-                    _logger.LogInfo($"🔍 Priorità filtrate: {string.Join(", ", finalFieldValues)}");
-                }
-
-                if (fieldType == JiraFieldType.IssueType)
-                {
-                    var cleanedIssueTypes = finalFieldValues.Select(issueType => CleanIssueTypeName(issueType)).ToList();
-                    var filteredIssueTypes = cleanedIssueTypes.Where(issueType => !issueType.Equals("Sottotask", StringComparison.OrdinalIgnoreCase)).ToList();
-                    finalFieldValues = filteredIssueTypes;
-                    _logger.LogInfo($"🔍 Tipi puliti: {string.Join(", ", finalFieldValues)}");
-                }
-
-                return finalFieldValues;
+                    JiraFieldType.Organization => await LoadOrganizationsWithPagination(progress),
+                    JiraFieldType.Consulente or JiraFieldType.PM or JiraFieldType.Commerciale =>
+                        await LoadUserPickerFieldValues(fieldType, progress, ticketKey),
+                    _ when JiraFieldTypeHelper.IsCustomField(fieldType) =>
+                        await LoadCustomFieldValues(fieldType, progress),
+                    _ => await LoadStandardFieldValues(fieldType, progress)
+                };
             }
             catch (Exception ex)
             {
-                _logger.LogError($"❌ Errore API diretta per {fieldType}", ex);
+                _logger.LogError($"❌ Errore LoadFromDirectAPI per {fieldType}", ex);
                 throw;
             }
         }
+
 
 
 
@@ -1004,5 +742,433 @@ namespace JiraTicketManager.Data
         }
 
         #endregion
+
+        #region Organizations Loading
+
+        /// <summary>
+        /// Carica le organizzazioni con paginazione tramite ServiceDesk API
+        /// </summary>
+        private async Task<List<string>> LoadOrganizationsWithPagination(IProgress<string> progress)
+        {
+            _logger.LogInfo($"🏢 Caricamento organizzazioni con paginazione");
+            progress?.Report("Caricamento organizzazioni...");
+
+            using var httpClient = CreateHttpClient();
+            var allOrganizations = new List<string>();
+            var start = 0;
+            var batchSize = 50;
+            var batchNumber = 1;
+            var maxBatches = 25;
+            bool morePages = true;
+
+            while (morePages && batchNumber <= maxBatches)
+            {
+                progress?.Report($"Caricamento organizzazioni... (batch {batchNumber}, trovate {allOrganizations.Count})");
+
+                var batch = await LoadOrganizationBatch(httpClient, start, batchSize, batchNumber);
+
+                if (batch.Count > 0)
+                {
+                    allOrganizations.AddRange(batch);
+                    _logger.LogInfo($"📦 Batch {batchNumber}: {batch.Count} organizzazioni, totale: {allOrganizations.Count}");
+
+                    if (batch.Count < batchSize)
+                    {
+                        _logger.LogInfo($"🏁 Fine paginazione: ricevute {batch.Count} < {batchSize}");
+                        morePages = false;
+                    }
+                    else
+                    {
+                        start += batchSize;
+                        batchNumber++;
+                        await Task.Delay(100); // Pausa per non sovraccaricare l'API
+                    }
+                }
+                else
+                {
+                    _logger.LogInfo($"📭 Batch {batchNumber}: nessun risultato, fine paginazione");
+                    morePages = false;
+                }
+            }
+
+            var distinctOrganizations = allOrganizations.Distinct().OrderBy(n => n).ToList();
+            _logger.LogInfo($"🎯 Organizations caricate: {distinctOrganizations.Count} (batch processati: {batchNumber - 1})");
+            return distinctOrganizations;
+        }
+
+        /// <summary>
+        /// Carica un singolo batch di organizzazioni
+        /// </summary>
+        private async Task<List<string>> LoadOrganizationBatch(HttpClient httpClient, int start, int batchSize, int batchNumber)
+        {
+            var organizations = new List<string>();
+
+            try
+            {
+                var paginatedUrl = $"{Domain}/rest/servicedeskapi/organization?start={start}&limit={batchSize}";
+                _logger.LogInfo($"📄 Batch {batchNumber}: {paginatedUrl}");
+
+                using var orgRequest = new HttpRequestMessage(HttpMethod.Get, paginatedUrl);
+                orgRequest.Headers.Add("Accept", "application/json");
+
+                using var orgResponse = await httpClient.SendAsync(orgRequest);
+
+                if (!orgResponse.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning($"Organizations API Error batch {batchNumber}: {orgResponse.StatusCode}");
+                    return organizations; // Restituisce lista vuota
+                }
+
+                var orgJson = await orgResponse.Content.ReadAsStringAsync();
+                var orgRoot = JObject.Parse(orgJson);
+                var orgValues = orgRoot["values"] as JArray;
+
+                if (orgValues != null)
+                {
+                    foreach (var org in orgValues)
+                    {
+                        var orgName = org["name"]?.ToString()?.Trim();
+                        if (!string.IsNullOrWhiteSpace(orgName))
+                        {
+                            organizations.Add(orgName);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"❌ Errore batch {batchNumber} organizzazioni", ex);
+            }
+
+            return organizations;
+        }
+
+        #endregion
+
+        #region User Picker Fields Loading
+
+        /// <summary>
+        /// Carica valori per campi user picker (Consulente, PM, Commerciale)
+        /// </summary>
+        private async Task<List<string>> LoadUserPickerFieldValues(JiraFieldType fieldType, IProgress<string> progress, string ticketKey)
+        {
+            var customFieldId = JiraFieldTypeHelper.GetCustomFieldId(fieldType);
+            _logger.LogInfo($"👤 Caricamento {fieldType} tramite EditMeta (campo: {customFieldId})");
+            progress?.Report($"Caricamento {JiraFieldTypeHelper.GetDisplayName(fieldType)}...");
+
+            using var httpClient = CreateHttpClient();
+
+            var fallbackTickets = GetFallbackTickets(ticketKey);
+
+            foreach (var testTicketKey in fallbackTickets)
+            {
+                var values = await TryLoadUserPickerFromTicket(httpClient, fieldType, customFieldId, testTicketKey);
+                if (values.Count > 0)
+                {
+                    _logger.LogInfo($"✅ Successo con ticket {testTicketKey}: {values.Count} valori per {fieldType}");
+                    return values.OrderBy(c => c).ToList();
+                }
+            }
+
+            // Fallback finale a JQL
+            _logger.LogInfo($"🔄 Fallback a strategia JQL per {fieldType}");
+            try
+            {
+                return await LoadFromJQLSearch(fieldType, progress);
+            }
+            catch (Exception jqlEx)
+            {
+                _logger.LogError($"❌ Anche la strategia JQL è fallita per {fieldType}: {jqlEx.Message}");
+                return new List<string>();
+            }
+        }
+
+        /// <summary>
+        /// Genera lista di ticket fallback per l'EditMeta
+        /// </summary>
+        private string[] GetFallbackTickets(string ticketKey)
+        {
+            return new[] { ticketKey, "CC-1", "CC-2", "CC-10", "CC-100", "CC-1000" }
+                .Where(tk => !string.IsNullOrEmpty(tk))
+                .Distinct()
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Tenta di caricare valori user picker da un ticket specifico
+        /// </summary>
+        private async Task<List<string>> TryLoadUserPickerFromTicket(HttpClient httpClient, JiraFieldType fieldType, string customFieldId, string testTicketKey)
+        {
+            try
+            {
+                _logger.LogInfo($"🎯 Tentativo con ticket: {testTicketKey}");
+
+                var editMetaUrl = $"{Domain}/rest/api/2/issue/{testTicketKey}/editmeta";
+                using var editMetaRequest = new HttpRequestMessage(HttpMethod.Get, editMetaUrl);
+                editMetaRequest.Headers.Add("Accept", "application/json");
+
+                using var editMetaResponse = await httpClient.SendAsync(editMetaRequest);
+
+                if (!editMetaResponse.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning($"⚠️ EditMeta fallito per {testTicketKey}: {editMetaResponse.StatusCode}");
+                    return new List<string>();
+                }
+
+                var editMetaJson = await editMetaResponse.Content.ReadAsStringAsync();
+                return ExtractUserPickerValues(editMetaJson, customFieldId, testTicketKey);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"⚠️ Errore con ticket {testTicketKey}: {ex.Message}");
+                return new List<string>();
+            }
+        }
+
+        /// <summary>
+        /// Estrae i valori user picker dal JSON EditMeta
+        /// </summary>
+        private List<string> ExtractUserPickerValues(string editMetaJson, string customFieldId, string testTicketKey)
+        {
+            var userPickerValues = new List<string>();
+            var editMetaObj = JObject.Parse(editMetaJson);
+
+            var fields = editMetaObj["fields"];
+            if (fields != null && fields[customFieldId] != null)
+            {
+                var allowedValues = fields[customFieldId]["allowedValues"];
+                if (allowedValues != null && allowedValues.Any())
+                {
+                    foreach (var allowedValue in allowedValues)
+                    {
+                        var value = allowedValue["value"]?.ToString();
+                        if (!string.IsNullOrEmpty(value))
+                        {
+                            var displayValue = EmailConverterHelper.FormatUsernameForDisplay(value);
+                            userPickerValues.Add(displayValue);
+                        }
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning($"⚠️ Campo {customFieldId} trovato ma senza allowedValues in {testTicketKey}");
+                }
+            }
+            else
+            {
+                _logger.LogWarning($"⚠️ Campo {customFieldId} non trovato in {testTicketKey}");
+            }
+
+            return userPickerValues;
+        }
+
+        #endregion
+
+        #region Custom Fields Loading
+
+        /// <summary>
+        /// Carica valori per custom fields tramite CreateMeta API
+        /// </summary>
+        private async Task<List<string>> LoadCustomFieldValues(JiraFieldType fieldType, IProgress<string> progress)
+        {
+            var customFieldId = JiraFieldTypeHelper.GetCustomFieldId(fieldType);
+            var createMetaUrl = $"{Domain}/rest/api/2/issue/createmeta?projectKeys=CC&expand=projects.issuetypes.fields.{customFieldId}.allowedValues";
+
+            _logger.LogInfo($"🔧 Custom field CreateMeta: {createMetaUrl}");
+            progress?.Report($"Caricamento {JiraFieldTypeHelper.GetDisplayName(fieldType)} via CreateMeta...");
+
+            using var httpClient = CreateHttpClient();
+            using var createMetaRequest = new HttpRequestMessage(HttpMethod.Get, createMetaUrl);
+            createMetaRequest.Headers.Add("Accept", "application/json");
+
+            using var createMetaResponse = await httpClient.SendAsync(createMetaRequest);
+
+            if (!createMetaResponse.IsSuccessStatusCode)
+            {
+                var errorContent = await createMetaResponse.Content.ReadAsStringAsync();
+                throw new HttpRequestException($"CreateMeta Error: {createMetaResponse.StatusCode} - {errorContent}");
+            }
+
+            var createMetaJson = await createMetaResponse.Content.ReadAsStringAsync();
+            var createMeta = JObject.Parse(createMetaJson);
+            var customFieldValues = ExtractAllowedValuesFromCreateMeta(createMeta, customFieldId);
+
+            _logger.LogInfo($"🔍 Custom field {customFieldId} valori: {string.Join(", ", customFieldValues)}");
+            return customFieldValues;
+        }
+
+        #endregion
+
+        #region Standard Fields Loading
+
+        /// <summary>
+        /// Carica valori per campi standard (Stati, Priorità, Tipi, Assegnatari)
+        /// </summary>
+        private async Task<List<string>> LoadStandardFieldValues(JiraFieldType fieldType, IProgress<string> progress)
+        {
+            var endpoint = JiraFieldTypeHelper.GetApiEndpoint(fieldType);
+            var url = $"{Domain}{endpoint}";
+
+            _logger.LogInfo($"🔗 API diretta: {url}");
+            progress?.Report($"Chiamata API {JiraFieldTypeHelper.GetDisplayName(fieldType)}...");
+
+            using var httpClient = CreateHttpClient();
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("Accept", "application/json");
+
+            using var response = await httpClient.SendAsync(request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException($"API Error: {response.StatusCode} - {errorContent}");
+            }
+
+            var jsonContent = await response.Content.ReadAsStringAsync();
+            var jsonArray = JArray.Parse(jsonContent);
+
+            return ProcessStandardFieldResponse(fieldType, jsonArray);
+        }
+
+        /// <summary>
+        /// Processa la risposta JSON per campi standard
+        /// </summary>
+        private List<string> ProcessStandardFieldResponse(JiraFieldType fieldType, JArray jsonArray)
+        {
+            List<string> finalFieldValues = fieldType switch
+            {
+                JiraFieldType.Status => ExtractStatusCategories(jsonArray),
+                JiraFieldType.Assignee => ExtractAndFilterAssignees(jsonArray),
+                _ => ExtractGenericFieldNames(jsonArray)
+            };
+
+            // Applica filtri specifici
+            finalFieldValues = ApplyFieldSpecificFilters(fieldType, finalFieldValues);
+
+            return finalFieldValues;
+        }
+
+        /// <summary>
+        /// Estrae le categorie di stato
+        /// </summary>
+        private List<string> ExtractStatusCategories(JArray jsonArray)
+        {
+            var statusCategoryNames = jsonArray
+                .Where(item => item["statusCategory"]?["name"] != null)
+                .Select(item => item["statusCategory"]["name"].ToString().Trim())
+                .Where(categoryName => !string.IsNullOrEmpty(categoryName))
+                .Distinct()
+                .OrderBy(categoryName => categoryName)
+                .ToList();
+
+            _logger.LogInfo($"🔍 StatusCategory trovate: {string.Join(", ", statusCategoryNames)}");
+            return statusCategoryNames;
+        }
+
+        /// <summary>
+        /// Estrae e filtra gli assegnatari
+        /// </summary>
+        private List<string> ExtractAndFilterAssignees(JArray jsonArray)
+        {
+            var assigneeNames = jsonArray
+                .Where(item => item["displayName"] != null)
+                .Select(item => item["displayName"].ToString().Trim())
+                .Where(displayName => !string.IsNullOrEmpty(displayName))
+                .Distinct()
+                .OrderBy(displayName => displayName)
+                .ToList();
+
+            var excludedAssignees = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "Dania Zaccara", "Daniela La Duca", "Edoardo Lembo",
+        "Francisca Gori", "Giovanni Piccolo", "Valerio Vocale", "Francesco Dembech"
+    };
+
+            var filteredAssignees = assigneeNames.Where(assignee => !excludedAssignees.Contains(assignee)).ToList();
+            _logger.LogInfo($"🔍 Assegnatari filtrati: {string.Join(", ", filteredAssignees)}");
+
+            return filteredAssignees;
+        }
+
+        /// <summary>
+        /// Estrae nomi generici dai campi
+        /// </summary>
+        private List<string> ExtractGenericFieldNames(JArray jsonArray)
+        {
+            return jsonArray
+                .Where(item => item["name"] != null)
+                .Select(item => item["name"].ToString().Trim())
+                .Where(fieldName => !string.IsNullOrEmpty(fieldName))
+                .Distinct()
+                .OrderBy(fieldName => fieldName)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Applica filtri specifici per tipo di campo
+        /// </summary>
+        private List<string> ApplyFieldSpecificFilters(JiraFieldType fieldType, List<string> values)
+        {
+            return fieldType switch
+            {
+                JiraFieldType.Priority => FilterPriorities(values),
+                JiraFieldType.IssueType => FilterIssueTypes(values),
+                _ => values
+            };
+        }
+
+        /// <summary>
+        /// Filtra le priorità consentite
+        /// </summary>
+        private List<string> FilterPriorities(List<string> priorities)
+        {
+            var allowedPriorities = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "Alta", "Media", "Bassa"
+    };
+
+            var filtered = priorities.Where(priority => allowedPriorities.Contains(priority)).ToList();
+            _logger.LogInfo($"🔍 Priorità filtrate: {string.Join(", ", filtered)}");
+            return filtered;
+        }
+
+        /// <summary>
+        /// Filtra e pulisce i tipi di issue
+        /// </summary>
+        private List<string> FilterIssueTypes(List<string> issueTypes)
+        {
+            var cleanedIssueTypes = issueTypes.Select(issueType => CleanIssueTypeName(issueType)).ToList();
+            var filteredIssueTypes = cleanedIssueTypes
+                .Where(issueType => !issueType.Equals("Sottotask", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            _logger.LogInfo($"🔍 Tipi puliti: {string.Join(", ", filteredIssueTypes)}");
+            return filteredIssueTypes;
+        }
+
+        #endregion
+
+        #region Helper Methods
+
+        /// <summary>
+        /// Crea un HttpClient configurato con credenziali
+        /// </summary>
+        private HttpClient CreateHttpClient()
+        {
+            var credentials = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($"{_jiraApiService.Username}:{_jiraApiService.Token}"));
+
+            var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.Add("Authorization", $"Basic {credentials}");
+            httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+            httpClient.Timeout = TimeSpan.FromSeconds(30);
+
+            return httpClient;
+        }
+
+        
+
+        #endregion
+
+
     }
 }

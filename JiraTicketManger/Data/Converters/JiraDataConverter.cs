@@ -503,6 +503,81 @@ namespace JiraTicketManager.Data.Converters
         }
 
         #endregion
+
+        #region DataConver
+
+        /// <summary>
+        /// Formatta una data per la visualizzazione in formato italiano (dd/MM/yyyy)
+        /// </summary>
+        /// <param name="dateValue">Valore data da formattare (può essere string, DateTime, o object)</param>
+        /// <returns>Data formattata come dd/MM/yyyy o stringa vuota se non valida</returns>
+        public static string FormatDateForDisplay(object dateValue)
+        {
+            try
+            {
+                if (dateValue == null || dateValue == DBNull.Value)
+                    return "";
+
+                // Se è già un DateTime
+                if (dateValue is DateTime dateTime)
+                {
+                    return dateTime.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
+                }
+                // Se è una stringa, prova a parsarla
+                else if (dateValue is string dateString)
+                {
+                    if (string.IsNullOrWhiteSpace(dateString))
+                        return "";
+
+                    // Prova prima con i formati Jira comuni
+                    var formats = new[]
+                    {
+                "yyyy-MM-dd",                       // Formato più comune da Jira  
+                "yyyy-MM-ddTHH:mm:ss.fffzzz",      // ISO completo con timezone
+                "yyyy-MM-ddTHH:mm:ss.fff",         // ISO senza timezone
+                "yyyy-MM-ddTHH:mm:sszzz",          // ISO con timezone senza millisecondi
+                "yyyy-MM-ddTHH:mm:ss",             // ISO base
+                "yyyy-MM-dd HH:mm:ss"              // Formato standard
+            };
+
+                    foreach (var format in formats)
+                    {
+                        if (DateTime.TryParseExact(dateString, format,
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            System.Globalization.DateTimeStyles.None, out DateTime parsedDate))
+                        {
+                            return parsedDate.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
+                        }
+                    }
+
+                    // Fallback: parsing automatico
+                    if (DateTime.TryParse(dateString, out DateTime fallbackDate))
+                    {
+                        return fallbackDate.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
+                    }
+
+                    return "";
+                }
+                else
+                {
+                    // Prova conversione generica
+                    if (DateTime.TryParse(dateValue.ToString(), out DateTime genericDate))
+                    {
+                        return genericDate.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
+                    }
+                    return "";
+                }
+
+
+            }
+            catch (Exception)
+            {
+                return "";
+            }
+        }
+
+        #endregion
+
     }
 
     #region Supporting Classes

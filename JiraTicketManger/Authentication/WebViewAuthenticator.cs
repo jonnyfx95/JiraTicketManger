@@ -144,6 +144,9 @@ namespace JiraTicketManager.Authentication
         {
             _logger.LogInfo("=== AUTENTICAZIONE SICURA OTTIMIZZATA ===");
 
+            // Crea panel overlay per nascondere MyTime
+            Panel overlayPanel = null;
+
             try
             {
                 bool loginCompleted = false;
@@ -155,7 +158,6 @@ namespace JiraTicketManager.Authentication
                 webView2.CoreWebView2.NavigationCompleted += async (s, e) =>
                 {
                     if (!e.IsSuccess || loginCompleted) return;
-
                     string currentUrl = webView2.CoreWebView2.Source;
                     _logger.LogInfo($"URL: {currentUrl}");
 
@@ -178,19 +180,46 @@ namespace JiraTicketManager.Authentication
                         // Se raggiungiamo MyTime home
                         if (currentUrl.Contains("mytime.dedagroup.it/home") && !loginCompleted)
                         {
-                            _logger.LogInfo("🎉 Login completato - ESTRAZIONE IMMEDIATA");
-                            loginCompleted = true; // BLOCCA subito altri eventi
+                            _logger.LogInfo("🎉 Login completato - COPERTURA IMMEDIATA CON OVERLAY");
+                            loginCompleted = true;
                             homePageUrl = currentUrl;
 
-                            // PRIMA estrai email (WebView ancora visibile)
-                            _logger.LogInfo("Estrazione email con WebView visibile");
-                            await Task.Delay(3000); // Attesa caricamento completo
+                            // ✅ CREA OVERLAY BIANCO IMMEDIATAMENTE
+                            if (overlayPanel == null)
+                            {
+                                overlayPanel = new Panel
+                                {
+                                    BackColor = Color.White,
+                                    Dock = DockStyle.Fill,
+                                    Visible = true
+                                };
 
-                            _logger.LogInfo("=== PRIMA DI CHIAMARE ExtractUserEmail ===");
+                                // Aggiungi loading text al panel
+                                var loadingLabel = new Label
+                                {
+                                    Text = "Autenticazione completata...\nCaricamento in corso...",
+                                    Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                                    ForeColor = Color.FromArgb(0, 120, 212),
+                                    TextAlign = ContentAlignment.MiddleCenter,
+                                    Dock = DockStyle.Fill
+                                };
+                                overlayPanel.Controls.Add(loadingLabel);
+
+                                // Aggiungi al form SOPRA il WebView2
+                                webView2.Parent.Controls.Add(overlayPanel);
+                                overlayPanel.BringToFront();
+
+                                _logger.LogInfo("✅ Overlay bianco creato e mostrato - MyTime nascosto");
+                            }
+
+                            // Estrazione email (WebView sotto overlay, invisibile all'utente)
+                            _logger.LogInfo("Estrazione email (sotto overlay bianco)");
+                            await Task.Delay(3000);
+
                             try
                             {
                                 extractedEmail = await ExtractUserEmail(webView2);
-                                _logger.LogInfo($"=== DOPO ExtractUserEmail - Risultato: '{extractedEmail}' ===");
+                                _logger.LogInfo($"Email estratta: '{extractedEmail}'");
                             }
                             catch (Exception ex)
                             {
@@ -205,21 +234,28 @@ namespace JiraTicketManager.Authentication
                                 extractedEmail = await ExtractUserEmail(webView2);
                             }
 
-                            _logger.LogInfo($"Email estratta: '{extractedEmail}'");
-
-                            // POI nascondi WebView
-                            _logger.LogInfo("NASCONDO WebView dopo estrazione");
-                            webView2.Visible = false;
-
-                            // Mostra loading solo se email estratta
+                            // Naviga alla pagina di successo/errore (sotto overlay)
                             if (!string.IsNullOrEmpty(extractedEmail))
                             {
+                                _logger.LogInfo("Caricamento pagina successo (sotto overlay)");
+
                                 string successHtml = LoadingPageGenerator.GenerateLoadingPage(
                                     "Accesso Autorizzato ✓",
                                     $"Benvenuto {extractedEmail}");
                                 webView2.NavigateToString(successHtml);
-                                webView2.Visible = true;
-                                _logger.LogInfo("Mostrato messaggio successo FINALE");
+
+                                // Attendi caricamento
+                                await Task.Delay(1000);
+
+                                // Rimuovi overlay per mostrare pagina successo
+                                if (overlayPanel != null)
+                                {
+                                    overlayPanel.Visible = false;
+                                    webView2.Parent.Controls.Remove(overlayPanel);
+                                    overlayPanel.Dispose();
+                                    overlayPanel = null;
+                                    _logger.LogInfo("✅ Overlay rimosso - Pagina successo visibile");
+                                }
                             }
                             else
                             {
@@ -227,17 +263,25 @@ namespace JiraTicketManager.Authentication
                                     "Errore Estrazione ❌",
                                     "Impossibile rilevare email utente");
                                 webView2.NavigateToString(errorHtml);
-                                webView2.Visible = true;
-                                _logger.LogInfo("Mostrato messaggio errore");
+
+                                await Task.Delay(1000);
+
+                                if (overlayPanel != null)
+                                {
+                                    overlayPanel.Visible = false;
+                                    webView2.Parent.Controls.Remove(overlayPanel);
+                                    overlayPanel.Dispose();
+                                    overlayPanel = null;
+                                }
                             }
 
-                            emailExtracted = true; // Segnala completamento
+                            emailExtracted = true;
                         }
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError("NavigationCompleted Handler", ex);
-                        emailExtracted = true; // Sblocca in caso di errore
+                        emailExtracted = true;
                     }
                 };
 
@@ -250,7 +294,7 @@ namespace JiraTicketManager.Authentication
 
                 // Attendi completamento
                 int waitTime = 0;
-                const int maxWaitTime = 300000; // 5 minuti
+                const int maxWaitTime = 300000;
 
                 while (!emailExtracted && waitTime < maxWaitTime)
                 {
@@ -260,6 +304,21 @@ namespace JiraTicketManager.Authentication
                     if (waitTime % 15000 == 0)
                     {
                         _logger.LogInfo($"Attesa: {waitTime / 1000}s / {maxWaitTime / 1000}s");
+                    }
+                }
+
+                // Pulizia overlay se ancora presente
+                if (overlayPanel != null)
+                {
+                    try
+                    {
+                        overlayPanel.Visible = false;
+                        webView2.Parent?.Controls.Remove(overlayPanel);
+                        overlayPanel.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning($"Errore pulizia overlay: {ex.Message}");
                     }
                 }
 
@@ -287,6 +346,18 @@ namespace JiraTicketManager.Authentication
             }
             catch (Exception ex)
             {
+                // Pulizia overlay in caso di errore
+                if (overlayPanel != null)
+                {
+                    try
+                    {
+                        overlayPanel.Visible = false;
+                        webView2.Parent?.Controls.Remove(overlayPanel);
+                        overlayPanel.Dispose();
+                    }
+                    catch { }
+                }
+
                 _logger.LogError("PerformSecureAuthentication", ex);
                 return AuthenticationResult.Failure($"Errore: {ex.Message}", AuthenticationMethod.MicrosoftSSO);
             }

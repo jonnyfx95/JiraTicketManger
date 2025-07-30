@@ -1,5 +1,6 @@
 ﻿using JiraTicketManager.Business;
 using JiraTicketManager.Data;
+using JiraTicketManager.Data.Converters;
 using JiraTicketManager.Helpers;
 using JiraTicketManager.Services;
 using JiraTicketManager.UI.Managers;
@@ -81,11 +82,11 @@ namespace JiraTicketManager.Forms
         {
             try
             {
-                if (string.IsNullOrEmpty(ticketKey))
+               if (string.IsNullOrEmpty(ticketKey))
                 {
                     _logger.LogWarning("Tentativo caricamento ticket con key vuota");
                     return;
-                }
+                } 
 
                 _logger.LogInfo($"Caricamento ticket: {ticketKey}");
 
@@ -102,6 +103,10 @@ namespace JiraTicketManager.Forms
                 var textBoxMappings = CreateTextBoxMappings();
                 var labelMappings = CreateLabelMappings();
                 await _textBoxManager.PopulateAllControlsAsync(ticketKey, textBoxMappings, labelMappings);
+
+                // ✅ AGGIUNGI QUESTE RIGHE QUI:
+                txtDataIntervento.Text = JiraDataConverter.FormatDateForDisplay(txtDataIntervento.Text);
+                txtDataCompletamento.Text = JiraDataConverter.FormatDateForDisplay(txtDataCompletamento.Text);
 
                 SetResponsabileFromArea();
 
@@ -124,6 +129,17 @@ namespace JiraTicketManager.Forms
             }
         }
 
+        public void SetTextBoxValue(TextBox textBox, string value)
+        {
+            if (textBox.Name == "txtDataIntervento" || textBox.Name == "txtDataCompletamento")
+            {
+                textBox.Text = JiraDataConverter.FormatDateForDisplay(value);
+            }
+            else
+            {
+                textBox.Text = value ?? "";
+            }
+        }
 
 
         /// <summary>

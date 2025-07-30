@@ -20,9 +20,12 @@ namespace JiraTicketManager.Services
         private readonly CryptographyService _cryptographyService;
         private bool _disposed = false;
 
+        /// <summary>
+        /// MODIFICA CREDENZIALI JIRA SSO
+        /// </summary>
         // Credenziali per modalità Microsoft SSO (hardcoded come richiesto)
-        private const string SSO_USERNAME = "TUA_EMAIL_API@dedagroup.com";
-        private const string SSO_TOKEN = "IL_TUO_API_TOKEN_JIRA";
+        private const string SSO_USERNAME = "jonathan.felixdasilva@dedagroup.it";
+        private const string SSO_TOKEN = "ATATT3xFfGF0Ore44aYniWdWcF1c5p-R_WhsmnjXElNbLU_DlDKYmrIBnblAMYaRJmUAKPJXbG97sZt4hBVL_ZBSKqHFlkR8H21XkVPc5UAbA3sgtWMwbG2-XjMO8_kM9RjUN_q61ciFiQEwnJfZ2pdNhQnffN7CUn_D5nmibFazwYfWoMfe3J4=90AF50DB";
 
         public string Domain { get; private set; }
         public string Username { get; private set; }
@@ -427,7 +430,7 @@ namespace JiraTicketManager.Services
 
         #endregion
 
-        // AGGIUNGI QUESTO METODO ALLA CLASSE JiraApiService.cs
+        
 
         #region Search Methods
 
@@ -591,7 +594,7 @@ namespace JiraTicketManager.Services
         /// <summary>
         /// Ottiene l'header di autorizzazione per le chiamate API
         /// </summary>
-        private string GetAuthorizationHeader()
+        public string GetAuthorizationHeader()
         {
             if (IsSSOModeActive)
             {
