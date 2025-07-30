@@ -133,13 +133,8 @@ namespace JiraTicketManager.Forms
                 _logger.LogInfo($"   📎 Allegati caricati: {attachments?.Count ?? 0}");
                 _logger.LogInfo($"   📊 Summary: Comments={summary?.CommentsCount}, History={summary?.HistoryCount}, Attachments={summary?.AttachmentsCount}");
 
-                // Optional: Mostra anche in un MessageBox per test rapido
-                MessageBox.Show($"🔍 TEST ACTIVITY SERVICE:\n\n" +
-                                $"💬 Commenti: {comments?.Count ?? 0}\n" +
-                                $"📎 Allegati: {attachments?.Count ?? 0}\n" +
-                                $"📊 Cronologia: {summary?.HistoryCount ?? 0}\n" +
-                                $"🎯 Totale attività: {summary?.TotalActivityCount ?? 0}",
-                                "Test Activity Service", MessageBoxButtons.OK, MessageBoxIcon.Information);
+               
+                _logger.LogInfo($"🎯 ACTIVITY SUMMARY: C={summary.CommentsCount}, H={summary.HistoryCount}, A={summary.AttachmentsCount}");
             }
             catch (Exception ex)
             {
