@@ -126,6 +126,10 @@ namespace JiraTicketManager.Testing
             LogTest("");
 
 
+            LogTest("🔍 Test 15: Debug Firma Outlook");
+            var result15 = await TestOutlookSignatureDebug();
+            totalTests++; if (result15) passedTests++;
+            LogTest("");
 
 
             // Risultati finali
@@ -3173,6 +3177,53 @@ namespace JiraTicketManager.Testing
             }
         }
 
+
+
+        /// <summary>
+        /// Test debug firma Outlook - nuovo metodo per DevelopmentTests
+        /// </summary>
+        public async Task<bool> TestOutlookSignatureDebug()
+        {
+            LogTest("📧 === TEST DEBUG FIRMA OUTLOOK ===");
+
+            try
+            {
+                // Crea il servizio Outlook
+                var outlookService = new OutlookHybridService();
+
+                LogTest("🔍 Chiamata metodo debug firma...");
+
+                // Chiama il metodo debug che abbiamo aggiunto
+                var debugResult = outlookService.DebugSignatureReading();
+
+                LogTest($"📋 Risultato debug:");
+                LogTest($"   {debugResult}");
+
+                // Test anche creazione email di test
+                LogTest("");
+                LogTest("📧 Test creazione email con firma...");
+
+                var emailData = new OutlookHybridService.EmailData
+                {
+                    To = "test@example.com",
+                    Subject = "Test Firma",
+                    BodyHtml = "<p>Contenuto email di test</p>",
+                    UseDefaultSignature = true
+                };
+
+                LogTest($"📊 EmailData creata:");
+                LogTest($"   UseDefaultSignature: {emailData.UseDefaultSignature}");
+                LogTest($"   BodyHtml originale: {emailData.BodyHtml}");
+
+                LogTest("✅ Test debug firma completato");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ Errore test firma: {ex.Message}");
+                return false;
+            }
+        }
 
     }
 

@@ -37,6 +37,10 @@ namespace JiraTicketManager.Services
             public bool IsHtml { get; set; } = true;
             public string[] Attachments { get; set; } = Array.Empty<string>();
 
+            // 🆕 NUOVA PROPRIETÀ PER LA FIRMA
+            public bool UseDefaultSignature { get; set; } = true;
+            public string CustomSignature { get; set; } = "";
+
             public bool IsValid()
             {
                 return !string.IsNullOrWhiteSpace(To) &&
@@ -251,10 +255,35 @@ namespace JiraTicketManager.Services
 
                 mailItem.Subject = emailData.Subject;
 
+                // Gestione corpo email con firma
+                string finalBody = "";
+
                 if (emailData.IsHtml && !string.IsNullOrWhiteSpace(emailData.BodyHtml))
-                    mailItem.HTMLBody = emailData.BodyHtml;
+                {
+                    finalBody = emailData.BodyHtml;
+
+                    // Aggiungi firma se richiesta
+                    if (emailData.UseDefaultSignature)
+                    {
+                        string signature = GetDefaultOutlookSignature();
+                        if (!string.IsNullOrEmpty(signature))
+                        {
+                            finalBody += "<br><br>" + signature;
+                            _logger.LogInfo("Firma di default aggiunta al corpo HTML");
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(emailData.CustomSignature))
+                    {
+                        finalBody += "<br><br>" + emailData.CustomSignature;
+                        _logger.LogInfo("Firma personalizzata aggiunta al corpo HTML");
+                    }
+
+                    mailItem.HTMLBody = finalBody;
+                }
                 else if (!string.IsNullOrWhiteSpace(emailData.BodyText))
+                {
                     mailItem.Body = emailData.BodyText;
+                }
 
                 _logger.LogInfo("MailItem configurato con successo");
             }
@@ -462,7 +491,8 @@ namespace JiraTicketManager.Services
                     Cc = ccList.ToString(),
                     Subject = subject,
                     BodyHtml = htmlContent,
-                    IsHtml = true
+                    IsHtml = true,
+                    UseDefaultSignature = true  // 🆕 ABILITA FIRMA DI DEFAULT
                 };
             }
             catch (Exception)
@@ -473,7 +503,8 @@ namespace JiraTicketManager.Services
                     Cc = "schedulazione.pa@dedagroup.it",
                     Subject = $"{clientName}: {ticketKey} - {description}",
                     BodyHtml = htmlContent,
-                    IsHtml = true
+                    IsHtml = true,
+                    UseDefaultSignature = true  // 🆕 ABILITA FIRMA DI DEFAULT
                 };
             }
         }
@@ -486,6 +517,202 @@ namespace JiraTicketManager.Services
             var parts = wbsComplete.Split('-');
             return parts[0].Trim();
         }
+
+        #endregion
+
+        //// <summary>
+        /// Metodo di debug per testare la lettura della firma
+        /// </summary>
+        public string DebugSignatureReading()
+        {
+            try
+            {
+                var result = new StringBuilder();
+                result.AppendLine("=== DEBUG LETTURA FIRMA ===");
+
+                // Test percorsi registro
+                var versions = new[] { "16.0", "15.0", "14.0", "13.0" };
+
+                foreach (var version in versions)
+                {
+                    result.AppendLine($"Testando Office {version}...");
+                    var signatureName = GetSignatureNameFromRegistry(version);
+
+                    if (!string.IsNullOrEmpty(signatureName))
+                    {
+                        result.AppendLine($"✅ Firma trovata in Office {version}: {signatureName}");
+
+                        // Test lettura file
+                        var content = ReadSignatureFile(signatureName);
+                        if (!string.IsNullOrEmpty(content))
+                        {
+                            result.AppendLine($"✅ File firma letto: {content.Length} caratteri");
+                            return result.ToString() + "\n\nFIRMA:\n" + content;
+                        }
+                        else
+                        {
+                            result.AppendLine($"❌ File firma vuoto per: {signatureName}");
+                        }
+                    }
+                    else
+                    {
+                        result.AppendLine($"❌ Nessuna firma in Office {version}");
+                    }
+                }
+
+                // Test percorso manuale
+                var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                var signaturesPath = Path.Combine(appDataPath, @"Microsoft\Signatures");
+
+                result.AppendLine($"\nPercorso firme: {signaturesPath}");
+
+                if (Directory.Exists(signaturesPath))
+                {
+                    var files = Directory.GetFiles(signaturesPath, "*.htm");
+                    result.AppendLine($"File .htm trovati: {files.Length}");
+
+                    foreach (var file in files)
+                    {
+                        var fileName = Path.GetFileName(file);
+                        result.AppendLine($"  - {fileName}");
+
+                        // Leggi la prima firma trovata
+                        if (files.Length > 0)
+                        {
+                            var content = File.ReadAllText(file);
+                            result.AppendLine($"\nPRIMA FIRMA TROVATA ({fileName}):");
+                            result.AppendLine(content);
+                            return result.ToString();
+                        }
+                    }
+                }
+                else
+                {
+                    result.AppendLine("Directory firme non esiste");
+                }
+
+                return result.ToString() + "\n\nNessuna firma trovata";
+            }
+            catch (Exception ex)
+            {
+                return $"Errore debug firma: {ex.Message}";
+            }
+        }
+
+        #region Signature Support
+
+        /// <summary>
+        /// Ottiene la firma di default di Outlook
+        /// </summary>
+        private string GetDefaultOutlookSignature()
+        {
+            try
+            {
+                _logger.LogInfo("Ricerca firma di default Outlook...");
+
+                // Prima prova Office 365/2019/2021 (versione 16)
+                string signatureName = GetSignatureNameFromRegistry("16.0");
+
+                if (string.IsNullOrEmpty(signatureName))
+                {
+                    // Fallback per Office 2016/2013
+                    signatureName = GetSignatureNameFromRegistry("15.0");
+                }
+
+                if (string.IsNullOrEmpty(signatureName))
+                {
+                    _logger.LogInfo("Nessuna firma di default trovata nel registro");
+                    return "";
+                }
+
+                // Leggi il contenuto della firma
+                string signatureContent = ReadSignatureFile(signatureName);
+
+                if (!string.IsNullOrEmpty(signatureContent))
+                {
+                    _logger.LogInfo($"Firma caricata: {signatureName} ({signatureContent.Length} caratteri)");
+                }
+
+                return signatureContent;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore lettura firma Outlook: {ex.Message}");
+                return "";
+            }
+        }
+
+        /// <summary>
+        /// Legge il nome della firma dal registro di Windows
+        /// </summary>
+        private string GetSignatureNameFromRegistry(string officeVersion)
+        {
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                    $@"Software\Microsoft\Office\{officeVersion}\Common\MailSettings"))
+                {
+                    if (key != null)
+                    {
+                        var signatureName = key.GetValue("NewSignature") as string;
+                        if (!string.IsNullOrEmpty(signatureName))
+                        {
+                            _logger.LogDebug($"Firma trovata nel registro Office {officeVersion}: {signatureName}");
+                            return signatureName;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug($"Errore lettura registro Office {officeVersion}: {ex.Message}");
+            }
+
+            return "";
+        }
+
+        /// <summary>
+        /// Legge il contenuto della firma dal file HTML e estrae solo il body
+        /// </summary>
+        private string ReadSignatureFile(string signatureName)
+        {
+            try
+            {
+                var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                var signaturePath = Path.Combine(appDataPath, @"Microsoft\Signatures", $"{signatureName}.htm");
+
+                if (File.Exists(signaturePath))
+                {
+                    var fullContent = File.ReadAllText(signaturePath);
+
+                    // Estrai solo il contenuto del body
+                    var bodyStart = fullContent.IndexOf("<body", StringComparison.OrdinalIgnoreCase);
+                    var bodyContentStart = fullContent.IndexOf(">", bodyStart);
+                    var bodyEnd = fullContent.IndexOf("</body>", StringComparison.OrdinalIgnoreCase);
+
+                    if (bodyStart > 0 && bodyContentStart > 0 && bodyEnd > 0)
+                    {
+                        var bodyContent = fullContent.Substring(bodyContentStart + 1, bodyEnd - bodyContentStart - 1);
+                        _logger.LogDebug($"Firma estratta da: {signaturePath}");
+                        return bodyContent;
+                    }
+
+                    // Fallback: restituisci tutto il contenuto
+                    _logger.LogDebug($"Impossibile estrarre body, uso contenuto completo: {signaturePath}");
+                    return fullContent;
+                }
+
+                _logger.LogDebug($"File firma non trovato: {signaturePath}");
+                return "";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore lettura file firma: {ex.Message}");
+                return "";
+            }
+        }
+
+
 
         #endregion
 

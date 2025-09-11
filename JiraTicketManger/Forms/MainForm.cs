@@ -1544,46 +1544,42 @@ namespace JiraTicketManager
 
                 if (pageNumber == 1)
                 {
-                    // Prima pagina - reset tutto
                     _previousPageTokens.Clear();
                     _currentPage = 1;
                     tokenToUse = null;
                 }
                 else if (pageNumber == _currentPage + 1 && !string.IsNullOrEmpty(_currentNextPageToken))
                 {
-                    // Pagina successiva
                     _previousPageTokens.Push(_currentNextPageToken);
                     _currentPage = pageNumber;
                     tokenToUse = _currentNextPageToken;
                 }
                 else if (pageNumber == _currentPage - 1 && _previousPageTokens.Count > 0)
                 {
-                    // Pagina precedente
                     tokenToUse = _previousPageTokens.Pop();
                     _currentPage = pageNumber;
                 }
                 else
                 {
-                    // Non possiamo navigare a questa pagina con i token
                     _logger.LogWarning($"Navigazione a pagina {pageNumber} non supportata con nextPageToken");
                     _toastService.ShowWarning("Navigazione", "Navigazione non supportata - usa i pulsanti sequenziali");
                     return;
                 }
 
+                // USA _currentJQL esistente, NON SearchTicketsAsync()
                 var searchResult = await _apiService.SearchIssuesAsync(_currentJQL, 0, _pageSize, null, tokenToUse);
 
-                // Aggiorna token per pagina successiva
                 _currentNextPageToken = searchResult.NextPageToken;
 
-                // Aggiorna UI
                 _currentData = JiraDataConverter.ConvertToDataTable(searchResult.Issues, _logger);
-                _totalRecords = searchResult.Total;
+                _totalRecords = searchResult.Issues.Count + (!string.IsNullOrEmpty(searchResult.NextPageToken) ? 1000 : 0);
 
                 dgvTickets.DataSource = _currentData;
+                ConfigureDataGridColumns();
                 UpdateResultsInfo();
                 UpdateNavigationButtons();
 
-                _logger.LogInfo($"Navigazione completata - Pagina {_currentPage}, HasNext: {!string.IsNullOrEmpty(_currentNextPageToken)}");
+                _logger.LogInfo($"Navigazione completata - Pagina {_currentPage}");
                 UpdateStatusMessage($"Pagina {_currentPage} caricata");
             }
             catch (Exception ex)
@@ -2183,14 +2179,13 @@ namespace JiraTicketManager
             {
                 _logger.LogInfo("🚀 Avvio caricamento dati iniziali");
 
-                // ✅ AGGIORNATO: 7 step totali (1 dipendenza Area→Applicativo + 4 combobox singole + 1 ricerca)
+                // 7 step totali: 6 ComboBox + 1 ticket
                 _progressService.StartOperation(operationId, "Caricamento dati iniziali", totalSteps: 7);
 
-                // Crea progress reporter che si integra con il ProgressService
                 var progress = new Progress<string>(message =>
                     _progressService.UpdateMessage(operationId, message));
 
-                // ⭐ NUOVO: Step 1-2: Carica ComboBox Area e Applicativo con DIPENDENZA
+                // Step 1-2: Carica ComboBox Area e Applicativo con DIPENDENZA
                 _progressService.UpdateProgress(operationId, 1, "Caricamento aree e applicativi...");
                 _logger.LogInfo("🔗 Caricamento ComboBox Area → Applicativo con dipendenza");
                 await _comboBoxManager.LoadWithAreaDependency(
@@ -2202,62 +2197,68 @@ namespace JiraTicketManager
 
                 // Step 3: Carica ComboBox Cliente (operazione più lunga)
                 _progressService.UpdateProgress(operationId, 3, "Caricamento organizzazioni...");
-                _logger.LogInfo("🧪 Caricamento ComboBox Cliente");
+                _logger.LogInfo("🏢 Caricamento ComboBox Cliente");
                 await _comboBoxManager.LoadAsync(cmbCliente, JiraFieldType.Organization, "-- Tutti i Clienti --", progress);
 
                 // Step 4: Carica ComboBox Stato
                 _progressService.UpdateProgress(operationId, 4, "Caricamento stati...");
-                _logger.LogInfo("🧪 Caricamento ComboBox Stato");
+                _logger.LogInfo("📊 Caricamento ComboBox Stato");
                 await _comboBoxManager.LoadAsync(cmbStato, JiraFieldType.Status, "-- Tutti gli Stati --", progress);
 
                 // Step 5: Carica ComboBox Priorità
                 _progressService.UpdateProgress(operationId, 5, "Caricamento priorità...");
-                _logger.LogInfo("🧪 Caricamento ComboBox Priorità");
+                _logger.LogInfo("⚡ Caricamento ComboBox Priorità");
                 await _comboBoxManager.LoadAsync(cmbPriorita, JiraFieldType.Priority, "-- Tutte le Priorità --", progress);
 
-                // Step 6: Carica ComboBox Tipo
-                _progressService.UpdateProgress(operationId, 6, "Caricamento tipi ticket...");
-                _logger.LogInfo("🧪 Caricamento ComboBox Tipo");
-                await _comboBoxManager.LoadAsync(cmbTipo, JiraFieldType.IssueType, "-- Tutti i Tipi --", progress);
+                // Step 6: Carica ComboBox Tipo e Assegnatario in parallelo
+                _progressService.UpdateProgress(operationId, 6, "Caricamento tipi e assegnatari...");
+                _logger.LogInfo("👥 Caricamento ComboBox Tipo e Assegnatario");
+                await Task.WhenAll(
+                    _comboBoxManager.LoadAsync(cmbTipo, JiraFieldType.IssueType, "-- Tutti i Tipi --", progress),
+                    _comboBoxManager.LoadAsync(cmbAssegnatario, JiraFieldType.Assignee, "-- Tutti gli Assegnatari --", progress)
+                );
 
-                // Step 7: Carica ComboBox Assegnatario
-                _progressService.UpdateProgress(operationId, 7, "Caricamento assegnatari...");
-                _logger.LogInfo("🧪 Caricamento ComboBox Assegnatario");
-                await _comboBoxManager.LoadAsync(cmbAssegnatario, JiraFieldType.Assignee, "-- Tutti gli Assegnatari --", progress);
-
-                // Resto del caricamento rimane come nel codice esistente...
+                // Step 7: Caricamento ticket iniziali
                 _progressService.UpdateProgress(operationId, 7, "Caricamento ticket iniziali...");
-                _logger.LogInfo("🔍 Caricamento ticket iniziali");
+                _logger.LogInfo("🎫 Caricamento ticket iniziali");
+
+                // Reset paginazione per caricamento iniziale
+                _previousPageTokens.Clear();
+                _currentNextPageToken = null;
+                _currentPage = 1;
 
                 // Resetta filtri e usa JQL di base
                 _activeFilters.Clear();
-                _currentPage = 1;
-
-                // JQL semplice senza filtri delle combobox
                 _currentJQL = "project = CC AND statuscategory = \"In Progress\" ORDER BY updated DESC";
 
                 _logger.LogInfo($"🔍 JQL iniziale: {_currentJQL}");
 
-                // Esegui ricerca iniziale (usa il codice esistente)
-                var startAt = (_currentPage - 1) * _pageSize;
-                var searchResult = await _apiService.SearchIssuesAsync(_currentJQL, startAt, _pageSize);
+                // Esegui ricerca iniziale con API v3
+                var searchResult = await _apiService.SearchIssuesAsync(_currentJQL, 0, _pageSize, null, null);
+
+                // Aggiorna nextPageToken per navigazione
+                _currentNextPageToken = searchResult.NextPageToken;
 
                 if (searchResult?.Issues != null)
                 {
-                    // ✅ CORRETTO: ConvertToDataTable accetta JArray e logger
                     _currentData = JiraDataConverter.ConvertToDataTable(searchResult.Issues, _logger);
-                    _totalRecords = searchResult.Total;
+
+                    // Calcola totale approssimativo con API v3
+                    _totalRecords = searchResult.Issues.Count + (!string.IsNullOrEmpty(searchResult.NextPageToken) ? 1000 : 0);
 
                     dgvTickets.DataSource = _currentData;
+                    ConfigureDataGridColumns();
                     UpdateResultsInfo();
                     UpdateNavigationButtons();
+
+                    _logger.LogInfo($"Caricamento iniziale completato - Visualizzati: {searchResult.Issues.Count}, HasNext: {!string.IsNullOrEmpty(_currentNextPageToken)}");
                 }
 
                 _progressService.CompleteOperation(operationId, "Caricamento completato");
                 _logger.LogInfo("✅ Caricamento dati iniziali completato");
 
-                // Mostra toast di successo
-                _toastService.ShowSuccess("Sistema pronto", $"Caricati {_totalRecords} ticket");
+                // Toast di successo
+                _toastService.ShowSuccess("Sistema pronto", $"Caricati {searchResult.Issues.Count} ticket (pagina 1)");
             }
             catch (Exception ex)
             {

@@ -1975,6 +1975,76 @@ namespace JiraTicketManager.Forms
         }
 
         #endregion
+
+
+#if DEBUG
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            // F2 - Test Debug Firma Outlook
+            if (keyData == Keys.F2)
+            {
+                _ = TestOutlookSignatureDebugFromForm();
+                return true;
+            }
+
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        /// <summary>
+        /// Test debug firma Outlook dalla form dettaglio - F2
+        /// </summary>
+        private async Task TestOutlookSignatureDebugFromForm()
+        {
+            try
+            {
+                _logger?.LogInfo("F2 - Test Debug Firma Outlook");
+
+                // Crea il servizio Outlook
+                var outlookService = new OutlookHybridService();
+
+                // Chiama il metodo debug
+                var debugResult = outlookService.DebugSignatureReading();
+
+                _logger?.LogInfo($"Debug Firma completato");
+
+                // Crea file di testo con timestamp
+                var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                var fileName = $"outlook_signature_debug_{timestamp}.txt";
+                var filePath = Path.Combine(Environment.CurrentDirectory, fileName);
+
+                // Scrivi risultato nel file
+                var fileContent = $"OUTLOOK SIGNATURE DEBUG REPORT\n";
+                fileContent += $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\n";
+                fileContent += $"Machine: {Environment.MachineName}\n";
+                fileContent += $"User: {Environment.UserName}\n";
+                fileContent += new string('=', 50) + "\n\n";
+                fileContent += debugResult;
+
+                await File.WriteAllTextAsync(filePath, fileContent);
+
+                // Apri automaticamente il file
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = filePath,
+                    UseShellExecute = true
+                };
+
+                Process.Start(processInfo);
+
+                _logger?.LogInfo($"File debug firma creato e aperto: {fileName}");
+
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"Errore test firma: {ex.Message}");
+                MessageBox.Show($"Errore test firma: {ex.Message}",
+                               "Errore F2",
+                               MessageBoxButtons.OK,
+                               MessageBoxIcon.Error);
+            }
+        }
+#endif
+
     }
 
 }
