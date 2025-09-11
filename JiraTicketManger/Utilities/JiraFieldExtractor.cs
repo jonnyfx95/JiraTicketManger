@@ -1,4 +1,5 @@
-﻿using JiraTicketManager.Extensions;
+﻿using JiraTicketManager.Data.Converters;
+using JiraTicketManager.Extensions;
 using JiraTicketManager.Services;
 using Newtonsoft.Json.Linq;
 using System;
@@ -105,7 +106,8 @@ namespace JiraTicketManager.Utilities
                     return fieldToken.ExtractCustomFieldValue();
                 }
 
-                if (config.IsADF)
+                // ✅ GESTIONE SPECIALE PER DESCRIZIONE E ADF
+                if (config.IsADF || fieldName.Equals("description", StringComparison.OrdinalIgnoreCase))
                 {
                     return ExtractTextFromADF(fieldToken);
                 }
@@ -115,7 +117,8 @@ namespace JiraTicketManager.Utilities
                     return fieldToken.GetSafeNestedValue(config.SubFields[0], config.SubFields[1..]);
                 }
 
-                return fieldToken.GetSafeStringValue();
+                // ✅ USA IL METODO AGGIORNATO CHE GESTISCE ADF
+                return JiraDataConverter.GetSafeStringValue(fieldToken);
             }
             catch (Exception)
             {

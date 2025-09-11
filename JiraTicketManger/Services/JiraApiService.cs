@@ -199,10 +199,11 @@ namespace JiraTicketManager.Services
 
                 // Lista di endpoint da testare (in ordine di preferenza)
                 string[] testEndpoints = {
-                    "/rest/api/2/myself",           // Endpoint standard
-                    "/rest/api/3/myself",           // API v3 (più recente)
-                    "/rest/api/2/serverInfo",       // Info server (fallback)
-                    "/rest/api/2/user?accountId=me" // User info alternativo
+                       "/rest/api/3/myself",           // ✅ NUOVO - API v3 preferita
+                       "/rest/api/2/myself",           // Fallback API v2
+                       "/rest/api/3/serverInfo",       // ✅ NUOVO - Info server v3
+                       "/rest/api/2/serverInfo",       // Fallback info server
+                       "/rest/api/2/user?accountId=me" // User info alternativo
                 };
 
                 foreach (string endpoint in testEndpoints)
@@ -430,7 +431,7 @@ namespace JiraTicketManager.Services
 
         #endregion
 
-        
+
 
         #region Search Methods
 
@@ -443,24 +444,30 @@ namespace JiraTicketManager.Services
         /// <param name="maxResults">Numero massimo di risultati</param>
         /// <param name="progress">Progress reporter opzionale</param>
         /// <returns>Risultati della ricerca</returns>
-        public async Task<JiraSearchResult> SearchIssuesAsync(string jql, int startAt, int maxResults, IProgress<int> progress = null)
+        public async Task<JiraSearchResult> SearchIssuesAsync(string jql, int startAt, int maxResults, IProgress<int> progress = null, string nextPageToken = null)
         {
             try
             {
-                _logger.LogInfo($"SearchIssuesAsync - JQL: {jql}, StartAt: {startAt}, MaxResults: {maxResults}");
+                _logger.LogInfo($"SearchIssuesAsync - JQL: {jql}, StartAt: {startAt}, MaxResults: {maxResults}, NextPageToken: {nextPageToken?.Substring(0, 20) ?? "null"}");
 
                 // Encode JQL per URL
                 var encodedJql = Uri.EscapeDataString(jql);
 
-                // Costruisci URL con campi richiesti
-                var url = $"{Domain}/rest/api/2/search?jql={encodedJql}&startAt={startAt}&maxResults={maxResults}" +
-                            "&fields=key,summary,status,priority,assignee,reporter,issuetype,created,updated,description,resolutiondate," +
-                            "customfield_10117,customfield_10113,customfield_10114,customfield_10172," +
-                            "customfield_10136,customfield_10074,customfield_10103,customfield_10271," +
-                            "customfield_10272,customfield_10238,customfield_10096," +
-                            "customfield_10116,customfield_10133,customfield_10089";
+                // ✅ USA SEMPRE API v3 - Gestione paginazione con nextPageToken
+                string url = $"{Domain}/rest/api/3/search/jql?jql={encodedJql}&maxResults={maxResults}" +
+                             "&fields=key,summary,status,priority,assignee,reporter,issuetype,created,updated,description,resolutiondate," +
+                             "customfield_10117,customfield_10113,customfield_10114,customfield_10172," +
+                             "customfield_10136,customfield_10074,customfield_10103,customfield_10271," +
+                             "customfield_10272,customfield_10238,customfield_10096," +
+                             "customfield_10116,customfield_10133,customfield_10089";
 
-                _logger.LogDebug($"API Call URL: {url}");
+                // ✅ NUOVO: Aggiungi nextPageToken se fornito
+                if (!string.IsNullOrEmpty(nextPageToken))
+                {
+                    url += $"&nextPageToken={Uri.EscapeDataString(nextPageToken)}";
+                }
+
+                _logger.LogDebug($"API v3 URL: {url}");
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Add("Authorization", GetAuthorizationHeader());
@@ -471,39 +478,41 @@ namespace JiraTicketManager.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    _logger.LogError($"API Error - Status: {response.StatusCode}, Content: {errorContent}");
-                    throw new HttpRequestException($"API Error: {response.StatusCode} - {errorContent}");
+                    _logger.LogError($"API v3 Error - Status: {response.StatusCode}, Content: {errorContent}");
+                    throw new HttpRequestException($"API v3 Error: {response.StatusCode} - {errorContent}");
                 }
 
                 var jsonContent = await response.Content.ReadAsStringAsync();
                 var jsonObject = JObject.Parse(jsonContent);
 
+                // ✅ GESTIONE SICURA DEI CAMPI - Alcuni potrebbero essere null nell'API v3
                 var result = new JiraSearchResult
                 {
-                    Issues = (JArray)jsonObject["issues"],
-                    Total = (int)jsonObject["total"],
-                    StartAt = (int)jsonObject["startAt"],
-                    MaxResults = (int)jsonObject["maxResults"]
+                    Issues = (JArray)(jsonObject["issues"] ?? new JArray()),
+                    Total = (int)(jsonObject["total"] ?? 0),
+                    StartAt = startAt, // Usiamo il valore passato come parametro
+                    MaxResults = (int)(jsonObject["maxResults"] ?? maxResults),
+                    NextPageToken = jsonObject["nextPageToken"]?.ToString() // ✅ NUOVO
                 };
 
-                _logger.LogInfo($"Search completed - Found: {result.Total} tickets, Returned: {result.Issues.Count}");
+                _logger.LogInfo($"API v3 Search completed - Found: {result.Total} tickets, Returned: {result.Issues.Count}, HasNextPage: {!string.IsNullOrEmpty(result.NextPageToken)}");
 
                 // Report progress se fornito
                 progress?.Report(result.Issues.Count);
-
                 return result;
             }
             catch (HttpRequestException ex)
             {
                 _logger.LogError("SearchIssuesAsync - HTTP Error", ex);
-                throw new Exception($"Errore di connessione API: {ex.Message}", ex);
+                throw new Exception($"Errore di connessione API v3: {ex.Message}", ex);
             }
             catch (Exception ex)
             {
                 _logger.LogError("SearchIssuesAsync - Generic Error", ex);
-                throw new Exception($"Errore nella ricerca JIRA: {ex.Message}", ex);
+                throw new Exception($"Errore nella ricerca JIRA v3: {ex.Message}", ex);
             }
         }
+
 
         /// <summary>
         /// Esegue una ricerca completa senza paginazione per export.
@@ -576,7 +585,7 @@ namespace JiraTicketManager.Services
 
         #endregion
 
-        
+
 
         /// <summary>
         /// Risultato di una ricerca Jira
@@ -587,9 +596,10 @@ namespace JiraTicketManager.Services
             public int Total { get; set; }
             public int StartAt { get; set; }
             public int MaxResults { get; set; }
+            public string NextPageToken { get; set; } // ✅ NUOVO per API v3
         }
 
-      
+
 
         /// <summary>
         /// Ottiene l'header di autorizzazione per le chiamate API

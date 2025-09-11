@@ -34,14 +34,12 @@ namespace JiraTicketManager.Forms
         /// </summary>
         private void InitializeComponent()
         {
-            ComponentResourceManager resources = new ComponentResourceManager(typeof(TicketDetailForm));
             pnlHeader = new Panel();
             pnlTicketInfo = new Panel();
-            pnlMetadata = new Panel();
-            btnEsporta = new Button();
             pnlTicketAction = new Panel();
             btnChiudi = new Button();
             btnAssegna = new Button();
+            pnlMetadata = new Panel();
             lblAssegnatario = new Label();
             lblPriorita = new Label();
             lblTipo = new Label();
@@ -57,24 +55,8 @@ namespace JiraTicketManager.Forms
             tsbOpenJira = new ToolStripButton();
             tssSeparator2 = new ToolStripSeparator();
             tsbClose = new ToolStripButton();
+            btnEsporta = new Button();
             pnlMain = new Panel();
-            pnlCenter = new Panel();
-            statusStrip1 = new StatusStrip();
-            tslConnection = new ToolStripStatusLabel();
-            tsCommentNumber = new ToolStripStatusLabel();
-            tslLastUpdate = new ToolStripStatusLabel();
-            pnlActivity = new Panel();
-            tcActivity = new TabControl();
-            tpComments = new TabPage();
-            lvComments = new ListView();
-            tpHistory = new TabPage();
-            lvHistory = new ListView();
-            tpAttachments = new TabPage();
-            lvAttachments = new ListView();
-            lblActivityTitle = new Label();
-            pnlDescription = new Panel();
-            txtDescrizione = new TextBox();
-            lblDescriptionTitle = new Label();
             pnlRight = new Panel();
             pnlTeamPlanning = new Panel();
             txtWBS = new TextBox();
@@ -98,6 +80,23 @@ namespace JiraTicketManager.Forms
             txtCliente = new TextBox();
             lblCliente = new Label();
             lblOrganizationTitle = new Label();
+            pnlCenter = new Panel();
+            statusStrip1 = new StatusStrip();
+            tslConnection = new ToolStripStatusLabel();
+            tsCommentNumber = new ToolStripStatusLabel();
+            tslLastUpdate = new ToolStripStatusLabel();
+            pnlActivity = new Panel();
+            tcActivity = new TabControl();
+            tpComments = new TabPage();
+            lvComments = new ListView();
+            tpHistory = new TabPage();
+            lvHistory = new ListView();
+            tpAttachments = new TabPage();
+            lvAttachments = new ListView();
+            lblActivityTitle = new Label();
+            pnlDescription = new Panel();
+            txtDescrizione = new TextBox();
+            lblDescriptionTitle = new Label();
             pnlLeft = new Panel();
             panel1 = new Panel();
             btnPianifica = new Button();
@@ -130,10 +129,13 @@ namespace JiraTicketManager.Forms
             lblContactTitle = new Label();
             pnlHeader.SuspendLayout();
             pnlTicketInfo.SuspendLayout();
-            pnlMetadata.SuspendLayout();
             pnlTicketAction.SuspendLayout();
+            pnlMetadata.SuspendLayout();
             tsHeader.SuspendLayout();
             pnlMain.SuspendLayout();
+            pnlRight.SuspendLayout();
+            pnlTeamPlanning.SuspendLayout();
+            pnlOrganization.SuspendLayout();
             pnlCenter.SuspendLayout();
             statusStrip1.SuspendLayout();
             pnlActivity.SuspendLayout();
@@ -142,9 +144,6 @@ namespace JiraTicketManager.Forms
             tpHistory.SuspendLayout();
             tpAttachments.SuspendLayout();
             pnlDescription.SuspendLayout();
-            pnlRight.SuspendLayout();
-            pnlTeamPlanning.SuspendLayout();
-            pnlOrganization.SuspendLayout();
             pnlLeft.SuspendLayout();
             panel1.SuspendLayout();
             pnlPlanningIntervento.SuspendLayout();
@@ -161,12 +160,13 @@ namespace JiraTicketManager.Forms
             pnlHeader.Dock = DockStyle.Top;
             pnlHeader.Location = new Point(0, 0);
             pnlHeader.Name = "pnlHeader";
-            pnlHeader.Size = new Size(1620, 115);
+            pnlHeader.Size = new Size(1700, 115);
             pnlHeader.TabIndex = 0;
             // 
             // pnlTicketInfo
             // 
             pnlTicketInfo.BackColor = Color.FromArgb(248, 249, 250);
+            pnlTicketInfo.Controls.Add(pnlTicketAction);
             pnlTicketInfo.Controls.Add(pnlMetadata);
             pnlTicketInfo.Controls.Add(lblTicketSummary);
             pnlTicketInfo.Controls.Add(lblTicketKey);
@@ -174,44 +174,17 @@ namespace JiraTicketManager.Forms
             pnlTicketInfo.Location = new Point(0, 25);
             pnlTicketInfo.Name = "pnlTicketInfo";
             pnlTicketInfo.Padding = new Padding(15, 10, 15, 5);
-            pnlTicketInfo.Size = new Size(1618, 88);
+            pnlTicketInfo.Size = new Size(1698, 88);
             pnlTicketInfo.TabIndex = 1;
-            // 
-            // pnlMetadata
-            // 
-            pnlMetadata.BackColor = Color.Transparent;
-            pnlMetadata.Controls.Add(btnEsporta);
-            pnlMetadata.Controls.Add(pnlTicketAction);
-            pnlMetadata.Controls.Add(lblAssegnatario);
-            pnlMetadata.Controls.Add(lblPriorita);
-            pnlMetadata.Controls.Add(lblTipo);
-            pnlMetadata.Controls.Add(lblStatus);
-            pnlMetadata.Location = new Point(15, 40);
-            pnlMetadata.Name = "pnlMetadata";
-            pnlMetadata.Size = new Size(1130, 40);
-            pnlMetadata.TabIndex = 2;
-            // 
-            // btnEsporta
-            // 
-            btnEsporta.BackColor = Color.FromArgb(8, 145, 178);
-            btnEsporta.FlatAppearance.BorderSize = 0;
-            btnEsporta.FlatStyle = FlatStyle.Flat;
-            btnEsporta.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            btnEsporta.ForeColor = Color.White;
-            btnEsporta.Location = new Point(1037, 8);
-            btnEsporta.Name = "btnEsporta";
-            btnEsporta.Size = new Size(90, 23);
-            btnEsporta.TabIndex = 4;
-            btnEsporta.Text = "📊 Esporta";
-            btnEsporta.UseVisualStyleBackColor = false;
             // 
             // pnlTicketAction
             // 
             pnlTicketAction.Controls.Add(btnChiudi);
             pnlTicketAction.Controls.Add(btnAssegna);
-            pnlTicketAction.Location = new Point(826, 3);
+            pnlTicketAction.Dock = DockStyle.Right;
+            pnlTicketAction.Location = new Point(1478, 10);
             pnlTicketAction.Name = "pnlTicketAction";
-            pnlTicketAction.Size = new Size(205, 31);
+            pnlTicketAction.Size = new Size(205, 73);
             pnlTicketAction.TabIndex = 5;
             // 
             // btnChiudi
@@ -241,6 +214,18 @@ namespace JiraTicketManager.Forms
             btnAssegna.TabIndex = 1;
             btnAssegna.Text = "👤 Assegna";
             btnAssegna.UseVisualStyleBackColor = false;
+            // 
+            // pnlMetadata
+            // 
+            pnlMetadata.BackColor = Color.Transparent;
+            pnlMetadata.Controls.Add(lblAssegnatario);
+            pnlMetadata.Controls.Add(lblPriorita);
+            pnlMetadata.Controls.Add(lblTipo);
+            pnlMetadata.Controls.Add(lblStatus);
+            pnlMetadata.Location = new Point(15, 40);
+            pnlMetadata.Name = "pnlMetadata";
+            pnlMetadata.Size = new Size(1130, 40);
+            pnlMetadata.TabIndex = 2;
             // 
             // lblAssegnatario
             // 
@@ -297,7 +282,7 @@ namespace JiraTicketManager.Forms
             // 
             lblTicketSummary.Font = new Font("Segoe UI", 10F);
             lblTicketSummary.ForeColor = Color.FromArgb(52, 73, 94);
-            lblTicketSummary.Location = new Point(134, 17);
+            lblTicketSummary.Location = new Point(134, 12);
             lblTicketSummary.Name = "lblTicketSummary";
             lblTicketSummary.Size = new Size(600, 20);
             lblTicketSummary.TabIndex = 1;
@@ -322,7 +307,7 @@ namespace JiraTicketManager.Forms
             tsHeader.Location = new Point(0, 0);
             tsHeader.Name = "tsHeader";
             tsHeader.RenderMode = ToolStripRenderMode.Professional;
-            tsHeader.Size = new Size(1618, 25);
+            tsHeader.Size = new Size(1698, 25);
             tsHeader.TabIndex = 0;
             // 
             // tslSearch
@@ -395,221 +380,45 @@ namespace JiraTicketManager.Forms
             tsbClose.Text = "❌";
             tsbClose.ToolTipText = "Chiudi finestra (Esc)";
             // 
+            // btnEsporta
+            // 
+            btnEsporta.BackColor = Color.FromArgb(8, 145, 178);
+            btnEsporta.FlatAppearance.BorderSize = 0;
+            btnEsporta.FlatStyle = FlatStyle.Flat;
+            btnEsporta.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnEsporta.ForeColor = Color.White;
+            btnEsporta.Location = new Point(12, 392);
+            btnEsporta.Name = "btnEsporta";
+            btnEsporta.Size = new Size(90, 23);
+            btnEsporta.TabIndex = 4;
+            btnEsporta.Text = "📊 Esporta";
+            btnEsporta.UseVisualStyleBackColor = false;
+            // 
             // pnlMain
             // 
             pnlMain.BackColor = Color.FromArgb(248, 249, 250);
-            pnlMain.Controls.Add(pnlCenter);
             pnlMain.Controls.Add(pnlRight);
+            pnlMain.Controls.Add(pnlCenter);
             pnlMain.Controls.Add(pnlLeft);
             pnlMain.Dock = DockStyle.Fill;
             pnlMain.Location = new Point(0, 115);
             pnlMain.Name = "pnlMain";
-            pnlMain.Size = new Size(1620, 929);
+            pnlMain.Padding = new Padding(5);
+            pnlMain.Size = new Size(1700, 746);
             pnlMain.TabIndex = 1;
-            // 
-            // pnlCenter
-            // 
-            pnlCenter.BackColor = Color.FromArgb(248, 249, 250);
-            pnlCenter.BorderStyle = BorderStyle.FixedSingle;
-            pnlCenter.Controls.Add(statusStrip1);
-            pnlCenter.Controls.Add(pnlActivity);
-            pnlCenter.Controls.Add(pnlDescription);
-            pnlCenter.Dock = DockStyle.Fill;
-            pnlCenter.Location = new Point(380, 0);
-            pnlCenter.Name = "pnlCenter";
-            pnlCenter.Padding = new Padding(5, 10, 5, 10);
-            pnlCenter.Size = new Size(860, 929);
-            pnlCenter.TabIndex = 1;
-            // 
-            // statusStrip1
-            // 
-            statusStrip1.BackColor = Color.FromArgb(248, 249, 250);
-            statusStrip1.Font = new Font("Segoe UI", 8F);
-            statusStrip1.Items.AddRange(new ToolStripItem[] { tslConnection, tsCommentNumber, tslLastUpdate });
-            statusStrip1.Location = new Point(5, 895);
-            statusStrip1.Name = "statusStrip1";
-            statusStrip1.Size = new Size(848, 22);
-            statusStrip1.TabIndex = 4;
-            statusStrip1.Text = "statusStrip1";
-            // 
-            // tslConnection
-            // 
-            tslConnection.ForeColor = Color.FromArgb(40, 167, 69);
-            tslConnection.Name = "tslConnection";
-            tslConnection.Size = new Size(102, 17);
-            tslConnection.Text = "\U0001f7e2 Connesso a Jira";
-            // 
-            // tsCommentNumber
-            // 
-            tsCommentNumber.Name = "tsCommentNumber";
-            tsCommentNumber.Size = new Size(544, 17);
-            tsCommentNumber.Spring = true;
-            tsCommentNumber.Text = "Numero Commenti";
-            // 
-            // tslLastUpdate
-            // 
-            tslLastUpdate.Name = "tslLastUpdate";
-            tslLastUpdate.Size = new Size(187, 17);
-            tslLastUpdate.Text = "🕒 Ultimo aggiornamento: 20:13:08";
-            tslLastUpdate.TextAlign = ContentAlignment.MiddleRight;
-            // 
-            // pnlActivity
-            // 
-            pnlActivity.BackColor = Color.White;
-            pnlActivity.BorderStyle = BorderStyle.FixedSingle;
-            pnlActivity.Controls.Add(tcActivity);
-            pnlActivity.Controls.Add(lblActivityTitle);
-            pnlActivity.Location = new Point(5, 420);
-            pnlActivity.Name = "pnlActivity";
-            pnlActivity.Size = new Size(850, 450);
-            pnlActivity.TabIndex = 1;
-            // 
-            // tcActivity
-            // 
-            tcActivity.Controls.Add(tpComments);
-            tcActivity.Controls.Add(tpHistory);
-            tcActivity.Controls.Add(tpAttachments);
-            tcActivity.Font = new Font("Segoe UI", 9F);
-            tcActivity.Location = new Point(15, 30);
-            tcActivity.Name = "tcActivity";
-            tcActivity.SelectedIndex = 0;
-            tcActivity.Size = new Size(820, 405);
-            tcActivity.TabIndex = 1;
-            // 
-            // tpComments
-            // 
-            tpComments.BackColor = Color.White;
-            tpComments.Controls.Add(lvComments);
-            tpComments.Location = new Point(4, 24);
-            tpComments.Name = "tpComments";
-            tpComments.Padding = new Padding(3);
-            tpComments.Size = new Size(812, 377);
-            tpComments.TabIndex = 0;
-            tpComments.Text = "Comments (3)";
-            // 
-            // lvComments
-            // 
-            lvComments.Dock = DockStyle.Fill;
-            lvComments.Font = new Font("Segoe UI", 9F);
-            lvComments.FullRowSelect = true;
-            lvComments.GridLines = true;
-            lvComments.Location = new Point(3, 3);
-            lvComments.Name = "lvComments";
-            lvComments.Size = new Size(806, 371);
-            lvComments.TabIndex = 0;
-            lvComments.UseCompatibleStateImageBehavior = false;
-            lvComments.View = View.Details;
-            // 
-            // tpHistory
-            // 
-            tpHistory.BackColor = Color.White;
-            tpHistory.Controls.Add(lvHistory);
-            tpHistory.Location = new Point(4, 24);
-            tpHistory.Name = "tpHistory";
-            tpHistory.Padding = new Padding(3);
-            tpHistory.Size = new Size(812, 377);
-            tpHistory.TabIndex = 1;
-            tpHistory.Text = "History (12)";
-            // 
-            // lvHistory
-            // 
-            lvHistory.Dock = DockStyle.Fill;
-            lvHistory.Font = new Font("Segoe UI", 9F);
-            lvHistory.FullRowSelect = true;
-            lvHistory.GridLines = true;
-            lvHistory.Location = new Point(3, 3);
-            lvHistory.Name = "lvHistory";
-            lvHistory.Size = new Size(806, 371);
-            lvHistory.TabIndex = 0;
-            lvHistory.UseCompatibleStateImageBehavior = false;
-            lvHistory.View = View.Details;
-            // 
-            // tpAttachments
-            // 
-            tpAttachments.BackColor = Color.White;
-            tpAttachments.Controls.Add(lvAttachments);
-            tpAttachments.Location = new Point(4, 24);
-            tpAttachments.Name = "tpAttachments";
-            tpAttachments.Padding = new Padding(3);
-            tpAttachments.Size = new Size(812, 377);
-            tpAttachments.TabIndex = 2;
-            tpAttachments.Text = "Attachments (2)";
-            // 
-            // lvAttachments
-            // 
-            lvAttachments.Dock = DockStyle.Fill;
-            lvAttachments.Font = new Font("Segoe UI", 9F);
-            lvAttachments.FullRowSelect = true;
-            lvAttachments.GridLines = true;
-            lvAttachments.Location = new Point(3, 3);
-            lvAttachments.Name = "lvAttachments";
-            lvAttachments.Size = new Size(806, 371);
-            lvAttachments.TabIndex = 0;
-            lvAttachments.UseCompatibleStateImageBehavior = false;
-            lvAttachments.View = View.Details;
-            // 
-            // lblActivityTitle
-            // 
-            lblActivityTitle.BackColor = Color.FromArgb(248, 249, 250);
-            lblActivityTitle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblActivityTitle.ForeColor = Color.FromArgb(52, 73, 94);
-            lblActivityTitle.Location = new Point(5, 5);
-            lblActivityTitle.Name = "lblActivityTitle";
-            lblActivityTitle.Padding = new Padding(5, 2, 2, 2);
-            lblActivityTitle.Size = new Size(840, 20);
-            lblActivityTitle.TabIndex = 0;
-            lblActivityTitle.Text = "💬 ATTIVITÀ";
-            // 
-            // pnlDescription
-            // 
-            pnlDescription.BackColor = Color.White;
-            pnlDescription.BorderStyle = BorderStyle.FixedSingle;
-            pnlDescription.Controls.Add(txtDescrizione);
-            pnlDescription.Controls.Add(lblDescriptionTitle);
-            pnlDescription.Location = new Point(5, 2);
-            pnlDescription.Name = "pnlDescription";
-            pnlDescription.Size = new Size(850, 400);
-            pnlDescription.TabIndex = 0;
-            // 
-            // txtDescrizione
-            // 
-            txtDescrizione.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            txtDescrizione.BackColor = Color.White;
-            txtDescrizione.BorderStyle = BorderStyle.FixedSingle;
-            txtDescrizione.Font = new Font("Segoe UI", 9F);
-            txtDescrizione.ForeColor = Color.FromArgb(73, 80, 87);
-            txtDescrizione.Location = new Point(15, 35);
-            txtDescrizione.Multiline = true;
-            txtDescrizione.Name = "txtDescrizione";
-            txtDescrizione.ReadOnly = true;
-            txtDescrizione.ScrollBars = ScrollBars.Vertical;
-            txtDescrizione.Size = new Size(832, 359);
-            txtDescrizione.TabIndex = 1;
-            txtDescrizione.Text = resources.GetString("txtDescrizione.Text");
-            // 
-            // lblDescriptionTitle
-            // 
-            lblDescriptionTitle.BackColor = Color.FromArgb(248, 249, 250);
-            lblDescriptionTitle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            lblDescriptionTitle.ForeColor = Color.FromArgb(52, 73, 94);
-            lblDescriptionTitle.Location = new Point(5, 5);
-            lblDescriptionTitle.Name = "lblDescriptionTitle";
-            lblDescriptionTitle.Padding = new Padding(5, 2, 2, 2);
-            lblDescriptionTitle.Size = new Size(840, 20);
-            lblDescriptionTitle.TabIndex = 0;
-            lblDescriptionTitle.Text = "📝 DESCRIZIONE";
             // 
             // pnlRight
             // 
-            pnlRight.BackColor = Color.FromArgb(248, 249, 250);
+            pnlRight.BackColor = Color.White;
             pnlRight.BorderStyle = BorderStyle.FixedSingle;
+            pnlRight.Controls.Add(btnEsporta);
             pnlRight.Controls.Add(pnlTeamPlanning);
             pnlRight.Controls.Add(pnlOrganization);
             pnlRight.Dock = DockStyle.Right;
-            pnlRight.Location = new Point(1240, 0);
+            pnlRight.Location = new Point(1321, 5);
             pnlRight.Name = "pnlRight";
-            pnlRight.Padding = new Padding(5, 10, 10, 10);
-            pnlRight.Size = new Size(380, 929);
+            pnlRight.Padding = new Padding(5);
+            pnlRight.Size = new Size(374, 736);
             pnlRight.TabIndex = 2;
             // 
             // pnlTeamPlanning
@@ -627,9 +436,9 @@ namespace JiraTicketManager.Forms
             pnlTeamPlanning.Controls.Add(cmbConsulente);
             pnlTeamPlanning.Controls.Add(lblConsulente);
             pnlTeamPlanning.Controls.Add(lblTeamPlanningTitle);
-            pnlTeamPlanning.Location = new Point(5, 200);
+            pnlTeamPlanning.Location = new Point(6, 189);
             pnlTeamPlanning.Name = "pnlTeamPlanning";
-            pnlTeamPlanning.Size = new Size(360, 246);
+            pnlTeamPlanning.Size = new Size(360, 197);
             pnlTeamPlanning.TabIndex = 1;
             // 
             // txtWBS
@@ -643,7 +452,6 @@ namespace JiraTicketManager.Forms
             txtWBS.ReadOnly = true;
             txtWBS.Size = new Size(255, 23);
             txtWBS.TabIndex = 8;
-            txtWBS.Text = "WBS-2025-DEMO-001";
             // 
             // lblWBS
             // 
@@ -688,7 +496,6 @@ namespace JiraTicketManager.Forms
             txtResponsabile.ReadOnly = true;
             txtResponsabile.Size = new Size(255, 23);
             txtResponsabile.TabIndex = 6;
-            txtResponsabile.Text = "Antonio Bianchi";
             // 
             // lblResponsabile
             // 
@@ -879,19 +686,213 @@ namespace JiraTicketManager.Forms
             lblOrganizationTitle.TabIndex = 0;
             lblOrganizationTitle.Text = "🏢 ORGANIZZAZIONE";
             // 
+            // pnlCenter
+            // 
+            pnlCenter.BackColor = Color.White;
+            pnlCenter.BorderStyle = BorderStyle.FixedSingle;
+            pnlCenter.Controls.Add(statusStrip1);
+            pnlCenter.Controls.Add(pnlActivity);
+            pnlCenter.Controls.Add(pnlDescription);
+            pnlCenter.Dock = DockStyle.Fill;
+            pnlCenter.Location = new Point(385, 5);
+            pnlCenter.Name = "pnlCenter";
+            pnlCenter.Padding = new Padding(5, 10, 5, 10);
+            pnlCenter.Size = new Size(1310, 736);
+            pnlCenter.TabIndex = 1;
+            // 
+            // statusStrip1
+            // 
+            statusStrip1.BackColor = Color.FromArgb(248, 249, 250);
+            statusStrip1.Font = new Font("Segoe UI", 8F);
+            statusStrip1.Items.AddRange(new ToolStripItem[] { tslConnection, tsCommentNumber, tslLastUpdate });
+            statusStrip1.Location = new Point(5, 702);
+            statusStrip1.Name = "statusStrip1";
+            statusStrip1.Size = new Size(1298, 22);
+            statusStrip1.TabIndex = 4;
+            statusStrip1.Text = "statusStrip1";
+            // 
+            // tslConnection
+            // 
+            tslConnection.ForeColor = Color.FromArgb(40, 167, 69);
+            tslConnection.Name = "tslConnection";
+            tslConnection.Size = new Size(102, 17);
+            tslConnection.Text = "\U0001f7e2 Connesso a Jira";
+            // 
+            // tsCommentNumber
+            // 
+            tsCommentNumber.Name = "tsCommentNumber";
+            tsCommentNumber.Size = new Size(994, 17);
+            tsCommentNumber.Spring = true;
+            tsCommentNumber.Text = "Numero Commenti";
+            // 
+            // tslLastUpdate
+            // 
+            tslLastUpdate.Name = "tslLastUpdate";
+            tslLastUpdate.Size = new Size(187, 17);
+            tslLastUpdate.Text = "🕒 Ultimo aggiornamento: 20:13:08";
+            tslLastUpdate.TextAlign = ContentAlignment.MiddleRight;
+            // 
+            // pnlActivity
+            // 
+            pnlActivity.BackColor = Color.White;
+            pnlActivity.BorderStyle = BorderStyle.FixedSingle;
+            pnlActivity.Controls.Add(tcActivity);
+            pnlActivity.Controls.Add(lblActivityTitle);
+            pnlActivity.Dock = DockStyle.Fill;
+            pnlActivity.Location = new Point(5, 360);
+            pnlActivity.Name = "pnlActivity";
+            pnlActivity.Size = new Size(1298, 364);
+            pnlActivity.TabIndex = 1;
+            // 
+            // tcActivity
+            // 
+            tcActivity.Controls.Add(tpComments);
+            tcActivity.Controls.Add(tpHistory);
+            tcActivity.Controls.Add(tpAttachments);
+            tcActivity.Dock = DockStyle.Fill;
+            tcActivity.Font = new Font("Segoe UI", 9F);
+            tcActivity.Location = new Point(0, 0);
+            tcActivity.Name = "tcActivity";
+            tcActivity.SelectedIndex = 0;
+            tcActivity.Size = new Size(1296, 362);
+            tcActivity.TabIndex = 1;
+            // 
+            // tpComments
+            // 
+            tpComments.BackColor = Color.White;
+            tpComments.Controls.Add(lvComments);
+            tpComments.Location = new Point(4, 24);
+            tpComments.Name = "tpComments";
+            tpComments.Padding = new Padding(3);
+            tpComments.Size = new Size(1288, 334);
+            tpComments.TabIndex = 0;
+            tpComments.Text = "Comments (3)";
+            // 
+            // lvComments
+            // 
+            lvComments.Dock = DockStyle.Fill;
+            lvComments.Font = new Font("Segoe UI", 9F);
+            lvComments.FullRowSelect = true;
+            lvComments.GridLines = true;
+            lvComments.Location = new Point(3, 3);
+            lvComments.Name = "lvComments";
+            lvComments.Size = new Size(1282, 328);
+            lvComments.TabIndex = 0;
+            lvComments.UseCompatibleStateImageBehavior = false;
+            lvComments.View = View.Details;
+            // 
+            // tpHistory
+            // 
+            tpHistory.BackColor = Color.White;
+            tpHistory.Controls.Add(lvHistory);
+            tpHistory.Location = new Point(4, 24);
+            tpHistory.Name = "tpHistory";
+            tpHistory.Padding = new Padding(3);
+            tpHistory.Size = new Size(1288, 334);
+            tpHistory.TabIndex = 1;
+            tpHistory.Text = "History (12)";
+            // 
+            // lvHistory
+            // 
+            lvHistory.Dock = DockStyle.Fill;
+            lvHistory.Font = new Font("Segoe UI", 9F);
+            lvHistory.FullRowSelect = true;
+            lvHistory.GridLines = true;
+            lvHistory.Location = new Point(3, 3);
+            lvHistory.Name = "lvHistory";
+            lvHistory.Size = new Size(1282, 328);
+            lvHistory.TabIndex = 0;
+            lvHistory.UseCompatibleStateImageBehavior = false;
+            lvHistory.View = View.Details;
+            // 
+            // tpAttachments
+            // 
+            tpAttachments.BackColor = Color.White;
+            tpAttachments.Controls.Add(lvAttachments);
+            tpAttachments.Location = new Point(4, 24);
+            tpAttachments.Name = "tpAttachments";
+            tpAttachments.Padding = new Padding(3);
+            tpAttachments.Size = new Size(1288, 334);
+            tpAttachments.TabIndex = 2;
+            tpAttachments.Text = "Attachments (2)";
+            // 
+            // lvAttachments
+            // 
+            lvAttachments.Dock = DockStyle.Fill;
+            lvAttachments.Font = new Font("Segoe UI", 9F);
+            lvAttachments.FullRowSelect = true;
+            lvAttachments.GridLines = true;
+            lvAttachments.Location = new Point(3, 3);
+            lvAttachments.Name = "lvAttachments";
+            lvAttachments.Size = new Size(1282, 328);
+            lvAttachments.TabIndex = 0;
+            lvAttachments.UseCompatibleStateImageBehavior = false;
+            lvAttachments.View = View.Details;
+            // 
+            // lblActivityTitle
+            // 
+            lblActivityTitle.BackColor = Color.FromArgb(248, 249, 250);
+            lblActivityTitle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            lblActivityTitle.ForeColor = Color.FromArgb(52, 73, 94);
+            lblActivityTitle.Location = new Point(5, 5);
+            lblActivityTitle.Name = "lblActivityTitle";
+            lblActivityTitle.Padding = new Padding(5, 2, 2, 2);
+            lblActivityTitle.Size = new Size(840, 20);
+            lblActivityTitle.TabIndex = 0;
+            lblActivityTitle.Text = "💬 ATTIVITÀ";
+            // 
+            // pnlDescription
+            // 
+            pnlDescription.BackColor = Color.White;
+            pnlDescription.BorderStyle = BorderStyle.FixedSingle;
+            pnlDescription.Controls.Add(txtDescrizione);
+            pnlDescription.Controls.Add(lblDescriptionTitle);
+            pnlDescription.Dock = DockStyle.Top;
+            pnlDescription.Location = new Point(5, 10);
+            pnlDescription.Name = "pnlDescription";
+            pnlDescription.Size = new Size(1298, 350);
+            pnlDescription.TabIndex = 0;
+            // 
+            // txtDescrizione
+            // 
+            txtDescrizione.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            txtDescrizione.BackColor = Color.White;
+            txtDescrizione.BorderStyle = BorderStyle.FixedSingle;
+            txtDescrizione.Font = new Font("Segoe UI", 9F);
+            txtDescrizione.ForeColor = Color.FromArgb(73, 80, 87);
+            txtDescrizione.Location = new Point(15, 35);
+            txtDescrizione.Multiline = true;
+            txtDescrizione.Name = "txtDescrizione";
+            txtDescrizione.ReadOnly = true;
+            txtDescrizione.ScrollBars = ScrollBars.Vertical;
+            txtDescrizione.Size = new Size(932, 308);
+            txtDescrizione.TabIndex = 1;
+            // 
+            // lblDescriptionTitle
+            // 
+            lblDescriptionTitle.BackColor = Color.FromArgb(248, 249, 250);
+            lblDescriptionTitle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            lblDescriptionTitle.ForeColor = Color.FromArgb(52, 73, 94);
+            lblDescriptionTitle.Location = new Point(5, 5);
+            lblDescriptionTitle.Name = "lblDescriptionTitle";
+            lblDescriptionTitle.Padding = new Padding(5, 2, 2, 2);
+            lblDescriptionTitle.Size = new Size(840, 20);
+            lblDescriptionTitle.TabIndex = 0;
+            lblDescriptionTitle.Text = "📝 DESCRIZIONE";
+            // 
             // pnlLeft
             // 
-            pnlLeft.BackColor = Color.FromArgb(248, 249, 250);
+            pnlLeft.BackColor = Color.White;
             pnlLeft.BorderStyle = BorderStyle.FixedSingle;
             pnlLeft.Controls.Add(panel1);
             pnlLeft.Controls.Add(pnlPlanningIntervento);
             pnlLeft.Controls.Add(pnlTimeline);
             pnlLeft.Controls.Add(pnlContact);
             pnlLeft.Dock = DockStyle.Left;
-            pnlLeft.Location = new Point(0, 0);
+            pnlLeft.Location = new Point(5, 5);
             pnlLeft.Name = "pnlLeft";
-            pnlLeft.Padding = new Padding(10, 10, 5, 10);
-            pnlLeft.Size = new Size(380, 929);
+            pnlLeft.Padding = new Padding(5);
+            pnlLeft.Size = new Size(380, 736);
             pnlLeft.TabIndex = 0;
             // 
             // panel1
@@ -978,7 +979,6 @@ namespace JiraTicketManager.Forms
             txtOraIntervento.Name = "txtOraIntervento";
             txtOraIntervento.Size = new Size(90, 23);
             txtOraIntervento.TabIndex = 6;
-         
             // 
             // lblOraIntervento
             // 
@@ -998,7 +998,6 @@ namespace JiraTicketManager.Forms
             txtDataIntervento.Name = "txtDataIntervento";
             txtDataIntervento.Size = new Size(130, 23);
             txtDataIntervento.TabIndex = 4;
-            
             // 
             // lblDataIntervento
             // 
@@ -1246,7 +1245,7 @@ namespace JiraTicketManager.Forms
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.FromArgb(248, 249, 250);
-            ClientSize = new Size(1620, 1044);
+            ClientSize = new Size(1700, 861);
             Controls.Add(pnlMain);
             Controls.Add(pnlHeader);
             Font = new Font("Segoe UI", 9F);
@@ -1258,11 +1257,16 @@ namespace JiraTicketManager.Forms
             pnlHeader.PerformLayout();
             pnlTicketInfo.ResumeLayout(false);
             pnlTicketInfo.PerformLayout();
-            pnlMetadata.ResumeLayout(false);
             pnlTicketAction.ResumeLayout(false);
+            pnlMetadata.ResumeLayout(false);
             tsHeader.ResumeLayout(false);
             tsHeader.PerformLayout();
             pnlMain.ResumeLayout(false);
+            pnlRight.ResumeLayout(false);
+            pnlTeamPlanning.ResumeLayout(false);
+            pnlTeamPlanning.PerformLayout();
+            pnlOrganization.ResumeLayout(false);
+            pnlOrganization.PerformLayout();
             pnlCenter.ResumeLayout(false);
             pnlCenter.PerformLayout();
             statusStrip1.ResumeLayout(false);
@@ -1274,11 +1278,6 @@ namespace JiraTicketManager.Forms
             tpAttachments.ResumeLayout(false);
             pnlDescription.ResumeLayout(false);
             pnlDescription.PerformLayout();
-            pnlRight.ResumeLayout(false);
-            pnlTeamPlanning.ResumeLayout(false);
-            pnlTeamPlanning.PerformLayout();
-            pnlOrganization.ResumeLayout(false);
-            pnlOrganization.PerformLayout();
             pnlLeft.ResumeLayout(false);
             panel1.ResumeLayout(false);
             pnlPlanningIntervento.ResumeLayout(false);

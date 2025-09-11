@@ -33,7 +33,7 @@ namespace JiraTicketManager.Data.Models.Activity
         /// <summary>
         /// Emoji avatar basato sull'autore per UI chat-style
         /// </summary>
-        public string AvatarEmoji => GetAvatarEmoji(AuthorDisplayName);
+        public string AvatarEmoji => GetAvatarEmoji(AuthorDisplayName ?? Author);
 
         /// <summary>
         /// Indica se il commento è privato/interno
@@ -73,7 +73,7 @@ namespace JiraTicketManager.Data.Models.Activity
                 var updatedString = JiraDataConverter.GetSafeStringValue(commentToken["updated"]);
                 comment.Updated = DateTime.TryParse(updatedString, out var updated) ? updated : comment.Created;
 
-                // Autore usando helper esistenti
+                // Autore
                 var authorToken = commentToken["author"];
                 if (authorToken != null)
                 {
@@ -86,14 +86,28 @@ namespace JiraTicketManager.Data.Models.Activity
                 // Corpo del commento
                 comment.Body = JiraDataConverter.GetSafeStringValue(commentToken["body"]);
 
-                // Visibilità usando helper esistenti
-                var visibilityToken = commentToken["visibility"];
-                if (visibilityToken != null)
+                // ✅ AGGIUNTO: Gestione jsdPublic per visibilità corretta
+                var jsdPublicToken = commentToken["jsdPublic"];
+                if (jsdPublicToken != null)
                 {
-                    comment.VisibilityType = JiraDataConverter.GetSafeStringValue(visibilityToken["type"]);
-                    comment.VisibilityValue = JiraDataConverter.GetSafeStringValue(visibilityToken["value"]);
-                    comment.IsInternal = comment.VisibilityType?.ToLower() == "group" ||
-                                        comment.VisibilityType?.ToLower() == "role";
+                    // jsdPublic = true significa PUBBLICO, jsdPublic = false significa PRIVATO
+                    var jsdPublicValue = jsdPublicToken.ToString().ToLower();
+                    comment.IsInternal = !(jsdPublicValue == "true");
+                }
+                else
+                {
+                    // Fallback al campo visibility standard
+                    var visibilityToken = commentToken["visibility"];
+                    if (visibilityToken != null)
+                    {
+                        comment.VisibilityType = JiraDataConverter.GetSafeStringValue(visibilityToken["type"]);
+                        comment.VisibilityValue = JiraDataConverter.GetSafeStringValue(visibilityToken["value"]);
+                        comment.IsInternal = !string.IsNullOrEmpty(comment.VisibilityType);
+                    }
+                    else
+                    {
+                        comment.IsInternal = false; // Default: pubblico
+                    }
                 }
 
                 return comment;

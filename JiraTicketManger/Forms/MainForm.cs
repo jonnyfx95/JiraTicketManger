@@ -39,6 +39,9 @@ namespace JiraTicketManager
         private readonly Dictionary<ComboBox, List<string>> _comboBoxOriginalItems = new();
         private readonly Dictionary<ComboBox, System.Windows.Forms.Timer> _filterTimers = new();
 
+        private readonly Stack<string> _previousPageTokens = new Stack<string>(); // Per tornare indietro
+        private string _currentNextPageToken = null; // Token per pagina successiva
+
 #if DEBUG
         private DevelopmentTests _devTests;
 #endif
@@ -99,12 +102,16 @@ namespace JiraTicketManager
 
         #region Search Logic
 
-       
+
 
         private async Task SearchTicketsAsync()
         {
-            if (_isLoading) return;
+            // Reset paginazione per nuova ricerca
+            _previousPageTokens.Clear();
+            _currentNextPageToken = null;
+            _currentPage = 1;
 
+            if (_isLoading) return;
             if (!_isInitialized)
             {
                 _logger.LogDebug("Ricerca ignorata - applicazione non ancora inizializzata");
@@ -116,13 +123,11 @@ namespace JiraTicketManager
                 _isLoading = true;
                 // 🔧 NON disabilitare ancora i controlli - dobbiamo leggere i valori prima!
                 // SetControlsEnabled(false);  // ❌ SPOSTATO PIÙ SOTTO
-
                 ShowProgress("🔍 Ricerca ticket in corso...");
                 _logger.LogInfo("=== INIZIO RICERCA INTELLIGENTE ===");
 
                 // *** DEBUG E COSTRUZIONE FILTRI PRIMA DI DISABILITARE ***
                 string jql;
-
                 if (rbJQLMode != null && rbJQLMode.Checked)
                 {
                     // Modalità JQL
@@ -138,12 +143,10 @@ namespace JiraTicketManager
                 {
                     // Modalità Base o Date (entrambe usano filtri)
                     _logger.LogInfo($"🔍 Modalità filtri attiva");
-
 #if DEBUG
                     // 🔧 DEBUG: Verifica stato ComboBox prima della ricerca
                     DebugComboBoxStates();
 #endif
-
                     // 1. PRIORITÀ ASSOLUTA: Numero ticket
                     var ticketNumber = txtSearch?.Text?.Trim();
                     if (!string.IsNullOrWhiteSpace(ticketNumber) &&
@@ -167,7 +170,6 @@ namespace JiraTicketManager
                         var filters = BuildFiltersFromControls();
                         var hasCliente = filters.ContainsKey("Cliente");
                         var hasDateFilters = filters.Keys.Any(k => k.Contains("Creato") || k.Contains("Completato"));
-
                         _logger.LogInfo($"Filtri costruiti: {filters.Count}, Cliente: {hasCliente}, Date: {hasDateFilters}");
 
                         if (filters.Count == 0)
@@ -178,16 +180,13 @@ namespace JiraTicketManager
                         else
                         {
                             _logger.LogInfo($"Applicando {filters.Count} filtri alla ricerca");
-
                             // Log dettagliato dei filtri
                             foreach (var filter in filters)
                             {
                                 _logger.LogInfo($"   Filtro: {filter.Key} = '{filter.Value}'");
                             }
-
                             var criteria = ConvertToSearchCriteria(filters);
                             jql = JQLBuilder.FromCriteria(criteria).Build();
-
                             _logger.LogInfo($"🔍 JQL generata dai filtri: {jql}");
                         }
                     }
@@ -202,19 +201,20 @@ namespace JiraTicketManager
                 // 🔧 ORA disabilita i controlli DOPO aver costruito i filtri
                 SetControlsEnabled(false);
 
-                // Execute search
+                // Execute search con API v3 e nextPageToken
                 _currentJQL = jql;
                 _logger.LogInfo($"Ricerca con JQL: {jql}");
 
-                var startAt = (_currentPage - 1) * _pageSize;
-                var searchResult = await _apiService.SearchIssuesAsync(jql, startAt, _pageSize);
+                var searchResult = await _apiService.SearchIssuesAsync(jql, 0, _pageSize, null, null);
+
+                // Aggiorna nextPageToken per navigazione futura
+                _currentNextPageToken = searchResult.NextPageToken;
 
                 _logger.LogInfo("🔄 Conversione con JiraDataConverter...");
                 _currentData = JiraDataConverter.ConvertToDataTable(searchResult.Issues, _logger);
                 _totalRecords = searchResult.Total;
 
                 // Converti e aggiorna DataGrid
-                _currentData = JiraDataConverter.ConvertToDataTable(searchResult.Issues, _logger);
                 dgvTickets.DataSource = _currentData;
                 ConfigureDataGridColumns();
 
@@ -222,13 +222,14 @@ namespace JiraTicketManager
                 UpdateResultsInfo();
                 UpdateNavigationButtons();
 
-                _logger.LogInfo($"Navigazione a pagina {_currentPage} completata");
+                _logger.LogInfo($"Ricerca completata - Pagina {_currentPage}, TotalRecords: {_totalRecords}, HasNextPage: {!string.IsNullOrEmpty(_currentNextPageToken)}");
                 UpdateStatusMessage($"✅ Trovati {_totalRecords} ticket - Pagina {_currentPage}");
             }
             catch (Exception ex)
             {
                 _logger.LogError("Errore ricerca ticket", ex);
-                // ... resto gestione errori ...
+                _toastService.ShowError("Errore", $"Errore durante la ricerca: {ex.Message}");
+                UpdateStatusMessage("❌ Errore ricerca");
             }
             finally
             {
@@ -820,28 +821,52 @@ namespace JiraTicketManager
         {
             try
             {
+                _logger.LogInfo("🔄 Setup navigation events...");
+
                 if (btnFirstPage != null)
                 {
-                    btnFirstPage.Click += async (s, e) => await GoToPage(1); // ✅ async event handler
+                    btnFirstPage.Click += async (s, e) => await GoToPage(1);
                     _logger.LogDebug("Event handler btnFirstPage collegato");
+                }
+                else
+                {
+                    _logger.LogWarning("btnFirstPage non trovato nel Designer");
                 }
 
                 if (btnPreviousPage != null)
                 {
-                    btnPreviousPage.Click += async (s, e) => GoToPreviousPage(); // ✅ async void va bene qui
+                    btnPreviousPage.Click += async (s, e) => GoToPreviousPage();
                     _logger.LogDebug("Event handler btnPreviousPage collegato");
+                }
+                else
+                {
+                    _logger.LogWarning("btnPreviousPage non trovato nel Designer");
                 }
 
                 if (btnNextPage != null)
                 {
-                    btnNextPage.Click += async (s, e) => GoToNextPage(); // ✅ async void va bene qui
+                    btnNextPage.Click += async (s, e) => GoToNextPage();
                     _logger.LogDebug("Event handler btnNextPage collegato");
+                }
+                else
+                {
+                    _logger.LogWarning("btnNextPage non trovato nel Designer");
                 }
 
                 if (btnLastPage != null)
                 {
-                    btnLastPage.Click += async (s, e) => GoToLastPage(); // ✅ async void va bene qui
+                    btnLastPage.Click += async (s, e) => GoToLastPage();
                     _logger.LogDebug("Event handler btnLastPage collegato");
+                }
+                else
+                {
+                    _logger.LogWarning("btnLastPage non trovato nel Designer");
+                }
+
+                if (cmbPageSize != null)
+                {
+                    cmbPageSize.SelectedIndexChanged += OnPageSizeChanged;
+                    _logger.LogDebug("Event handler cmbPageSize collegato");
                 }
 
                 _logger.LogInfo("Event handler navigazione configurati");
@@ -851,6 +876,7 @@ namespace JiraTicketManager
                 _logger.LogError("Errore setup navigation events", ex);
             }
         }
+
 
         #endregion
 
@@ -1507,88 +1533,107 @@ namespace JiraTicketManager
 
         private async Task GoToPage(int pageNumber)
         {
-            if (_isLoading) return;
-
             if (pageNumber < 1) pageNumber = 1;
 
-            var maxPage = (int)Math.Ceiling((double)_totalRecords / _pageSize);
-            if (pageNumber > maxPage) pageNumber = maxPage;
-
-            if (pageNumber != _currentPage)
+            try
             {
-                _currentPage = pageNumber;
+                _isLoading = true;
+                ShowProgress($"Caricamento pagina {pageNumber}...");
 
-                // ✅ USA LA STESSA JQL DEL CARICAMENTO INIZIALE
-                try
+                string tokenToUse = null;
+
+                if (pageNumber == 1)
                 {
-                    _isLoading = true;
-                    ShowProgress($"Caricamento pagina {_currentPage}...");
-
-                    var startAt = (_currentPage - 1) * _pageSize;
-
-                    // ✅ USA _currentJQL INVECE DI RICOSTRUIRE CON FILTRI
-                    _logger.LogInfo($"Navigazione pagina {_currentPage} con JQL: {_currentJQL}");
-
-                    var searchResult = await _apiService.SearchIssuesAsync(_currentJQL, startAt, _pageSize);
-
-                    // Converti e aggiorna DataGrid
-                    _currentData = JiraDataConverter.ConvertToDataTable(searchResult.Issues, _logger);
-                    dgvTickets.DataSource = _currentData;
-
-                    // Aggiorna UI
-                    UpdateResultsInfo();
-                    UpdateNavigationButtons();
-
-                    _logger.LogInfo($"Navigazione a pagina {_currentPage} completata");
+                    // Prima pagina - reset tutto
+                    _previousPageTokens.Clear();
+                    _currentPage = 1;
+                    tokenToUse = null;
                 }
-                catch (Exception ex)
+                else if (pageNumber == _currentPage + 1 && !string.IsNullOrEmpty(_currentNextPageToken))
                 {
-                    _logger.LogError($"Errore navigazione pagina {_currentPage}", ex);
-                    _toastService.ShowError("Errore", $"Errore caricamento pagina: {ex.Message}");
+                    // Pagina successiva
+                    _previousPageTokens.Push(_currentNextPageToken);
+                    _currentPage = pageNumber;
+                    tokenToUse = _currentNextPageToken;
                 }
-                finally
+                else if (pageNumber == _currentPage - 1 && _previousPageTokens.Count > 0)
                 {
-                    _isLoading = false;
-                    HideProgress();
+                    // Pagina precedente
+                    tokenToUse = _previousPageTokens.Pop();
+                    _currentPage = pageNumber;
                 }
+                else
+                {
+                    // Non possiamo navigare a questa pagina con i token
+                    _logger.LogWarning($"Navigazione a pagina {pageNumber} non supportata con nextPageToken");
+                    _toastService.ShowWarning("Navigazione", "Navigazione non supportata - usa i pulsanti sequenziali");
+                    return;
+                }
+
+                var searchResult = await _apiService.SearchIssuesAsync(_currentJQL, 0, _pageSize, null, tokenToUse);
+
+                // Aggiorna token per pagina successiva
+                _currentNextPageToken = searchResult.NextPageToken;
+
+                // Aggiorna UI
+                _currentData = JiraDataConverter.ConvertToDataTable(searchResult.Issues, _logger);
+                _totalRecords = searchResult.Total;
+
+                dgvTickets.DataSource = _currentData;
+                UpdateResultsInfo();
+                UpdateNavigationButtons();
+
+                _logger.LogInfo($"Navigazione completata - Pagina {_currentPage}, HasNext: {!string.IsNullOrEmpty(_currentNextPageToken)}");
+                UpdateStatusMessage($"Pagina {_currentPage} caricata");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore navigazione pagina {pageNumber}", ex);
+                _toastService.ShowError("Errore", $"Errore caricamento pagina: {ex.Message}");
+            }
+            finally
+            {
+                _isLoading = false;
+                HideProgress();
             }
         }
-
 
         private async void GoToPreviousPage()
         {
             if (_currentPage > 1)
-                await GoToPage(_currentPage - 1); // ✅ Con await
+                await GoToPage(_currentPage - 1);
         }
 
         private async void GoToNextPage()
         {
-            var maxPage = (int)Math.Ceiling((double)_totalRecords / _pageSize);
-            if (_currentPage < maxPage)
-                await GoToPage(_currentPage + 1); // ✅ Con await
+            if (!string.IsNullOrEmpty(_currentNextPageToken))
+                await GoToPage(_currentPage + 1);
         }
 
 
         private async void GoToLastPage()
         {
-            var maxPage = (int)Math.Ceiling((double)_totalRecords / _pageSize);
-            await GoToPage(maxPage); // ✅ Con await
+            _toastService.ShowInfo("Navigazione", "Ultima pagina non disponibile con API v3 - usa Avanti per navigare");
         }
 
         private void UpdateNavigationButtons()
         {
-            var maxPage = (int)Math.Ceiling((double)_totalRecords / _pageSize);
-
-            // Update navigation button states (if they exist in Designer)
             var btnFirstPage = this.Controls.Find("btnFirstPage", true).FirstOrDefault() as Button;
             var btnPreviousPage = this.Controls.Find("btnPreviousPage", true).FirstOrDefault() as Button;
             var btnNextPage = this.Controls.Find("btnNextPage", true).FirstOrDefault() as Button;
             var btnLastPage = this.Controls.Find("btnLastPage", true).FirstOrDefault() as Button;
 
+            bool hasNext = !string.IsNullOrEmpty(_currentNextPageToken);
+            bool hasPrevious = _currentPage > 1;
+
             if (btnFirstPage != null) btnFirstPage.Enabled = _currentPage > 1;
-            if (btnPreviousPage != null) btnPreviousPage.Enabled = _currentPage > 1;
-            if (btnNextPage != null) btnNextPage.Enabled = _currentPage < maxPage;
-            if (btnLastPage != null) btnLastPage.Enabled = _currentPage < maxPage;
+            if (btnPreviousPage != null) btnPreviousPage.Enabled = hasPrevious;
+            if (btnNextPage != null) btnNextPage.Enabled = hasNext;
+            if (btnLastPage != null)
+            {
+                btnLastPage.Enabled = false; // Non sappiamo l'ultima pagina
+                btnLastPage.Text = "🚫"; // Indicatore visivo
+            }
         }
 
         private void UpdateResultsInfo()

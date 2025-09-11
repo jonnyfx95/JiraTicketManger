@@ -1,12 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using JiraTicketManager.Data;
+﻿using JiraTicketManager.Data;
+using JiraTicketManager.Data.Converters;
 using JiraTicketManager.Services;
 using JiraTicketManager.Utilities;
 using Newtonsoft.Json.Linq;
-using JiraTicketManager.Utilities;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
 
 namespace JiraTicketManager.UI.Managers
 {
@@ -186,14 +187,34 @@ namespace JiraTicketManager.UI.Managers
                     return "-";
                 }
 
-                // === GESTIONE SPECIALE PER CUSTOM FIELD TELEFONO ===
-                if (jiraField == "customfield_10074")
+                // === GESTIONE SPECIALE PER DESCRIZIONE ===
+                if (jiraField == "description")
                 {
-                    var phoneField = rawData["fields"]?["customfield_10074"];
-                    if (phoneField != null && phoneField.Type != JTokenType.Null)
+                    var descriptionField = rawData["fields"]?["description"];
+                    if (descriptionField != null && descriptionField.Type != JTokenType.Null)
                     {
-                        var phoneValue = phoneField.ToString();
-                        return !string.IsNullOrEmpty(phoneValue) ? phoneValue : "-";
+                        string description;
+
+                        // ✅ NUOVO: Gestisce sia stringa che ADF
+                        if (descriptionField.Type == JTokenType.String)
+                        {
+                            description = descriptionField.ToString();
+                        }
+                        else if (descriptionField.Type == JTokenType.Object)
+                        {
+                            // È in formato ADF - usa JiraDataConverter
+                            description = JiraDataConverter.GetSafeStringValue(descriptionField);
+                        }
+                        else
+                        {
+                            description = descriptionField.ToString();
+                        }
+
+                        if (!string.IsNullOrEmpty(description))
+                        {
+                            // Formatta la descrizione per migliorare la leggibilità
+                            return FormatDescription(description);
+                        }
                     }
                     return "-";
                 }

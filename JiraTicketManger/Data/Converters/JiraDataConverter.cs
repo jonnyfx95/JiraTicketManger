@@ -356,12 +356,63 @@ namespace JiraTicketManager.Data.Converters
                     JTokenType.Float => token.ToString(),
                     JTokenType.Boolean => token.ToString(),
                     JTokenType.Date => token.ToString(),
-                    JTokenType.Object => token.ToString(), // Serializza l'oggetto
-                    JTokenType.Array => string.Join(", ", token.Select(t => t.ToString())),
+                    JTokenType.Object => ExtractTextFromADF(token), // ✅ NUOVO: Gestisce ADF
+                    JTokenType.Array => string.Join(", ", token.Select(t => GetSafeStringValue(t))),
                     _ => token.ToString()
                 };
             }
             catch (Exception)
+            {
+                return "";
+            }
+        }
+
+        /// <summary>
+        /// Estrae testo da Atlassian Document Format (ADF)
+        /// </summary>
+        private static string ExtractTextFromADF(JToken adfToken)
+        {
+            try
+            {
+                if (adfToken == null) return "";
+
+                // Se è una stringa semplice, restituiscila direttamente
+                if (adfToken.Type == JTokenType.String)
+                {
+                    return adfToken.ToString();
+                }
+
+                var text = "";
+
+                // Se ha contenuto testuale diretto
+                if (adfToken["text"] != null)
+                {
+                    text += adfToken["text"].ToString();
+                }
+
+                // Elabora contenuto nested
+                if (adfToken["content"] != null && adfToken["content"].Type == JTokenType.Array)
+                {
+                    foreach (var child in adfToken["content"])
+                    {
+                        text += ExtractTextFromADF(child);
+
+                        // Aggiungi newline appropriati
+                        var nodeType = child["type"]?.ToString();
+                        if (nodeType == "paragraph")
+                        {
+                            text += "\n\n";
+                        }
+                        else if (nodeType == "hardBreak")
+                        {
+                            text += "\n";
+                        }
+                    }
+                }
+
+                return text.Trim();
+            }
+            catch
             {
                 return "";
             }

@@ -55,6 +55,8 @@ namespace JiraTicketManager.Forms
 
             SetupActivityTabListViews();
 
+            InitializeStatusStrip();
+
             // Inizializza servizi esistenti
             _logger = LoggingService.CreateForComponent("TicketDetailForm");
 
@@ -70,6 +72,8 @@ namespace JiraTicketManager.Forms
 
             // Setup iniziale
             SetupForm();
+
+            
 
             _logger.LogInfo("TicketDetailForm inizializzata con servizi pianificazione");
         }
@@ -90,11 +94,13 @@ namespace JiraTicketManager.Forms
         {
             try
             {
-               if (string.IsNullOrEmpty(ticketKey))
+
+
+                if (string.IsNullOrEmpty(ticketKey))
                 {
                     _logger.LogWarning("Tentativo caricamento ticket con key vuota");
                     return;
-                } 
+                }
 
                 _logger.LogInfo($"Caricamento ticket: {ticketKey}");
 
@@ -118,6 +124,9 @@ namespace JiraTicketManager.Forms
 
                 SetResponsabileFromArea();
 
+                UpdateConnectionStatus(false, "🔄 Caricamento...");
+                ShowStatusMessage("⏳ Caricamento ticket in corso...", Color.FromArgb(59, 130, 246));
+
 
                 await UpdateHeaderInfo(ticketKey);
                 this.Text = $"Dettaglio Ticket - {ticketKey}";
@@ -129,29 +138,33 @@ namespace JiraTicketManager.Forms
 
                 var comments = await activityService.GetCommentsAsync(ticketKey);
                 var attachments = await activityService.GetAttachmentsAsync(ticketKey);
-                var summary = await activityService.GetActivitySummaryAsync(ticketKey);
 
-                _logger.LogInfo($"🔍 TEST ACTIVITY SERVICE RESULTS:");
-                _logger.LogInfo($"   💬 Commenti caricati: {comments?.Count ?? 0}");
-                _logger.LogInfo($"   📎 Allegati caricati: {attachments?.Count ?? 0}");
-                _logger.LogInfo($"   📊 Summary: Comments={summary?.CommentsCount}, History={summary?.HistoryCount}, Attachments={summary?.AttachmentsCount}");
 
-               
-                _logger.LogInfo($"🎯 ACTIVITY SUMMARY: C={summary.CommentsCount}, H={summary.HistoryCount}, A={summary.AttachmentsCount}");
 
                 var activityTabManager = ActivityTabManagerFactory.CreateFromApiService(apiService);
                 if (tcActivity != null)
                 {
                     await activityTabManager.LoadActivityTabsAsync(tcActivity, ticketKey,
                         new Progress<string>(s => _logger.LogInfo($"Progress: {s}")));
+
+                    // ✅ AGGIORNA LA STATUSSTRIP CON I CONTEGGI:
+                    var summary = await activityService.GetActivitySummaryAsync(ticketKey);
+                    UpdateCommentsCount(summary.CommentsCount, summary.HistoryCount, summary.AttachmentsCount);
                 }
+
+                // ✅ AGGIORNA STATO FINALE:
+                UpdateConnectionStatus(true);
+                UpdateLastUpdateTime();
+                ShowStatusMessage("✅ Ticket caricato con successo!", Color.FromArgb(34, 197, 94), 2000);
             }
+
+
             catch (Exception ex)
             {
                 _logger.LogError($"Errore caricamento ticket {ticketKey}", ex);
-                MessageBox.Show($"Errore durante il caricamento del ticket {ticketKey}:\n\n{ex.Message}",
-                    "Errore Caricamento Ticket", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                this.Text = $"Errore Caricamento - {ticketKey}";
+
+                UpdateConnectionStatus(false, "❌ Errore connessione");
+                ShowStatusMessage("❌ Errore caricamento ticket", Color.FromArgb(220, 38, 38), 5000);
             }
             finally
             {
@@ -498,7 +511,7 @@ namespace JiraTicketManager.Forms
                 lvComments.Columns.Clear();
                 lvComments.Columns.Add("👤 Autore", 180);        // Più largo per emoji
                 lvComments.Columns.Add("📅 Data", 130);          // Leggermente più largo
-                lvComments.Columns.Add("💬 Commento", 350);      // Un po' più stretto
+                lvComments.Columns.Add("💬 Commento", 250);      // Un po' più stretto
                 lvComments.Columns.Add("👁️ Visibilità", 120);    // NUOVA COLONNA per visibilità
 
                 // Migliora l'aspetto generale
@@ -508,7 +521,7 @@ namespace JiraTicketManager.Forms
                 lvComments.Font = new Font("Segoe UI", 9F);
                 lvComments.BackColor = Color.White;
 
-                _logger.LogInfo("ListView Comments configurato con emoji e visibilità");
+                //_logger?.LogInfo("ListView Comments configurato con emoji e visibilità");
             }
 
             // Setup ListView History - CON ICONE MIGLIORATE
@@ -527,9 +540,9 @@ namespace JiraTicketManager.Forms
                 lvHistory.Font = new Font("Segoe UI", 9F);
                 lvHistory.BackColor = Color.White;
 
-                _logger.LogInfo("ListView History configurato con icone migliorate");
+                //_logger.LogInfo("ListView History configurato con icone migliorate");
             }
-
+                
             // Setup ListView Attachments - CON ICONE FILE
             if (lvAttachments != null)
             {
@@ -547,10 +560,10 @@ namespace JiraTicketManager.Forms
                 lvAttachments.Font = new Font("Segoe UI", 9F);
                 lvAttachments.BackColor = Color.White;
 
-                _logger.LogInfo("ListView Attachments configurato con icone file");
+               // _logger.LogInfo("ListView Attachments configurato con icone file");
             }
 
-            _logger.LogInfo("✨ Tutti i ListView configurati con stili moderni");
+           // _logger.LogInfo("✨ Tutti i ListView configurati con stili moderni");
         }
 
         #endregion
@@ -1465,7 +1478,6 @@ namespace JiraTicketManager.Forms
 
         #endregion
 
-
         #region MODELLO DATI PIANIFICAZIONE
 
         /// <summary>
@@ -1500,9 +1512,7 @@ namespace JiraTicketManager.Forms
         #endregion
 
 
-        // ========================================================================
-        // METODI FALLBACK
-        // ========================================================================
+        #region Fallback Email Methods
 
         /// <summary>
         /// Mostra finestra con i dati email quando Outlook non è disponibile
@@ -1758,7 +1768,213 @@ namespace JiraTicketManager.Forms
             }
         }
 
+        #endregion
 
+        #region StatusStrip Management
+
+        /// <summary>
+        /// Configura e inizializza la StatusStrip con i componenti necessari
+        /// </summary>
+        private void InitializeStatusStrip()
+        {
+            try
+            {
+                // Pulisci eventuali item esistenti
+                statusStrip1.Items.Clear();
+
+                // 1. STATO CONNESSIONE (sinistra)
+                var connectionStatusLabel = new ToolStripStatusLabel
+                {
+                    Name = "lblConnectionStatus",
+                    Text = "🔴 Non connesso",
+                    Font = new Font("Segoe UI", 9F),
+                    ForeColor = Color.FromArgb(220, 38, 38), // Rosso iniziale
+                    AutoSize = true,
+                    Margin = new Padding(5, 2, 15, 2)
+                };
+                statusStrip1.Items.Add(connectionStatusLabel);
+
+                // 2. NUMERO COMMENTI (centro)
+                var commentsCountLabel = new ToolStripStatusLabel
+                {
+                    Name = "lblCommentsCount",
+                    Text = "Numero Commenti: --",
+                    Font = new Font("Segoe UI", 9F),
+                    ForeColor = Color.FromArgb(59, 130, 246), // Blu
+                    AutoSize = true,
+                    Margin = new Padding(15, 2, 15, 2)
+                };
+                statusStrip1.Items.Add(commentsCountLabel);
+
+                // 3. SPRING (per spingere l'ultimo item a destra)
+                var springLabel = new ToolStripStatusLabel
+                {
+                    Spring = true,
+                    Text = ""
+                };
+                statusStrip1.Items.Add(springLabel);
+
+                // 4. ULTIMO AGGIORNAMENTO (destra)
+                var lastUpdateLabel = new ToolStripStatusLabel
+                {
+                    Name = "lblLastUpdate",
+                    Text = "⏰ Ultimo aggiornamento: --",
+                    Font = new Font("Segoe UI", 9F),
+                    ForeColor = Color.FromArgb(107, 114, 128), // Grigio
+                    AutoSize = true,
+                    Margin = new Padding(15, 2, 5, 2)
+                };
+                statusStrip1.Items.Add(lastUpdateLabel);
+
+                //_logger.LogInfo("StatusStrip inizializzata con successo");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore inizializzazione StatusStrip", ex);
+            }
+        }
+
+        /// <summary>
+        /// Aggiorna lo stato della connessione nella StatusStrip
+        /// </summary>
+        private void UpdateConnectionStatus(bool isConnected, string message = null)
+        {
+            try
+            {
+                var connectionLabel = statusStrip1.Items["lblConnectionStatus"] as ToolStripStatusLabel;
+                if (connectionLabel != null)
+                {
+                    if (isConnected)
+                    {
+                        connectionLabel.Text = "🟢 Connesso a Jira";
+                        connectionLabel.ForeColor = Color.FromArgb(34, 197, 94); // Verde
+                    }
+                    else
+                    {
+                        connectionLabel.Text = message ?? "🔴 Non connesso";
+                        connectionLabel.ForeColor = Color.FromArgb(220, 38, 38); // Rosso
+                    }
+                }
+
+                _logger.LogDebug($"Stato connessione aggiornato: {isConnected}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore aggiornamento stato connessione", ex);
+            }
+        }
+
+        /// <summary>
+        /// Aggiorna il contatore dei commenti nella StatusStrip
+        /// </summary>
+        private void UpdateCommentsCount(int commentsCount, int historyCount = 0, int attachmentsCount = 0)
+        {
+            try
+            {
+                var commentsLabel = statusStrip1.Items["lblCommentsCount"] as ToolStripStatusLabel;
+                if (commentsLabel != null)
+                {
+                    if (historyCount > 0 || attachmentsCount > 0)
+                    {
+                        // Mostra statistiche complete
+                        commentsLabel.Text = $"💬 Commenti: {commentsCount} | 📜 Cronologia: {historyCount} | 📎 Allegati: {attachmentsCount}";
+                    }
+                    else
+                    {
+                        // Solo commenti
+                        commentsLabel.Text = $"Numero Commenti: {commentsCount}";
+                    }
+
+                    // Colore basato su presenza di contenuto
+                    if (commentsCount > 0)
+                    {
+                        commentsLabel.ForeColor = Color.FromArgb(59, 130, 246); // Blu
+                    }
+                    else
+                    {
+                        commentsLabel.ForeColor = Color.FromArgb(107, 114, 128); // Grigio
+                    }
+                }
+
+                _logger.LogDebug($"Contatore commenti aggiornato: {commentsCount}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore aggiornamento contatore commenti", ex);
+            }
+        }
+
+        /// <summary>
+        /// Aggiorna il timestamp dell'ultimo aggiornamento
+        /// </summary>
+        private void UpdateLastUpdateTime(DateTime? updateTime = null)
+        {
+            try
+            {
+                var lastUpdateLabel = statusStrip1.Items["lblLastUpdate"] as ToolStripStatusLabel;
+                if (lastUpdateLabel != null)
+                {
+                    var timestamp = updateTime ?? DateTime.Now;
+                    lastUpdateLabel.Text = $"⏰ Ultimo aggiornamento: {timestamp:dd/MM/yyyy HH:mm:ss}";
+                    lastUpdateLabel.ForeColor = Color.FromArgb(107, 114, 128); // Grigio
+                }
+
+                _logger.LogDebug($"Timestamp ultimo aggiornamento: {updateTime ?? DateTime.Now}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore aggiornamento timestamp", ex);
+            }
+        }
+
+        /// <summary>
+        /// Mostra un messaggio temporaneo nella StatusStrip
+        /// </summary>
+        private void ShowStatusMessage(string message, Color? textColor = null, int durationMs = 3000)
+        {
+            try
+            {
+                var tempLabel = statusStrip1.Items["lblTempMessage"] as ToolStripStatusLabel;
+
+                if (tempLabel == null)
+                {
+                    // Crea label temporaneo se non esiste
+                    tempLabel = new ToolStripStatusLabel
+                    {
+                        Name = "lblTempMessage",
+                        Font = new Font("Segoe UI", 9F, FontStyle.Italic),
+                        AutoSize = true,
+                        Margin = new Padding(5, 2, 5, 2)
+                    };
+                    statusStrip1.Items.Insert(0, tempLabel); // Inserisci all'inizio
+                }
+
+                tempLabel.Text = message;
+                tempLabel.ForeColor = textColor ?? Color.FromArgb(59, 130, 246);
+                tempLabel.Visible = true;
+
+                // Timer per nascondere il messaggio
+                var timer = new System.Windows.Forms.Timer
+                {
+                    Interval = durationMs
+                };
+                timer.Tick += (s, e) =>
+                {
+                    tempLabel.Visible = false;
+                    timer.Stop();
+                    timer.Dispose();
+                };
+                timer.Start();
+
+                _logger.LogDebug($"Messaggio temporaneo mostrato: {message}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore visualizzazione messaggio temporaneo", ex);
+            }
+        }
+
+        #endregion
     }
 
 }
