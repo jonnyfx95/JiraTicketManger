@@ -58,7 +58,7 @@ namespace JiraTicketManager.Forms
 
             SetupActivityTabListViews();
 
-          
+            InitializeCommentFunctionality();
 
             InitializeStatusStrip();
 

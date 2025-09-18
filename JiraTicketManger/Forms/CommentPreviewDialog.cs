@@ -53,7 +53,7 @@ namespace JiraTicketManager.Forms
         /// <summary>
         /// Inizializzazione dei controlli UI
         /// </summary>
-        
+   
 
         /// <summary>
         /// Carica i dati del commento nel dialog
@@ -209,25 +209,7 @@ namespace JiraTicketManager.Forms
 
         #region Dispose
 
-        //protected override void Dispose(bool disposing)
-        //{
-        //    try
-        //    {
-        //        if (disposing)
-        //        {
-        //            // Cleanup controlli se necessario
-        //            panelHeader?.Dispose();
-        //            panelBody?.Dispose();
-        //            panelFooter?.Dispose();
-        //        }
-
-        //        base.Dispose(disposing);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger?.LogError($"Errore dispose dialog: {ex.Message}");
-        //    }
-        //}
+        
 
         #endregion
     }
