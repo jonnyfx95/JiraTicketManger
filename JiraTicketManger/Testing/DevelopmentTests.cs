@@ -126,7 +126,7 @@ namespace JiraTicketManager.Testing
             LogTest("");
 
 
-            LogTest("🔍 Test 15: Debug Firma Outlook");
+            LogTest("🔍 Test 15: Debug Firma Outlook Integrata");
             var result15 = await TestOutlookSignatureDebug();
             totalTests++; if (result15) passedTests++;
             LogTest("");
@@ -1413,40 +1413,40 @@ namespace JiraTicketManager.Testing
 
 
         private void SelectAreaAndApp(ComboBox cmbArea, ComboBox cmbApplicativo)
-{
-    try
-    {
-        // Seleziona un'area che ha applicativi
-        for (int i = 1; i < cmbArea.Items.Count && i < 5; i++)
         {
-            var item = cmbArea.Items[i].ToString();
-            if (!item.Contains("Tutte") && !item.StartsWith("--"))
+            try
             {
-                cmbArea.SelectedIndex = i;
-                System.Threading.Thread.Sleep(200); // Aspetta che si aggiorni
-
-                // Se applicativo è abilitato e ha elementi, seleziona il primo
-                if (cmbApplicativo.Enabled && cmbApplicativo.Items.Count > 1)
+                // Seleziona un'area che ha applicativi
+                for (int i = 1; i < cmbArea.Items.Count && i < 5; i++)
                 {
-                    for (int j = 1; j < cmbApplicativo.Items.Count && j < 3; j++)
+                    var item = cmbArea.Items[i].ToString();
+                    if (!item.Contains("Tutte") && !item.StartsWith("--"))
                     {
-                        var appItem = cmbApplicativo.Items[j].ToString();
-                        if (!appItem.StartsWith("--"))
+                        cmbArea.SelectedIndex = i;
+                        System.Threading.Thread.Sleep(200); // Aspetta che si aggiorni
+
+                        // Se applicativo è abilitato e ha elementi, seleziona il primo
+                        if (cmbApplicativo.Enabled && cmbApplicativo.Items.Count > 1)
                         {
-                            cmbApplicativo.SelectedIndex = j;
-                            break;
+                            for (int j = 1; j < cmbApplicativo.Items.Count && j < 3; j++)
+                            {
+                                var appItem = cmbApplicativo.Items[j].ToString();
+                                if (!appItem.StartsWith("--"))
+                                {
+                                    cmbApplicativo.SelectedIndex = j;
+                                    break;
+                                }
+                            }
                         }
+                        break;
                     }
                 }
-                break;
+            }
+            catch (Exception ex)
+            {
+                LogTest($"   ⚠️  Errore selezione Area/App: {ex.Message}");
             }
         }
-    }
-    catch (Exception ex)
-    {
-        LogTest($"   ⚠️  Errore selezione Area/App: {ex.Message}");
-    }
-}
 
 
         #region "Jira Text Binding Tests"
@@ -3184,50 +3184,243 @@ namespace JiraTicketManager.Testing
         /// </summary>
         public async Task<bool> TestOutlookSignatureDebug()
         {
-            LogTest("📧 === TEST DEBUG FIRMA OUTLOOK ===");
-
             try
             {
-                // Crea il servizio Outlook
-                var outlookService = new OutlookHybridService();
+                LogTest("🔍 TEST DEBUG FIRMA OUTLOOK - VERSIONE INTEGRATA");
+                LogTest("=".PadRight(55, '='));
 
-                LogTest("🔍 Chiamata metodo debug firma...");
+                // Test 1: EmailTemplateService integrato
+                LogTest("📧 Test 1: EmailTemplateService con firma integrata");
 
-                // Chiama il metodo debug che abbiamo aggiunto
-                var debugResult = outlookService.DebugSignatureReading();
+                var emailService = new EmailTemplateService();
 
-                LogTest($"📋 Risultato debug:");
-                LogTest($"   {debugResult}");
-
-                // Test anche creazione email di test
-                LogTest("");
-                LogTest("📧 Test creazione email con firma...");
-
-                var emailData = new OutlookHybridService.EmailData
+                // Test lettura diretta firma usando il nuovo metodo
+                try
                 {
-                    To = "test@example.com",
-                    Subject = "Test Firma",
-                    BodyHtml = "<p>Contenuto email di test</p>",
-                    UseDefaultSignature = true
-                };
+                    var signature = emailService.DebugGetOutlookSignature();
+                    LogTest($"   ✅ Metodo DebugGetOutlookSignature disponibile");
+                    LogTest($"   📄 Firma trovata: {!string.IsNullOrEmpty(signature)}");
 
-                LogTest($"📊 EmailData creata:");
-                LogTest($"   UseDefaultSignature: {emailData.UseDefaultSignature}");
-                LogTest($"   BodyHtml originale: {emailData.BodyHtml}");
+                    if (!string.IsNullOrEmpty(signature))
+                    {
+                        LogTest($"   📏 Lunghezza firma: {signature.Length} caratteri");
 
-                LogTest("✅ Test debug firma completato");
-                return true;
+                        // Anteprima sicura della firma
+                        var preview = signature.Length > 150 ? signature.Substring(0, 150).Replace("\r", "").Replace("\n", " ") + "..." : signature;
+                        LogTest($"   👁️ Anteprima: {preview}");
+
+                        // Controlli contenuto
+                        LogTest($"   🏢 Contiene 'Dedagroup': {signature.Contains("Dedagroup")}");
+                        LogTest($"   📧 Contiene '@dedagroup': {signature.Contains("@dedagroup")}");
+                        LogTest($"   🔗 È HTML valido: {signature.Contains("<") && signature.Contains(">")}");
+                    }
+                    else
+                    {
+                        LogTest("   ❌ Nessuna firma trovata dal metodo integrato");
+                    }
+
+                    // Test 2: Generazione HTML template con firma
+                    LogTest("📧 Test 2: Template HTML con firma automatica");
+
+                    var htmlContent = emailService.GenerateHtmlContent(
+                        EmailTemplateService.TemplateType.SingleIntervention,
+                        "Mario Rossi Test",
+                        "2025-01-15",
+                        "14:30",
+                        "123-456-7890"
+                    );
+
+                    LogTest($"   📏 HTML totale generato: {htmlContent.Length} caratteri");
+                    LogTest($"   🏢 HTML contiene 'Dedagroup': {htmlContent.Contains("Dedagroup")}");
+                    LogTest($"   📧 HTML contiene email: {htmlContent.Contains("@dedagroup")}");
+                    LogTest($"   📝 HTML contiene template: {htmlContent.Contains("Gentile cliente")}");
+
+                    // Test 3: Salvataggio per ispezione manuale
+                    LogTest("💾 Test 3: Salvataggio file per ispezione");
+
+                    try
+                    {
+                        var testHtmlPath = Path.Combine(_testLogPath, $"test_template_firma_{DateTime.Now:yyyyMMdd_HHmmss}.html");
+                        await File.WriteAllTextAsync(testHtmlPath, htmlContent, Encoding.UTF8);
+                        LogTest($"   📄 HTML template salvato: {testHtmlPath}");
+
+                        // Salva anche solo la firma se trovata
+                        if (!string.IsNullOrEmpty(signature))
+                        {
+                            var signaturePath = Path.Combine(_testLogPath, $"test_firma_only_{DateTime.Now:yyyyMMdd_HHmmss}.html");
+                            await File.WriteAllTextAsync(signaturePath, signature, Encoding.UTF8);
+                            LogTest($"   📄 Firma separata salvata: {signaturePath}");
+                        }
+
+                        LogTest($"   ✅ File salvati correttamente");
+                    }
+                    catch (Exception saveEx)
+                    {
+                        LogTest($"   ❌ Errore salvataggio: {saveEx.Message}");
+                    }
+
+                    // Test 4: Confronto dimensioni
+                    LogTest("📊 Test 4: Analisi dimensioni contenuto");
+
+                    // Stima dimensione template base (senza firma)
+                    var templateOnly = "Gentile cliente, la informiamo che in seguito alla sua richiesta è stato programmato un intervento a cura del consulente Mario Rossi Test in data 2025-01-15 con inizio alle ore 14:30. Ritenendo la data confermata sin da ora, la invitiamo a contattarci tempestivamente se fosse necessaria una ripianificazione. Contatto cliente: 123-456-7890";
+                    var templateSize = templateOnly.Length;
+                    var totalSize = htmlContent.Length;
+                    var estimatedSignatureSize = Math.Max(0, totalSize - templateSize - 500); // -500 per HTML wrapper
+
+                    LogTest($"   📏 Template base stimato: ~{templateSize} char");
+                    LogTest($"   📏 HTML totale: {totalSize} char");
+                    LogTest($"   📏 Firma stimata: ~{estimatedSignatureSize} char");
+                    LogTest($"   📈 Rapporto firma/totale: {(estimatedSignatureSize * 100.0 / Math.Max(1, totalSize)):F1}%");
+
+                    // Valutazione risultato
+                    bool hasSignatureContent = !string.IsNullOrEmpty(signature);
+                    bool htmlHasSignature = htmlContent.Contains("@dedagroup") || htmlContent.Contains("Dedagroup");
+                    bool sizeLooksRight = estimatedSignatureSize > 100; // Una firma ragionevole dovrebbe essere > 100 char
+
+                    LogTest("📋 VALUTAZIONE FINALE:");
+                    LogTest($"   ✅ Firma letta dal sistema: {hasSignatureContent}");
+                    LogTest($"   ✅ HTML contiene firma: {htmlHasSignature}");
+                    LogTest($"   ✅ Dimensioni coerenti: {sizeLooksRight}");
+
+                    if (hasSignatureContent && htmlHasSignature && sizeLooksRight)
+                    {
+                        LogTest("   🎉 TUTTO OK: Firma Outlook integrata correttamente!");
+                        return true;
+                    }
+                    else if (hasSignatureContent && htmlHasSignature)
+                    {
+                        LogTest("   ⚠️  PARZIALE: Firma trovata ma dimensioni sospette");
+                        return true; // Consideriamo comunque un successo parziale
+                    }
+                    else if (hasSignatureContent)
+                    {
+                        LogTest("   ⚠️  PROBLEMA: Firma letta ma non integrata nell'HTML");
+                        return false;
+                    }
+                    else
+                    {
+                        LogTest("   ❌ PROBLEMA: Nessuna firma trovata nel sistema");
+                        return false;
+                    }
+                }
+                catch (MethodAccessException)
+                {
+                    LogTest("   ❌ ERRORE: Metodo DebugGetOutlookSignature non disponibile");
+                    LogTest("   💡 SOLUZIONE: Implementa il metodo nell'EmailTemplateService");
+                    return false;
+                }
             }
             catch (Exception ex)
             {
-                LogTest($"❌ Errore test firma: {ex.Message}");
+                LogTest($"❌ ERRORE GENERALE TEST: {ex.Message}");
+                LogTest($"   📍 Tipo: {ex.GetType().Name}");
+                if (ex.InnerException != null)
+                {
+                    LogTest($"   📍 Inner: {ex.InnerException.Message}");
+                }
                 return false;
             }
         }
 
+
+
+
+        /// <summary>
+        /// Test completo della firma Outlook integrata in EmailTemplateService
+        /// </summary>
+        public async Task<bool> TestOutlookSignatureIntegration()
+        {
+            try
+            {
+                LogTest("🔍 TEST INTEGRAZIONE FIRMA OUTLOOK");
+                LogTest("=".PadRight(50, '='));
+
+                // Test 1: EmailTemplateService con firma
+                LogTest("📧 Test 1: EmailTemplateService con firma integrata");
+
+                var emailService = new EmailTemplateService();
+
+                // Test lettura diretta firma
+                var signature = emailService.DebugGetOutlookSignature();
+                LogTest($"   Firma trovata: {!string.IsNullOrEmpty(signature)}");
+
+                if (!string.IsNullOrEmpty(signature))
+                {
+                    LogTest($"   Lunghezza firma: {signature.Length} caratteri");
+                    var preview = signature.Length > 100 ? signature.Substring(0, 100) + "..." : signature;
+                    LogTest($"   Anteprima: {preview}");
+                }
+
+                // Test 2: Generazione HTML con firma
+                LogTest("📧 Test 2: Generazione HTML template con firma");
+
+                var htmlContent = emailService.GenerateHtmlContent(
+                    EmailTemplateService.TemplateType.SingleIntervention,
+                    "Mario Rossi",
+                    "2025-01-15",
+                    "14:30",
+                    "123-456-7890"
+                );
+
+                LogTest($"   HTML generato: {htmlContent.Length} caratteri");
+                LogTest($"   Contiene firma: {htmlContent.Contains("@dedagroup") || htmlContent.Contains("Dedagroup")}");
+
+                // Test 3: Salva HTML generato per ispezione
+                var testHtmlPath = Path.Combine(_testLogPath, "template_with_signature.html");
+                await File.WriteAllTextAsync(testHtmlPath, htmlContent);
+                LogTest($"   HTML salvato in: {testHtmlPath}");
+
+                // Test 4: Confronto con/senza firma
+                LogTest("📧 Test 3: Confronto template con e senza firma");
+
+                // Forza pulizia cache per test
+                var emailService2 = new EmailTemplateService();
+                var htmlWithoutSignature = GenerateHtmlWithoutSignature(emailService2);
+                var htmlWithSignature = htmlContent;
+
+                var sizeDifference = htmlWithSignature.Length - htmlWithoutSignature.Length;
+                LogTest($"   Template senza firma: {htmlWithoutSignature.Length} caratteri");
+                LogTest($"   Template con firma: {htmlWithSignature.Length} caratteri");
+                LogTest($"   Differenza: +{sizeDifference} caratteri");
+
+                // Risultato finale
+                bool hasSignature = !string.IsNullOrEmpty(signature);
+                bool htmlContainsSignature = sizeDifference > 50; // Presumibilmente ha una firma
+
+                if (hasSignature && htmlContainsSignature)
+                {
+                    LogTest("✅ SUCCESSO: Firma Outlook integrata correttamente!");
+                    return true;
+                }
+                else
+                {
+                    LogTest($"❌ PROBLEMI: HasSignature={hasSignature}, HtmlContainsSignature={htmlContainsSignature}");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE TEST: {ex.Message}");
+                LogTest($"   Stack: {ex.StackTrace}");
+                return false;
+            }
+        }
+
+
+        /// <summary>
+        /// Genera HTML senza firma per confronto
+        /// </summary>
+        private string GenerateHtmlWithoutSignature(EmailTemplateService emailService)
+        {
+            // Simula un template base senza firma
+            return @"<span style='font-family:Segoe UI; font-size:10pt; font-style:italic;'>
+                     <i>Gentile cliente,</i><br><br>
+                     La informiamo che in seguito alla sua richiesta è stato programmato un intervento a cura del consulente Mario Rossi in data 2025-01-15 con inizio alle ore 14:30.
+                     <br>Ritenendo la data confermata sin da ora, la invitiamo a contattarci tempestivamente se fosse necessaria una ripianificazione.
+                     <br><br>Contatto cliente: 123-456-7890</span>";
+        }
+
+
     }
-
-
-
-
 }

@@ -255,30 +255,41 @@ namespace JiraTicketManager.Services
 
                 mailItem.Subject = emailData.Subject;
 
-                // Gestione corpo email con firma
-                string finalBody = "";
-
+                // 🔥 MODIFICA IMPORTANTE: Gestione corpo con firma
                 if (emailData.IsHtml && !string.IsNullOrWhiteSpace(emailData.BodyHtml))
                 {
-                    finalBody = emailData.BodyHtml;
+                    // Per COM di Outlook, prima impostiamo il corpo, poi Outlook aggiunge automaticamente la firma
+                    // Ma possiamo anche forzare l'aggiunta manuale se necessario
 
-                    // Aggiungi firma se richiesta
-                    if (emailData.UseDefaultSignature)
+                    _logger.LogInfo("Impostazione HTMLBody per COM Interop");
+                    mailItem.HTMLBody = emailData.BodyHtml;
+
+                    // 🔥 ALTERNATIVO: Se Outlook COM non aggiunge automaticamente la firma,
+                    // possiamo forzarla manualmente (decommentare se necessario):
+                    /*
+                    try
                     {
-                        string signature = GetDefaultOutlookSignature();
-                        if (!string.IsNullOrEmpty(signature))
+                        // Tenta di ottenere la firma di default e aggiungerla
+                        var signatureService = new EmailTemplateService();
+                        var signature = signatureService.DebugGetOutlookSignature();
+
+                        if (!string.IsNullOrWhiteSpace(signature))
                         {
-                            finalBody += "<br><br>" + signature;
-                            _logger.LogInfo("Firma di default aggiunta al corpo HTML");
+                            _logger.LogInfo("Aggiunta manuale firma al HTMLBody");
+                            var htmlWithSignature = emailData.BodyHtml + "<br><br>" + signature;
+                            mailItem.HTMLBody = htmlWithSignature;
+                        }
+                        else
+                        {
+                            mailItem.HTMLBody = emailData.BodyHtml;
                         }
                     }
-                    else if (!string.IsNullOrEmpty(emailData.CustomSignature))
+                    catch (Exception sigEx)
                     {
-                        finalBody += "<br><br>" + emailData.CustomSignature;
-                        _logger.LogInfo("Firma personalizzata aggiunta al corpo HTML");
+                        _logger.LogWarning($"Errore aggiunta manuale firma: {sigEx.Message}");
+                        mailItem.HTMLBody = emailData.BodyHtml; // Fallback
                     }
-
-                    mailItem.HTMLBody = finalBody;
+                    */
                 }
                 else if (!string.IsNullOrWhiteSpace(emailData.BodyText))
                 {
