@@ -4,7 +4,7 @@ using System.Web;
 using JiraTicketManager.Services;
 using Microsoft.Win32;
 using System.IO;
-
+using System.Text.RegularExpressions;
 
 namespace JiraTicketManager.Services
 {
@@ -481,11 +481,14 @@ namespace JiraTicketManager.Services
                 var content = File.ReadAllText(signatureFile, Encoding.UTF8);
                 _logger.LogInfo($"Firma letta: {content.Length} caratteri");
 
-                // Log del contenuto per debug (solo le prime 200 caratteri)
-                var preview = content.Length > 200 ? content.Substring(0, 200) + "..." : content;
-                _logger.LogDebug($"Anteprima firma: {preview}");
+                // 🔥 NUOVA FUNZIONALITÀ: Processa le immagini prima di restituire
+                var processedContent = ProcessSignatureImages(content, signatureName);
 
-                return content;
+                // Log del contenuto finale per debug (solo le prime 300 caratteri)
+                var preview = processedContent.Length > 300 ? processedContent.Substring(0, 300) + "..." : processedContent;
+                _logger.LogDebug($"Anteprima firma processata: {preview}");
+
+                return processedContent;
             }
             catch (Exception ex)
             {
@@ -504,10 +507,11 @@ namespace JiraTicketManager.Services
                 // Pulisci la firma da eventuali tag html/body completi
                 var cleanSignature = CleanSignatureHtml(signatureHtml);
 
+                // Usa solo un singolo <br> per evitare doppi a capo
                 return $@"{templateHtml}
 
-                <br><br>
-                {cleanSignature}";
+<br>
+{cleanSignature}";
             }
             catch (Exception ex)
             {
@@ -526,10 +530,9 @@ namespace JiraTicketManager.Services
 
             try
             {
-                // Rimuovi tag html e head completi se presenti
                 var cleaned = signatureHtml;
 
-                // Estrai solo il contenuto del body se presente
+                // Estrai solo il contenuto del body se presente, ma preserva gli stili inline
                 var bodyStart = cleaned.IndexOf("<body", StringComparison.OrdinalIgnoreCase);
                 var bodyEnd = cleaned.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
 
@@ -543,13 +546,152 @@ namespace JiraTicketManager.Services
                     }
                 }
 
+                // Estrai gli stili CSS critici dall'header e convertili in stili inline
+                cleaned = PreserveEssentialStyles(signatureHtml, cleaned);
+
+                // Rimuovi solo gli elementi non necessari per l'email
+                cleaned = RemoveUnnecessaryElements(cleaned);
+
                 return cleaned.Trim();
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogError("Errore pulizia firma HTML", ex);
                 return signatureHtml; // Fallback
             }
         }
+
+        /// <summary>
+        /// Preserva gli stili CSS essenziali convertendoli in stili inline
+        /// </summary>
+        private string PreserveEssentialStyles(string originalHtml, string bodyContent)
+        {
+            try
+            {
+                // Estrai gli stili MsoNormal dal CSS originale
+                var msoNormalStyle = ExtractMsoNormalStyle(originalHtml);
+
+                if (!string.IsNullOrEmpty(msoNormalStyle))
+                {
+                    // Applica gli stili inline ai paragrafi che avevano class="MsoNormal"
+                    var msoNormalPattern = @"<p\s+class=([""']?)MsoNormal\1[^>]*>";
+                    bodyContent = System.Text.RegularExpressions.Regex.Replace(
+                        bodyContent,
+                        msoNormalPattern,
+                        match =>
+                        {
+                            var existingTag = match.Value;
+
+                            // Estrai eventuali stili esistenti
+                            var styleMatch = System.Text.RegularExpressions.Regex.Match(existingTag, @"style=([""'])([^""']*)\1");
+                            var existingStyles = styleMatch.Success ? styleMatch.Groups[2].Value : "";
+
+                            // Combina stili esistenti con MsoNormal
+                            var combinedStyles = string.IsNullOrEmpty(existingStyles)
+                                ? msoNormalStyle
+                                : $"{existingStyles};{msoNormalStyle}";
+
+                            // Ricostruisci il tag senza class ma con stili inline
+                            var cleanedTag = System.Text.RegularExpressions.Regex.Replace(existingTag, @"\s+class=([""']?)MsoNormal\1", "");
+                            cleanedTag = System.Text.RegularExpressions.Regex.Replace(cleanedTag, @"style=([""'])[^""']*\1", "");
+
+                            return cleanedTag.Replace("<p", $"<p style=\"{combinedStyles}\"").Replace(" >", ">");
+                        },
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                    );
+                }
+
+                return bodyContent;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Errore preservazione stili: {ex.Message}");
+                return bodyContent;
+            }
+        }
+
+        private string ExtractMsoNormalStyle(string html)
+        {
+            try
+            {
+                // Cerca la definizione di .MsoNormal nel CSS
+                var cssPattern = @"p\.MsoNormal[^{]*\{([^}]*)\}";
+                var match = System.Text.RegularExpressions.Regex.Match(html, cssPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+                if (match.Success)
+                {
+                    var cssRules = match.Groups[1].Value;
+
+                    // Converte le regole CSS più importanti per la spaziatura
+                    var inlineStyles = new List<string>();
+
+                    // Margin
+                    var marginMatch = System.Text.RegularExpressions.Regex.Match(cssRules, @"margin:\s*([^;]+)");
+                    if (marginMatch.Success)
+                        inlineStyles.Add($"margin:{marginMatch.Groups[1].Value.Trim()}");
+
+                    // Margin-bottom (più specifico)
+                    var marginBottomMatch = System.Text.RegularExpressions.Regex.Match(cssRules, @"margin-bottom:\s*([^;]+)");
+                    if (marginBottomMatch.Success)
+                        inlineStyles.Add($"margin-bottom:{marginBottomMatch.Groups[1].Value.Trim()}");
+
+                    // Font-size
+                    var fontSizeMatch = System.Text.RegularExpressions.Regex.Match(cssRules, @"font-size:\s*([^;]+)");
+                    if (fontSizeMatch.Success)
+                        inlineStyles.Add($"font-size:{fontSizeMatch.Groups[1].Value.Trim()}");
+
+                    // Font-family
+                    var fontFamilyMatch = System.Text.RegularExpressions.Regex.Match(cssRules, @"font-family:\s*([^;]+)");
+                    if (fontFamilyMatch.Success)
+                        inlineStyles.Add($"font-family:{fontFamilyMatch.Groups[1].Value.Trim()}");
+
+                    return string.Join(";", inlineStyles);
+                }
+
+                // Fallback: stili di base simili a MsoNormal
+                return "margin:0cm;font-size:12.0pt;font-family:Aptos,sans-serif";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Errore estrazione stili MsoNormal: {ex.Message}");
+                return "margin:0cm;font-size:12.0pt;font-family:Aptos,sans-serif";
+            }
+        }
+
+        /// <summary>
+        /// Rimuove elementi non necessari ma preserva la struttura essenziale
+        /// </summary>
+        private string RemoveUnnecessaryElements(string html)
+        {
+            try
+            {
+                var cleaned = html;
+
+                // Rimuovi commenti HTML ma mantieni tutto il resto
+                cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"<!--.*?-->", "", System.Text.RegularExpressions.RegexOptions.Singleline);
+
+                // Rimuovi tag XML Office specifici ma mantieni contenuto
+                cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"<\?xml[^>]*>", "");
+                cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"</?o:[^>]*>", "");
+                cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"</?w:[^>]*>", "");
+                cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"</?v:[^>]*>", "");
+
+                // Mantieni div.WordSection1 ma rimuovi solo la classe
+                cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"<div\s+class=([""']?)WordSection1\1[^>]*>", "<div>");
+
+                return cleaned;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Errore rimozione elementi non necessari: {ex.Message}");
+                return html;
+            }
+        }
+
+   
+
+
+
 
         /// <summary>
         /// Avvolge il contenuto in HTML completo
@@ -575,6 +717,169 @@ namespace JiraTicketManager.Services
         {
             _cachedSignature = signature;
             _lastSignatureCheck = DateTime.Now;
+        }
+
+        /// <summary>
+        /// Processa le immagini nella firma HTML convertendole in Base64
+        /// </summary>
+        /// <param name="htmlContent">HTML della firma con immagini linked</param>
+        /// <param name="signatureName">Nome del file firma (senza estensione)</param>
+        /// <returns>HTML con immagini convertite in Base64</returns>
+        private string ProcessSignatureImages(string htmlContent, string signatureName)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(htmlContent))
+                    return htmlContent;
+
+                _logger.LogInfo("🖼️ Inizio processamento immagini firma");
+
+                // Usa Regex per trovare tutti i tag img
+                var imgPattern = @"<img[^>]*src\s*=\s*[""']([^""']*)[""'][^>]*>";
+                var regex = new System.Text.RegularExpressions.Regex(imgPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+                var processedHtml = htmlContent;
+                var matches = regex.Matches(htmlContent);
+
+                _logger.LogInfo($"🔍 Trovati {matches.Count} tag <img>");
+
+                foreach (System.Text.RegularExpressions.Match match in matches)
+                {
+                    var fullImgTag = match.Value;
+                    var srcValue = match.Groups[1].Value;
+
+                    _logger.LogInfo($"📸 Processamento immagine: {srcValue}");
+
+                    // Verifica se è un percorso locale (non già base64 o URL)
+                    if (IsLocalImagePath(srcValue))
+                    {
+                        var base64Image = ConvertImageToBase64(srcValue, signatureName);
+                        if (!string.IsNullOrEmpty(base64Image))
+                        {
+                            // Sostituisci il src nell'HTML
+                            var newImgTag = fullImgTag.Replace($"src=\"{srcValue}\"", $"src=\"{base64Image}\"")
+                                                     .Replace($"src='{srcValue}'", $"src='{base64Image}'");
+
+                            processedHtml = processedHtml.Replace(fullImgTag, newImgTag);
+                            _logger.LogInfo($"✅ Immagine convertita: {srcValue} -> Base64 ({base64Image.Length} caratteri)");
+                        }
+                        else
+                        {
+                            _logger.LogWarning($"❌ Impossibile convertire: {srcValue}");
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogInfo($"⏭️ Saltata (già processata o URL remota): {srcValue}");
+                    }
+                }
+
+                _logger.LogInfo($"🎉 Processamento completato. HTML finale: {processedHtml.Length} caratteri");
+                return processedHtml;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore processamento immagini firma", ex);
+                return htmlContent; // Fallback: ritorna HTML originale
+            }
+        }
+
+        /// <summary>
+        /// Verifica se il percorso dell'immagine è locale (non base64 o URL)
+        /// </summary>
+        /// <param name="srcValue">Valore dell'attributo src</param>
+        /// <returns>True se è un percorso locale da convertire</returns>
+        private bool IsLocalImagePath(string srcValue)
+        {
+            if (string.IsNullOrWhiteSpace(srcValue))
+                return false;
+
+            // Salta se già base64
+            if (srcValue.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            // Salta se URL remota
+            if (srcValue.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                srcValue.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            // Salta se CID (Content-ID per email)
+            if (srcValue.StartsWith("cid:", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            // È un percorso locale se contiene riferimenti ai file della firma
+            return srcValue.Contains("_file/") || srcValue.Contains("_files/");
+        }
+
+        /// <summary>
+        /// Converte un'immagine locale in stringa Base64
+        /// </summary>
+        /// <param name="imagePath">Percorso relativo dell'immagine</param>
+        /// <param name="signatureName">Nome del file firma</param>
+        /// <returns>Stringa data:image/... o stringa vuota se errore</returns>
+        private string ConvertImageToBase64(string imagePath, string signatureName)
+        {
+            try
+            {
+                // Costruisci il percorso completo del file immagine
+                var signaturesPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "Microsoft", "Signatures");
+
+                // Decodifica il percorso URL (es: %20 -> spazio)
+                var decodedPath = System.Web.HttpUtility.UrlDecode(imagePath);
+
+                // Il percorso nell'HTML è relativo alla cartella della firma
+                var fullImagePath = Path.Combine(signaturesPath, decodedPath);
+
+                _logger.LogInfo($"🔍 Ricerca immagine: {fullImagePath}");
+
+                if (!File.Exists(fullImagePath))
+                {
+                    _logger.LogWarning($"❌ File immagine non trovato: {fullImagePath}");
+                    return "";
+                }
+
+                // Leggi il file come byte array
+                var imageBytes = File.ReadAllBytes(fullImagePath);
+
+                // Determina il tipo MIME
+                var mimeType = GetImageMimeType(fullImagePath);
+
+                // Converti in Base64
+                var base64String = Convert.ToBase64String(imageBytes);
+                var result = $"data:{mimeType};base64,{base64String}";
+
+                _logger.LogInfo($"✅ Immagine convertita: {imageBytes.Length} bytes -> {base64String.Length} caratteri Base64");
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore conversione immagine '{imagePath}'", ex);
+                return "";
+            }
+        }
+
+        /// <summary>
+        /// Determina il tipo MIME di un file immagine basandosi sull'estensione
+        /// </summary>
+        /// <param name="filePath">Percorso del file</param>
+        /// <returns>Tipo MIME (es: image/png)</returns>
+        private string GetImageMimeType(string filePath)
+        {
+            var extension = Path.GetExtension(filePath).ToLowerInvariant();
+
+            return extension switch
+            {
+                ".png" => "image/png",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".gif" => "image/gif",
+                ".bmp" => "image/bmp",
+                ".svg" => "image/svg+xml",
+                ".ico" => "image/x-icon",
+                _ => "image/png" // Default fallback
+            };
         }
 
         #endregion
@@ -724,7 +1029,7 @@ namespace JiraTicketManager.Services
         /// </summary>
         public string DebugGetOutlookSignature()
         {
-            _logger.LogInfo("🧪 DEBUG: Lettura firma Outlook");
+            _logger.LogInfo("🧪 DEBUG: Lettura firma Outlook CON processamento immagini");
 
             // Forza il refresh della cache
             _cachedSignature = null;
@@ -735,9 +1040,36 @@ namespace JiraTicketManager.Services
             if (!string.IsNullOrEmpty(signature))
             {
                 _logger.LogInfo($"🧪 DEBUG: Lunghezza firma: {signature.Length}");
+
+                // Conta le immagini Base64 nella firma
+                var base64Count = CountBase64Images(signature);
+                _logger.LogInfo($"🧪 DEBUG: Immagini Base64 trovate: {base64Count}");
+
+                // Verifica dimensioni approssimative
+                if (signature.Length > 50000) // Firma con immagini dovrebbe essere più grande
+                {
+                    _logger.LogInfo("🧪 DEBUG: Dimensioni compatibili con immagini incluse");
+                }
+                else
+                {
+                    _logger.LogWarning("🧪 DEBUG: Dimensioni sospette - potrebbero mancare immagini");
+                }
             }
 
             return signature;
+        }
+
+        /// <summary>
+        /// Conta le immagini Base64 nell'HTML
+        /// </summary>
+        private int CountBase64Images(string htmlContent)
+        {
+            if (string.IsNullOrEmpty(htmlContent))
+                return 0;
+
+            var base64Pattern = @"src\s*=\s*[""']data:image/[^""']*[""']";
+            var matches = Regex.Matches(htmlContent, base64Pattern, RegexOptions.IgnoreCase);
+            return matches.Count;
         }
     }
 }

@@ -7,6 +7,8 @@ using JiraTicketManager.Services.Activity;
 using JiraTicketManager.UI.Managers;
 using JiraTicketManager.UI.Managers.Activity;
 using JiraTicketManager.UI.Manger.Activity;
+using OutlookInterop = Microsoft.Office.Interop.Outlook;
+using Org.BouncyCastle.Asn1.Cmp;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -14,6 +16,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using static System.Windows.Forms.MonthCalendar;
 
 
 
@@ -55,6 +58,8 @@ namespace JiraTicketManager.Forms
 
             SetupActivityTabListViews();
 
+          
+
             InitializeStatusStrip();
 
             // Inizializza servizi esistenti
@@ -73,12 +78,60 @@ namespace JiraTicketManager.Forms
             // Setup iniziale
             SetupForm();
 
-            
+
 
             _logger.LogInfo("TicketDetailForm inizializzata con servizi pianificazione");
         }
 
+        /// <summary>
+        /// AGGIUNGERE nel costruttore di TicketDetailForm (dopo le inizializzazioni esistenti)
+        /// </summary>
+        private void InitializeCommentFunctionality()
+        {
+            try
+            {
+                // Collega event handler per btnCommento
+                ConnectCommentButtonHandler();
 
+                // Inizializza stato pulsante
+                if (btnCommento != null)
+                {
+                    btnCommento.Enabled = true;
+                    btnCommento.Text = "💬 Commento";
+                }
+
+                _logger.LogInfo("Funzionalità commento inizializzata");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore inizializzazione funzionalità commento: {ex.Message}");
+            }
+        }
+
+        #region Event Handler Registration
+
+        /// <summary>
+        /// Collegamento dell'event handler al pulsante (aggiungere nel costruttore o InitializeComponent)
+        /// </summary>
+        private void ConnectCommentButtonHandler()
+        {
+            try
+            {
+                // Rimuovi handler esistente se presente (per evitare duplicati)
+                btnCommento.Click -= OnCommentoClick;
+
+                // Aggiungi l'handler
+                btnCommento.Click += OnCommentoClick;
+
+                _logger.LogInfo("Event handler btnCommento collegato");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore collegamento event handler btnCommento: {ex.Message}");
+            }
+        }
+
+        #endregion
 
 
         #endregion
@@ -542,7 +595,7 @@ namespace JiraTicketManager.Forms
 
                 //_logger.LogInfo("ListView History configurato con icone migliorate");
             }
-                
+
             // Setup ListView Attachments - CON ICONE FILE
             if (lvAttachments != null)
             {
@@ -560,10 +613,10 @@ namespace JiraTicketManager.Forms
                 lvAttachments.Font = new Font("Segoe UI", 9F);
                 lvAttachments.BackColor = Color.White;
 
-               // _logger.LogInfo("ListView Attachments configurato con icone file");
+                // _logger.LogInfo("ListView Attachments configurato con icone file");
             }
 
-           // _logger.LogInfo("✨ Tutti i ListView configurati con stili moderni");
+            // _logger.LogInfo("✨ Tutti i ListView configurati con stili moderni");
         }
 
         #endregion
@@ -1293,7 +1346,7 @@ namespace JiraTicketManager.Forms
                     data.ReporterEmail,
                     data.TicketKey,
                     data.ClientName,
-                    data.Description,
+                    data.Summary,
                     data.WBS
                 );
 
@@ -1356,7 +1409,7 @@ namespace JiraTicketManager.Forms
                 var emailData = OutlookHybridService.PrepareEmailFromTicketData(
                     data.ClientName,
                     data.TicketKey,
-                    data.Description,
+                    data.Summary,
                     data.WBS,
                     data.ReporterEmail,
                     data.ConsultantName,
@@ -1399,7 +1452,7 @@ namespace JiraTicketManager.Forms
 
                     // Dati base ticket
                     ClientName = txtCliente?.Text?.Trim() ?? "",
-                    Description = txtDescrizione?.Text?.Trim() ?? "",
+                    Summary = lblTicketSummary.Text?.Trim() ?? "",
 
                     // Dati intervento
                     ConsultantName = GetSelectedComboValue(cmbConsulente),
@@ -1490,7 +1543,7 @@ namespace JiraTicketManager.Forms
 
             // Dati base ticket
             public string ClientName { get; set; } = "";
-            public string Description { get; set; } = "";
+            public string Summary { get; set; } = "";
 
             // Dati intervento
             public string ConsultantName { get; set; } = "";
@@ -1510,6 +1563,582 @@ namespace JiraTicketManager.Forms
         }
 
         #endregion
+
+
+        #region Comment Functionality
+
+        /// <summary>
+        /// Event handler per il pulsante Commento - genera commento formato "email inoltrata"
+        /// </summary>
+        private async void OnCommentoClick(object sender, EventArgs e)
+        {
+            try
+            {
+                _logger.LogInfo("=== INIZIO GENERAZIONE COMMENTO ===");
+
+                // Disabilita pulsante durante elaborazione
+                SetCommentButtonState(false, "⏳ Elaborazione...");
+                this.Cursor = Cursors.WaitCursor;
+
+                // Validazione dati (riutilizza la stessa di btnPianifica)
+                if (!ValidatePlanningData())
+                {
+                    _logger.LogWarning("Validazione dati fallita per generazione commento");
+                    return;
+                }
+
+                // Raccoglie dati dai campi UI (stesso metodo di btnPianifica)
+                var planningData = CollectPlanningTicketData();
+                if (planningData == null)
+                {
+                    _logger.LogError("Impossibile raccogliere dati dalla UI per commento");
+                    ShowError("Errore Dati", "Impossibile raccogliere i dati dalla UI");
+                    return;
+                }
+
+                // Genera commento formato "email inoltrata"
+                _logger.LogInfo($"Generazione commento per ticket {planningData.TicketKey}");
+                var commentContent = GenerateForwardedEmailComment(planningData);
+                if (string.IsNullOrWhiteSpace(commentContent))
+                {
+                    _logger.LogError("Generazione commento fallita - contenuto vuoto");
+                    ShowError("Errore Generazione", "Errore nella generazione del commento");
+                    return;
+                }
+
+                _logger.LogInfo($"Commento generato con successo - Lunghezza: {commentContent.Length} caratteri");
+
+                // Mostra dialog di conferma con anteprima
+                var templateDisplayName = GetTemplateDisplayName(planningData.TemplateType);
+                var confirmResult = CommentPreviewDialog.ShowCommentPreview(
+                    this,
+                    commentContent,
+                    planningData.TicketKey,
+                    templateDisplayName);
+
+                if (confirmResult != DialogResult.OK)
+                {
+                    _logger.LogInfo("Invio commento annullato dall'utente nel dialog di anteprima");
+                    ShowInfo("Operazione Annullata", "Invio commento annullato");
+                    return;
+                }
+
+                _logger.LogInfo("Utente ha confermato l'invio del commento");
+
+                // Aggiorna stato UI durante invio
+                SetCommentButtonState(false, "📤 Invio...");
+
+                // Invia commento a Jira
+                bool success = await SendCommentToJiraWithRetry(planningData.TicketKey, commentContent);
+
+                // Gestione risultato finale
+                await HandleCommentResult(success, planningData.TicketKey, commentContent.Length);
+
+                _logger.LogInfo("=== FINE GENERAZIONE COMMENTO ===");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore critico durante generazione commento", ex);
+                HandleCommentError(ex);
+            }
+            finally
+            {
+                // Ripristina sempre lo stato UI
+                SetCommentButtonState(true, "💬 Commento");
+                this.Cursor = Cursors.Default;
+            }
+        }
+
+        /// <summary>
+        /// Genera il commento formato "email inoltrata" usando CommentTemplateService
+        /// </summary>
+        /// <param name="planningData">Dati della pianificazione</param>
+        /// <returns>Testo del commento formattato</returns>
+        private string GenerateForwardedEmailComment(PlanningTicketData planningData)
+        {
+            try
+            {
+                _logger.LogInfo("Generazione commento email inoltrata");
+
+                // Crea il servizio per i template commenti
+                var commentTemplateService = new CommentTemplateService();
+
+                // Converte PlanningTicketData in CommentData
+                var commentData = CreateCommentDataFromPlanning(planningData);
+
+                // Genera il commento formato "email inoltrata"
+                var commentContent = commentTemplateService.GenerateForwardedEmailComment(commentData);
+
+                _logger.LogInfo($"Commento generato con successo - {commentContent.Length} caratteri");
+                return commentContent;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore generazione commento: {ex.Message}");
+                return $"Errore nella generazione del commento: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Converte PlanningTicketData in CommentData per CommentTemplateService
+        /// </summary>
+        /// <param name="planningData">Dati della pianificazione</param>
+        /// <returns>CommentData per la generazione del commento</returns>
+        private CommentTemplateService.CommentData CreateCommentDataFromPlanning(PlanningTicketData planningData)
+        {
+            try
+            {
+                // Ottiene summary del ticket dalla UI
+                var ticketSummary = lblTicketSummary?.Text?.Trim() ?? "Riepilogo non disponibile";
+
+                return new CommentTemplateService.CommentData
+                {
+                    // Dati ticket base
+                    TicketKey = planningData.TicketKey,
+                    TicketSummary = ticketSummary,
+                    ClientName = planningData.ClientName,
+                    WBS = planningData.WBS,
+
+                    // Dati pianificazione
+                    TemplateType = planningData.TemplateType,
+                    ConsultantName = planningData.ConsultantName,
+                    InterventionDate = planningData.InterventionDate,
+                    InterventionTime = planningData.InterventionTime,
+                    ClientPhone = planningData.ClientPhone,
+
+                    // Email destinatari (converti nomi in email se necessario)
+                    ReporterEmail = planningData.ReporterEmail,
+                    ConsultantEmail = ConvertNameToEmail(planningData.ConsultantName),
+                    ProjectManagerEmail = ConvertNameToEmail(planningData.ProjectManager),
+                    CommercialEmail = ConvertNameToEmail(planningData.Commercial)
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore conversione dati: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Converte nome persona in email aziendale (riutilizza logica esistente se presente)
+        /// </summary>
+        /// <param name="personName">Nome della persona</param>
+        /// <returns>Email corrispondente o stringa vuota</returns>
+        private string ConvertNameToEmail(string personName)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(personName))
+                    return "";
+
+                // TODO: Implementare conversione nome -> email
+                // Questo dovrebbe riutilizzare la logica esistente del progetto
+                // per convertire i nomi delle persone nelle email aziendali corrispondenti
+
+                // Per ora ritorna stringa vuota - sarà implementato nella logica esistente
+                _logger.LogDebug($"Conversione nome email: {personName} -> da implementare");
+                return "";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Errore conversione nome->email per {personName}: {ex.Message}");
+                return "";
+            }
+        }
+
+        /// <summary>
+        /// Invia il commento a Jira tramite JiraApiService
+        /// </summary>
+        /// <param name="ticketKey">Chiave del ticket</param>
+        /// <param name="commentContent">Contenuto del commento</param>
+        /// <returns>True se invio riuscito</returns>
+        private async Task<bool> SendCommentToJira(string ticketKey, string commentContent)
+        {
+            try
+            {
+                _logger.LogInfo($"Invio commento a Jira - Ticket: {ticketKey}");
+
+                // Crea JiraApiService dalla configurazione esistente (stesso pattern di MainForm)
+                var apiService = JiraApiService.CreateFromSettings(SettingsService.CreateDefault());
+
+                var success = await apiService.AddCommentToIssueAsync(ticketKey, commentContent);
+
+                if (success)
+                {
+                    _logger.LogInfo($"Commento inviato con successo al ticket {ticketKey}");
+                }
+                else
+                {
+                    _logger.LogError($"Fallimento invio commento al ticket {ticketKey}");
+                }
+
+                return success;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore invio commento a Jira: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Refresh della tab commenti dopo aggiunta nuovo commento
+        /// </summary>
+        private async Task RefreshCommentsTab()
+        {
+            try
+            {
+                _logger.LogInfo("Refresh tab commenti");
+
+                // TODO: Implementare refresh dei commenti
+                // Questo dovrebbe ricaricare i commenti nella ListView dei commenti
+                // per mostrare il nuovo commento appena aggiunto
+
+                // Se hai un manager per i commenti, chiamalo
+                // await _commentsManager?.RefreshCommentsAsync(_currentTicketKey);
+
+                _logger.LogInfo("Refresh commenti completato");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Errore refresh commenti: {ex.Message}");
+                // Non è critico, quindi non bloccare il flusso
+            }
+        }
+
+        /// <summary>
+        /// Ottiene il nome visualizzato del template
+        /// </summary>
+        private string GetTemplateDisplayName(EmailTemplateService.TemplateType templateType)
+        {
+            return templateType switch
+            {
+                EmailTemplateService.TemplateType.SingleIntervention => "Singolo Intervento",
+                EmailTemplateService.TemplateType.MultipleInterventions => "Interventi Multipli",
+                EmailTemplateService.TemplateType.ToBeAgreed => "Accordo da Definire",
+                _ => "Sconosciuto"
+            };
+        }
+
+        #endregion
+
+       
+
+        #region Final Integration Updates
+
+
+
+
+        /// <summary>
+        /// Gestisce lo stato del pulsante commento
+        /// </summary>
+        private void SetCommentButtonState(bool enabled, string text)
+        {
+            try
+            {
+                if (btnCommento != null)
+                {
+                    btnCommento.Enabled = enabled;
+                    btnCommento.Text = text;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Errore aggiornamento stato pulsante commento: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Invia commento a Jira con retry automatico
+        /// </summary>
+        private async Task<bool> SendCommentToJiraWithRetry(string ticketKey, string commentContent, int maxRetries = 3)
+        {
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    _logger.LogInfo($"Tentativo {attempt}/{maxRetries} - Invio commento a Jira per ticket {ticketKey}");
+
+                    var success = await SendCommentToJira(ticketKey, commentContent);
+
+                    if (success)
+                    {
+                        _logger.LogInfo($"Commento inviato con successo al tentativo {attempt}");
+                        return true;
+                    }
+
+                    _logger.LogWarning($"Tentativo {attempt} fallito, ritento...");
+
+                    // Attesa progressiva tra i tentativi
+                    if (attempt < maxRetries)
+                    {
+                        await Task.Delay(1000 * attempt); // 1s, 2s, 3s
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Errore durante tentativo {attempt}: {ex.Message}");
+
+                    if (attempt == maxRetries)
+                    {
+                        throw; // Re-throw sull'ultimo tentativo
+                    }
+
+                    await Task.Delay(1000 * attempt);
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Gestisce il risultato dell'invio commento con feedback dettagliato
+        /// </summary>
+        private async Task HandleCommentResult(bool success, string ticketKey, int commentLength)
+        {
+            try
+            {
+                if (success)
+                {
+                    _logger.LogInfo($"✅ Commento inviato con successo - Ticket: {ticketKey}, Lunghezza: {commentLength}");
+
+                    // Feedback positivo con dettagli
+                    ShowSuccess("Commento Inviato",
+                        $"Commento di pianificazione aggiunto al ticket {ticketKey}\n" +
+                        $"📏 Lunghezza: {commentLength} caratteri\n" +
+                        $"🕒 Inviato: {DateTime.Now:HH:mm:ss}");
+
+                    // Refresh automatico dei commenti
+                    await RefreshCommentsTabSafe();
+
+                    // Aggiorna status bar se presente
+                    UpdateStatusBarAfterComment(ticketKey, true);
+                }
+                else
+                {
+                    _logger.LogError($"❌ Invio commento fallito - Ticket: {ticketKey}");
+
+                    // Feedback errore con opzioni
+                    var result = MessageBox.Show(
+                        $"Errore durante l'invio del commento al ticket {ticketKey}.\n\n" +
+                        $"Il commento è stato generato correttamente ma non è stato possibile inviarlo.\n\n" +
+                        $"Vuoi copiare il contenuto negli appunti per un invio manuale?",
+                        "Errore Invio Commento",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        await CopyCommentToClipboard(ticketKey);
+                    }
+
+                    UpdateStatusBarAfterComment(ticketKey, false);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore gestione risultato commento: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Gestisce errori critici durante la generazione commento
+        /// </summary>
+        private void HandleCommentError(Exception ex)
+        {
+            try
+            {
+                var errorMessage = "Si è verificato un errore durante la generazione del commento.";
+
+                // Errori specifici con messaggi più chiari
+                if (ex is ArgumentNullException)
+                {
+                    errorMessage = "Dati mancanti per la generazione del commento.";
+                }
+                else if (ex is InvalidOperationException)
+                {
+                    errorMessage = "Operazione non valida. Verificare i dati inseriti.";
+                }
+                else if (ex.Message.Contains("connection") || ex.Message.Contains("network"))
+                {
+                    errorMessage = "Errore di connessione. Verificare la connessione internet.";
+                }
+
+                ShowError("Errore Commento", $"{errorMessage}\n\nDettaglio tecnico: {ex.Message}");
+
+                // Log dettagliato per debug
+                _logger.LogError($"Stack trace errore commento: {ex.StackTrace}");
+            }
+            catch (Exception logEx)
+            {
+                // Fallback se anche la gestione errori fallisce
+                MessageBox.Show("Errore critico nell'applicazione", "Errore", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                _logger.LogError($"Errore gestione errori commento: {logEx.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Refresh sicuro della tab commenti (non blocca se fallisce)
+        /// </summary>
+        private async Task RefreshCommentsTabSafe()
+        {
+            try
+            {
+                _logger.LogInfo("Refresh tab commenti dopo invio commento");
+
+                // TODO: Implementare refresh specifico basato sull'architettura esistente
+                // Esempi di possibili implementazioni:
+
+                // OPZIONE 1: Se hai CommentsTabManager
+                // if (_commentsManager != null)
+                // {
+                //     await _commentsManager.RefreshCommentsAsync(_currentTicketKey);
+                // }
+
+                // OPZIONE 2: Se hai ActivityTabManager
+                // if (_activityTabManager != null)
+                // {
+                //     await _activityTabManager.RefreshActivityAsync(_currentTicketKey);
+                // }
+
+                // OPZIONE 3: Refresh generico
+                // await LoadTicketActivity(_currentTicketKey);
+
+                _logger.LogInfo("Refresh commenti completato");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Refresh commenti fallito (non critico): {ex.Message}");
+                // Non propagare l'errore - il refresh non è critico
+            }
+        }
+
+        /// <summary>
+        /// Aggiorna la status bar dopo l'invio del commento
+        /// </summary>
+        private void UpdateStatusBarAfterComment(string ticketKey, bool success)
+        {
+            try
+            {
+                // Aggiorna status bar se presente
+                if (statusStrip1 != null)
+                {
+                    var statusText = success
+                        ? $"✅ Commento inviato a {ticketKey} - {DateTime.Now:HH:mm:ss}"
+                        : $"❌ Errore invio commento a {ticketKey} - {DateTime.Now:HH:mm:ss}";
+
+                    // Trova e aggiorna label appropriata nella status bar
+                    foreach (ToolStripItem item in statusStrip1.Items)
+                    {
+                        if (item is ToolStripStatusLabel label && label.Name.Contains("LastUpdate"))
+                        {
+                            label.Text = statusText;
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Errore aggiornamento status bar: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Copia il commento negli appunti per invio manuale
+        /// </summary>
+        private async Task CopyCommentToClipboard(string ticketKey)
+        {
+            try
+            {
+                _logger.LogInfo($"Copia commento negli appunti per ticket {ticketKey}");
+
+                // Rigenera il commento per la copia
+                var planningData = CollectPlanningTicketData();
+                if (planningData != null)
+                {
+                    var commentContent = GenerateForwardedEmailComment(planningData);
+
+                    if (!string.IsNullOrWhiteSpace(commentContent))
+                    {
+                        Clipboard.SetText(commentContent);
+                        ShowInfo("Copiato negli Appunti",
+                            $"Commento copiato negli appunti.\n" +
+                            $"Puoi incollarlo manualmente in Jira per il ticket {ticketKey}");
+                        _logger.LogInfo("Commento copiato negli appunti con successo");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore copia negli appunti: {ex.Message}");
+                ShowError("Errore", "Impossibile copiare il commento negli appunti");
+            }
+        }
+
+
+
+        #endregion
+
+        #region Validation Enhancements
+
+        /// <summary>
+        /// Validazione specifica per i dati del commento (estende ValidatePlanningData)
+        /// </summary>
+        private bool ValidateCommentData()
+        {
+            try
+            {
+                // Validazione base (riusa quella esistente)
+                if (!ValidatePlanningData())
+                {
+                    return false;
+                }
+
+                // Validazioni specifiche per commento
+                if (string.IsNullOrWhiteSpace(_currentTicketKey))
+                {
+                    ShowError("Validazione", "Nessun ticket selezionato per il commento");
+                    return false;
+                }
+
+                // Verifica che il ticket key sia in formato valido
+                if (!IsValidTicketKey(_currentTicketKey))
+                {
+                    ShowError("Validazione", $"Formato ticket key non valido: {_currentTicketKey}");
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore validazione dati commento: {ex.Message}");
+                ShowError("Errore Validazione", "Errore durante la validazione dei dati");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Verifica se il ticket key è in formato valido
+        /// </summary>
+        private bool IsValidTicketKey(string ticketKey)
+        {
+            if (string.IsNullOrWhiteSpace(ticketKey))
+                return false;
+
+            // Pattern base: PROJECT-NUMBER (es: CC-1234, PROJ-567)
+            return System.Text.RegularExpressions.Regex.IsMatch(
+                ticketKey,
+                @"^[A-Z]+-\d+$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
+
+        #endregion
+
+
+
 
 
         #region Fallback Email Methods

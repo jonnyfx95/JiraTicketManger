@@ -586,6 +586,191 @@ namespace JiraTicketManager.Services
         #endregion
 
 
+       
+
+        #region Comments API
+
+        /// <summary>
+        /// Aggiunge un commento a un issue Jira utilizzando API v3 con formato ADF
+        /// </summary>
+        /// <param name="issueKey">Chiave del ticket (es. ISSUE-123)</param>
+        /// <param name="commentText">Testo del commento da aggiungere</param>
+        /// <returns>True se il commento è stato aggiunto con successo</returns>
+        public async Task<bool> AddCommentToIssueAsync(string issueKey, string commentText)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(issueKey))
+                {
+                    _logger.LogError("IssueKey non può essere vuoto");
+                    return false;
+                }
+
+                if (string.IsNullOrWhiteSpace(commentText))
+                {
+                    _logger.LogError("CommentText non può essere vuoto");
+                    return false;
+                }
+
+                _logger.LogInfo($"Aggiunta commento a issue: {issueKey}");
+
+                // Costruisci URL API v3
+                var url = $"{Domain}/rest/api/3/issue/{issueKey}/comment";
+                _logger.LogDebug($"URL commento: {url}");
+
+                // Converti testo in formato ADF (Atlassian Document Format)
+                var adfBody = ConvertTextToADF(commentText);
+
+                // Crea il payload JSON
+                var payload = new JObject
+                {
+                    ["body"] = adfBody
+                };
+
+                var jsonContent = payload.ToString();
+                _logger.LogDebug($"Payload commento: {jsonContent.Length} caratteri");
+
+                // Crea la richiesta HTTP
+                using (var request = new HttpRequestMessage(HttpMethod.Post, url))
+                {
+                    request.Headers.Add("Authorization", GetAuthorizationHeader());
+                    request.Headers.Add("Accept", "application/json");
+                    request.Content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+                    // Invia la richiesta
+                    using (var response = await _httpClient.SendAsync(request))
+                    {
+                        var responseContent = await response.Content.ReadAsStringAsync();
+
+                        if (response.IsSuccessStatusCode)
+                        {
+                            _logger.LogInfo($"Commento aggiunto con successo a {issueKey}");
+                            _logger.LogDebug($"Risposta API: {responseContent}");
+                            return true;
+                        }
+                        else
+                        {
+                            _logger.LogError($"Errore aggiunta commento a {issueKey}. Status: {response.StatusCode}");
+                            _logger.LogError($"Risposta errore: {responseContent}");
+                            return false;
+                        }
+                    }
+                }
+            }
+            catch (HttpRequestException httpEx)
+            {
+                _logger.LogError($"Errore HTTP aggiunta commento a {issueKey}: {httpEx.Message}");
+                return false;
+            }
+            catch (TaskCanceledException tcEx)
+            {
+                _logger.LogError($"Timeout aggiunta commento a {issueKey}: {tcEx.Message}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore generale aggiunta commento a {issueKey}: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Converte testo normale in formato ADF (Atlassian Document Format)
+        /// Ogni riga del testo diventa un paragrafo separato in ADF
+        /// </summary>
+        /// <param name="text">Testo da convertire</param>
+        /// <returns>JObject in formato ADF</returns>
+        private JObject ConvertTextToADF(string text)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    return CreateEmptyADFDocument();
+                }
+
+                // Dividi il testo in righe
+                var lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                var contentArray = new JArray();
+
+                foreach (var line in lines)
+                {
+                    // Crea un paragrafo per ogni riga (anche se vuota)
+                    var paragraph = new JObject
+                    {
+                        ["type"] = "paragraph",
+                        ["content"] = new JArray()
+                    };
+
+                    if (!string.IsNullOrWhiteSpace(line))
+                    {
+                        // Aggiungi il testo al paragrafo
+                        var textNode = new JObject
+                        {
+                            ["type"] = "text",
+                            ["text"] = line
+                        };
+                        ((JArray)paragraph["content"]).Add(textNode);
+                    }
+
+                    contentArray.Add(paragraph);
+                }
+
+                // Crea il documento ADF completo
+                var adfDocument = new JObject
+                {
+                    ["type"] = "doc",
+                    ["version"] = 1,
+                    ["content"] = contentArray
+                };
+
+                _logger.LogDebug($"Testo convertito in ADF: {lines.Length} righe → {contentArray.Count} paragrafi");
+                return adfDocument;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore conversione testo in ADF: {ex.Message}");
+                return CreateEmptyADFDocument();
+            }
+        }
+
+        /// <summary>
+        /// Crea un documento ADF vuoto come fallback
+        /// </summary>
+        /// <returns>Documento ADF vuoto</returns>
+        private JObject CreateEmptyADFDocument()
+        {
+            return new JObject
+            {
+                ["type"] = "doc",
+                ["version"] = 1,
+                ["content"] = new JArray
+        {
+            new JObject
+            {
+                ["type"] = "paragraph",
+                ["content"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["type"] = "text",
+                        ["text"] = "[Commento vuoto]"
+                    }
+                }
+            }
+        }
+            };
+        }
+
+        /// <summary>
+        /// Metodo helper pubblico per ottenere l'header di autorizzazione
+        /// (già esistente nel progetto, ma lo rendo pubblico se necessario)
+        /// </summary>
+      
+
+        #endregion
+       
+
 
         /// <summary>
         /// Risultato di una ricerca Jira

@@ -14,6 +14,12 @@ namespace JiraTicketManager.Helpers
         /// </summary>
         /// <param name="fullName">Nome completo (es. "Jonathan Felix Da Silva")</param>
         /// <returns>Email convertita (es. "jonathan.felixdasilva@dedagroup.it")</returns>
+        /// <summary>
+        /// Converte un nome completo in email aziendale @dedagroup.it
+        /// Logica: primo.restounito@dedagroup.it CON GESTIONE CASI SPECIALI
+        /// </summary>
+        /// <param name="fullName">Nome completo (es. "Jonathan Felix Da Silva")</param>
+        /// <returns>Email convertita (es. "jonathan.felixdasilva@dedagroup.it")</returns>
         public static string ConvertNameToEmail(string fullName)
         {
             try
@@ -26,6 +32,24 @@ namespace JiraTicketManager.Helpers
 
                 _logger.LogInfo($"Conversione nome: '{fullName}'");
 
+                // 🔥 AGGIUNGI I CASI SPECIALI ALL'INIZIO
+                var specialCases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "NICOLA GIOVANNI LUPO", "nicolagiovanni.lupo@dedagroup.it" },
+            { "JONATHAN FELIX DA SILVA", "jonathan.felixdasilva@dedagroup.it" },
+            { "FRANCESCA FELICITA MAIELLO", "francescafelicita.maiello@dedagroup.it" },
+            { "GIANNI LORENZO ZULLI", "giannilorenzo.zulli@dedagroup.it" },
+            { "RAZVAN ALEXANDRU BARABANCEA", "razvanalexandru.barabancea@dedagroup.it" }
+        };
+
+                // Controlla se è un caso speciale
+                if (specialCases.TryGetValue(fullName.Trim(), out var specialEmail))
+                {
+                    _logger.LogInfo($"Caso speciale applicato: '{fullName}' → '{specialEmail}'");
+                    return specialEmail;
+                }
+
+                // Se non è un caso speciale, continua con la logica normale
                 // Pulizia iniziale
                 string cleanName = fullName.Trim()
                     .Replace("'", "")                       // Rimuovi apostrofi
