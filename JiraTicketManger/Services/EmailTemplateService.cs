@@ -157,9 +157,9 @@ namespace JiraTicketManager.Services
         /// <param name="wbs">Codice WBS</param>
         /// <returns>Commento formattato per Jira</returns>
         public string GenerateJiraComment(TemplateType templateType, string consultantName,
-            string interventionDate, string interventionTime, string clientPhone,
-            string responsiblePerson, string projectManager, string commercial,
-            string reporter, string ticketKey, string clientName, string description, string wbs)
+     string interventionDate, string interventionTime, string clientPhone,
+     string responsiblePerson, string projectManager, string commercial,
+     string reporter, string ticketKey, string clientName, string description, string wbs)
         {
             try
             {
@@ -194,9 +194,9 @@ namespace JiraTicketManager.Services
                 commentBuilder.AppendLine("─" + new string('─', 55));
                 commentBuilder.AppendLine();
 
-                // Corpo del messaggio (versione testuale)
-                var textContent = GenerateTextPreview(templateType, consultantName, interventionDate, interventionTime, clientPhone);
-                commentBuilder.AppendLine(textContent);
+                
+                var emailBodyContent = GenerateTextPreview(templateType, consultantName, interventionDate, interventionTime, clientPhone);
+                commentBuilder.AppendLine(emailBodyContent);
 
                 commentBuilder.AppendLine();
                 commentBuilder.AppendLine("─" + new string('─', 55));
@@ -214,7 +214,6 @@ namespace JiraTicketManager.Services
                 return $"Errore nella generazione del commento: {ex.Message}";
             }
         }
-
         #endregion
 
         #region Private Template Generators - Text

@@ -58,7 +58,7 @@ namespace JiraTicketManager.Forms
 
             SetupActivityTabListViews();
 
-            InitializeCommentFunctionality();
+            //InitializeCommentFunctionality();
 
             InitializeStatusStrip();
 
@@ -77,6 +77,8 @@ namespace JiraTicketManager.Forms
 
             // Setup iniziale
             SetupForm();
+
+            InitializeCommentFunctionality();
 
 
 
@@ -130,6 +132,7 @@ namespace JiraTicketManager.Forms
                 _logger.LogError($"Errore collegamento event handler btnCommento: {ex.Message}");
             }
         }
+
 
         #endregion
 
@@ -1327,13 +1330,19 @@ namespace JiraTicketManager.Forms
         /// <summary>
         /// Aggiunge commento Jira con dettagli della pianificazione
         /// </summary>
+        /// <summary>
+        /// Aggiunge commento Jira con dettagli della pianificazione
+        /// </summary>
+        /// <summary>
+        /// Aggiunge commento Jira con dettagli della pianificazione
+        /// </summary>
         private async Task AddJiraCommentAsync(PlanningTicketData data, string textContent)
         {
             try
             {
                 _logger.LogInfo("Aggiunta commento Jira");
 
-                // Genera commento usando EmailTemplateService
+                // Genera commento usando EmailTemplateService con template dinamico
                 var comment = _emailTemplateService.GenerateJiraComment(
                     data.TemplateType,
                     data.ConsultantName,
@@ -1346,12 +1355,13 @@ namespace JiraTicketManager.Forms
                     data.ReporterEmail,
                     data.TicketKey,
                     data.ClientName,
-                    data.Summary,
+                    data.Description,
                     data.WBS
                 );
 
-                // Aggiunge commento tramite API (da implementare se necessario)
-                // await _dataService.AddCommentAsync(data.TicketKey, comment);
+               
+                var jiraApiService = new JiraApiService(SettingsService.CreateDefault());
+                await jiraApiService.AddCommentToIssueAsync(data.TicketKey, comment);
 
                 _logger.LogInfo($"Commento Jira generato - Lunghezza: {comment.Length}");
             }
@@ -1459,6 +1469,7 @@ namespace JiraTicketManager.Forms
                     InterventionDate = txtDataIntervento?.Text?.Trim() ?? "",
                     InterventionTime = txtOraIntervento?.Text?.Trim() ?? "",
                     ClientPhone = txtTelefono?.Text?.Trim() ?? "",
+                  
 
                     // Dati team
                     ProjectManager = GetSelectedComboValue(cmbPM),
@@ -1540,6 +1551,7 @@ namespace JiraTicketManager.Forms
         {
             public string TicketKey { get; set; } = "";
             public EmailTemplateService.TemplateType TemplateType { get; set; }
+            
 
             // Dati base ticket
             public string ClientName { get; set; } = "";
@@ -1550,6 +1562,7 @@ namespace JiraTicketManager.Forms
             public string InterventionDate { get; set; } = "";
             public string InterventionTime { get; set; } = "";
             public string ClientPhone { get; set; } = "";
+            public string Description { get; set; } = "";
 
             // Dati team
             public string ProjectManager { get; set; } = "";
@@ -1577,13 +1590,13 @@ namespace JiraTicketManager.Forms
                 _logger.LogInfo("=== INIZIO GENERAZIONE COMMENTO ===");
 
                 // Disabilita pulsante durante elaborazione
-                SetCommentButtonState(false, "⏳ Elaborazione...");
+                btnCommento.Enabled = false;
+                btnCommento.Text = "⏳ Elaborazione...";
                 this.Cursor = Cursors.WaitCursor;
 
                 // Validazione dati (riutilizza la stessa di btnPianifica)
                 if (!ValidatePlanningData())
                 {
-                    _logger.LogWarning("Validazione dati fallita per generazione commento");
                     return;
                 }
 
@@ -1591,22 +1604,19 @@ namespace JiraTicketManager.Forms
                 var planningData = CollectPlanningTicketData();
                 if (planningData == null)
                 {
-                    _logger.LogError("Impossibile raccogliere dati dalla UI per commento");
                     ShowError("Errore Dati", "Impossibile raccogliere i dati dalla UI");
                     return;
                 }
 
                 // Genera commento formato "email inoltrata"
-                _logger.LogInfo($"Generazione commento per ticket {planningData.TicketKey}");
                 var commentContent = GenerateForwardedEmailComment(planningData);
                 if (string.IsNullOrWhiteSpace(commentContent))
                 {
-                    _logger.LogError("Generazione commento fallita - contenuto vuoto");
                     ShowError("Errore Generazione", "Errore nella generazione del commento");
                     return;
                 }
 
-                _logger.LogInfo($"Commento generato con successo - Lunghezza: {commentContent.Length} caratteri");
+                _logger.LogInfo($"Commento generato - Lunghezza: {commentContent.Length} caratteri");
 
                 // Mostra dialog di conferma con anteprima
                 var templateDisplayName = GetTemplateDisplayName(planningData.TemplateType);
@@ -1618,36 +1628,44 @@ namespace JiraTicketManager.Forms
 
                 if (confirmResult != DialogResult.OK)
                 {
-                    _logger.LogInfo("Invio commento annullato dall'utente nel dialog di anteprima");
+                    _logger.LogInfo("Invio commento annullato dall'utente");
                     ShowInfo("Operazione Annullata", "Invio commento annullato");
                     return;
                 }
 
-                _logger.LogInfo("Utente ha confermato l'invio del commento");
-
-                // Aggiorna stato UI durante invio
-                SetCommentButtonState(false, "📤 Invio...");
-
                 // Invia commento a Jira
-                bool success = await SendCommentToJiraWithRetry(planningData.TicketKey, commentContent);
+                bool success = await SendCommentToJira(planningData.TicketKey, commentContent);
 
-                // Gestione risultato finale
-                await HandleCommentResult(success, planningData.TicketKey, commentContent.Length);
+                if (success)
+                {
+                    _logger.LogInfo("Commento inviato con successo a Jira");
+                    ShowSuccess("Commento Inviato",
+                        $"Commento di pianificazione aggiunto al ticket {planningData.TicketKey}");
+
+                    // Refresh dei commenti se necessario
+                    await RefreshCommentsTab();
+                }
+                else
+                {
+                    ShowError("Errore Invio", "Errore durante l'invio del commento a Jira");
+                }
 
                 _logger.LogInfo("=== FINE GENERAZIONE COMMENTO ===");
             }
             catch (Exception ex)
             {
-                _logger.LogError("Errore critico durante generazione commento", ex);
-                HandleCommentError(ex);
+                _logger.LogError("Errore durante generazione commento", ex);
+                ShowError("Errore Commento", $"Errore durante la generazione del commento: {ex.Message}");
             }
             finally
             {
-                // Ripristina sempre lo stato UI
-                SetCommentButtonState(true, "💬 Commento");
+                // Ripristina stato UI
+                btnCommento.Enabled = true;
+                btnCommento.Text = "💬 Commento";
                 this.Cursor = Cursors.Default;
             }
         }
+
 
         /// <summary>
         /// Genera il commento formato "email inoltrata" usando CommentTemplateService
@@ -1679,6 +1697,7 @@ namespace JiraTicketManager.Forms
             }
         }
 
+
         /// <summary>
         /// Converte PlanningTicketData in CommentData per CommentTemplateService
         /// </summary>
@@ -1705,6 +1724,8 @@ namespace JiraTicketManager.Forms
                     InterventionDate = planningData.InterventionDate,
                     InterventionTime = planningData.InterventionTime,
                     ClientPhone = planningData.ClientPhone,
+                  
+
 
                     // Email destinatari (converti nomi in email se necessario)
                     ReporterEmail = planningData.ReporterEmail,
@@ -1721,10 +1742,11 @@ namespace JiraTicketManager.Forms
         }
 
         /// <summary>
-        /// Converte nome persona in email aziendale (riutilizza logica esistente se presente)
+        /// Converte nome persona in email aziendale con formato "Nome Cognome <email@dedagroup.it>"
+        /// Riutilizza la logica esistente di EmailConverterHelper.ConvertNameToEmail
         /// </summary>
         /// <param name="personName">Nome della persona</param>
-        /// <returns>Email corrispondente o stringa vuota</returns>
+        /// <returns>Email formattata con nome e indirizzo</returns>
         private string ConvertNameToEmail(string personName)
         {
             try
@@ -1732,20 +1754,67 @@ namespace JiraTicketManager.Forms
                 if (string.IsNullOrWhiteSpace(personName))
                     return "";
 
-                // TODO: Implementare conversione nome -> email
-                // Questo dovrebbe riutilizzare la logica esistente del progetto
-                // per convertire i nomi delle persone nelle email aziendali corrispondenti
+                // Usa EmailConverterHelper che hai già implementato con casi speciali
+                var emailAddress = EmailConverterHelper.ConvertNameToEmail(personName);
 
-                // Per ora ritorna stringa vuota - sarà implementato nella logica esistente
-                _logger.LogDebug($"Conversione nome email: {personName} -> da implementare");
-                return "";
+                if (string.IsNullOrWhiteSpace(emailAddress))
+                {
+                    _logger.LogDebug($"Conversione nome->email fallita per: '{personName}'");
+                    return "";
+                }
+
+                // Formatta il nome con prima lettera maiuscola e resto minuscolo
+                var formattedName = FormatNameForDisplay(personName);
+
+                // Formatta come "Nome Cognome <email@dedagroup.it>"
+                var formattedEmail = $"{formattedName} <{emailAddress}>";
+
+                _logger.LogDebug($"Conversione nome->email: '{personName}' -> '{formattedEmail}'");
+                return formattedEmail;
             }
             catch (Exception ex)
             {
-                _logger.LogWarning($"Errore conversione nome->email per {personName}: {ex.Message}");
+                _logger.LogWarning($"Errore conversione nome->email per '{personName}': {ex.Message}");
                 return "";
             }
         }
+
+        /// <summary>
+        /// Formatta il nome con prima lettera maiuscola e resto minuscolo
+        /// Es: "NICOLA GIOVANNI LUPO" -> "Nicola Giovanni Lupo"
+        /// </summary>
+        /// <param name="fullName">Nome completo</param>
+        /// <returns>Nome formattato</returns>
+        private string FormatNameForDisplay(string fullName)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(fullName))
+                    return "";
+
+                // Dividi in parole
+                var words = fullName.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                var formattedWords = new List<string>();
+
+                foreach (var word in words)
+                {
+                    if (string.IsNullOrEmpty(word))
+                        continue;
+
+                    // Prima lettera maiuscola, resto minuscolo
+                    var formattedWord = char.ToUpperInvariant(word[0]) + word.Substring(1).ToLowerInvariant();
+                    formattedWords.Add(formattedWord);
+                }
+
+                return string.Join(" ", formattedWords);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Errore formattazione nome '{fullName}': {ex.Message}");
+                return fullName; // Fallback al nome originale
+            }
+        }
+
 
         /// <summary>
         /// Invia il commento a Jira tramite JiraApiService
@@ -1807,6 +1876,7 @@ namespace JiraTicketManager.Forms
             }
         }
 
+
         /// <summary>
         /// Ottiene il nome visualizzato del template
         /// </summary>
@@ -1821,9 +1891,10 @@ namespace JiraTicketManager.Forms
             };
         }
 
+
         #endregion
 
-       
+
 
         #region Final Integration Updates
 

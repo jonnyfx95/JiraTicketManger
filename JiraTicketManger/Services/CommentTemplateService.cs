@@ -29,10 +29,10 @@ namespace JiraTicketManager.Services
         {
             /// <summary>Commento formato email inoltrata per pianificazione</summary>
             ForwardedEmail,
-
+            
             /// <summary>Commento semplice di testo</summary>
             Simple,
-
+            
             /// <summary>Commento automatico di sistema</summary>
             System
         }
@@ -185,15 +185,15 @@ namespace JiraTicketManager.Services
         {
             return data.TemplateType switch
             {
-                EmailTemplateService.TemplateType.SingleIntervention =>
+                EmailTemplateService.TemplateType.SingleIntervention => 
                     GenerateSingleInterventionText(data),
-
-                EmailTemplateService.TemplateType.MultipleInterventions =>
+                
+                EmailTemplateService.TemplateType.MultipleInterventions => 
                     GenerateMultipleInterventionsText(data),
-
-                EmailTemplateService.TemplateType.ToBeAgreed =>
+                
+                EmailTemplateService.TemplateType.ToBeAgreed => 
                     GenerateToBeAgreedText(data),
-
+                
                 _ => "Template non riconosciuto."
             };
         }
@@ -204,7 +204,7 @@ namespace JiraTicketManager.Services
         private string GenerateSingleInterventionText(CommentData data)
         {
             var content = new StringBuilder();
-
+            
             content.AppendLine("È stato pianificato un intervento di assistenza tecnica.");
             content.AppendLine();
             content.AppendLine($"📅 Data: {data.InterventionDate}");
@@ -223,7 +223,7 @@ namespace JiraTicketManager.Services
         private string GenerateMultipleInterventionsText(CommentData data)
         {
             var content = new StringBuilder();
-
+            
             content.AppendLine("Sono stati pianificati interventi di assistenza tecnica multipli.");
             content.AppendLine();
             content.AppendLine($"📅 Data iniziale: {data.InterventionDate}");
@@ -245,7 +245,7 @@ namespace JiraTicketManager.Services
         private string GenerateToBeAgreedText(CommentData data)
         {
             var content = new StringBuilder();
-
+            
             content.AppendLine("L'intervento è in fase di pianificazione.");
             content.AppendLine();
             content.AppendLine($"👨‍💼 Consulente assegnato: {data.ConsultantName}");
@@ -266,7 +266,8 @@ namespace JiraTicketManager.Services
         #region Helper Methods
 
         /// <summary>
-        /// Costruisce i destinatari email simulati
+        /// Costruisce i destinatari email simulati con formato completo
+        /// Segue la logica di OutlookHybridService.PrepareEmailFromTicketData
         /// </summary>
         private (string To, string Cc) BuildEmailRecipients(CommentData data)
         {
@@ -275,24 +276,56 @@ namespace JiraTicketManager.Services
                 var toList = new List<string>();
                 var ccList = new List<string>();
 
-                // TO: Reporter (sempre presente se disponibile)
-                if (!string.IsNullOrWhiteSpace(data.ReporterEmail))
+                // TO: Commerciale (principale destinatario) - usa il nome se email vuota
+                if (!string.IsNullOrWhiteSpace(data.CommercialEmail))
+                {
+                    toList.Add(data.CommercialEmail);
+                }
+                else if (!string.IsNullOrWhiteSpace(data.ConsultantName))
+                {
+                    // Fallback: simula email dal nome consulente se commerciale non disponibile
+                    var simulatedEmail = SimulateEmailFromName(data.ConsultantName);
+                    if (!string.IsNullOrWhiteSpace(simulatedEmail))
+                        toList.Add(simulatedEmail);
+                }
+                
+                // Ulteriore fallback: Reporter
+                if (!toList.Any() && !string.IsNullOrWhiteSpace(data.ReporterEmail))
                 {
                     toList.Add(data.ReporterEmail);
                 }
 
-                // CC: Altri destinatari
-                if (!string.IsNullOrWhiteSpace(data.ConsultantEmail))
-                    ccList.Add(data.ConsultantEmail);
-
+                // CC: PM dal ticket reale
                 if (!string.IsNullOrWhiteSpace(data.ProjectManagerEmail))
+                {
                     ccList.Add(data.ProjectManagerEmail);
+                }
+                // Se PM email vuota ma abbiamo il nome PM dal ticket, simulalo
+                else if (!string.IsNullOrWhiteSpace(data.ProjectManagerName))
+                {
+                    var simulatedPMEmail = SimulateEmailFromName(data.ProjectManagerName);
+                    if (!string.IsNullOrWhiteSpace(simulatedPMEmail))
+                        ccList.Add(simulatedPMEmail);
+                }
 
-                if (!string.IsNullOrWhiteSpace(data.CommercialEmail))
-                    ccList.Add(data.CommercialEmail);
+                // CC: Consulente
+                if (!string.IsNullOrWhiteSpace(data.ConsultantEmail))
+                {
+                    ccList.Add(data.ConsultantEmail);
+                }
+                else if (!string.IsNullOrWhiteSpace(data.ConsultantName))
+                {
+                    // Simula consulente email dal nome
+                    var simulatedConsultant = SimulateEmailFromName(data.ConsultantName);
+                    if (!string.IsNullOrWhiteSpace(simulatedConsultant))
+                        ccList.Add(simulatedConsultant);
+                }
 
-                var to = toList.Any() ? string.Join("; ", toList) : "";
-                var cc = ccList.Any() ? string.Join("; ", ccList) : "";
+                // Sempre in CC: DEDAGROUP Schedulazione PA
+                ccList.Add("DEDAGROUP Schedulazione PA <schedulazione.pa@dedagroup.it>");
+
+                var to = toList.Any() ? string.Join("; ", toList) : data.ReporterEmail ?? "destinatario@cliente.it";
+                var cc = ccList.Any() ? string.Join("; ", ccList) : "DEDAGROUP Schedulazione PA <schedulazione.pa@dedagroup.it>";
 
                 _logger.LogDebug($"Destinatari costruiti - TO: {to}, CC: {cc}");
                 return (to, cc);
@@ -300,7 +333,44 @@ namespace JiraTicketManager.Services
             catch (Exception ex)
             {
                 _logger.LogError($"Errore costruzione destinatari: {ex.Message}");
-                return ("", "");
+                return ("", "DEDAGROUP Schedulazione PA <schedulazione.pa@dedagroup.it>");
+            }
+        }
+
+        /// <summary>
+        /// Simula un'email dal nome per scopi dimostrativi nel commento
+        /// </summary>
+        private string SimulateEmailFromName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return "";
+
+            try
+            {
+                // Converti nome in formato email simulato
+                var cleanName = name.Trim();
+                
+                // Se contiene spazi, prova a creare nome.cognome
+                if (cleanName.Contains(" "))
+                {
+                    var parts = cleanName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2)
+                    {
+                        var firstName = parts[0].ToLowerInvariant();
+                        var lastName = parts[1].ToLowerInvariant();
+                        var emailAddress = $"{firstName}.{lastName}@dedagroup.it";
+                        return $"{cleanName} <{emailAddress}>";
+                    }
+                }
+                
+                // Fallback: usa nome completo
+                var fallbackEmail = $"{cleanName.Replace(" ", ".").ToLowerInvariant()}@dedagroup.it";
+                return $"{cleanName} <{fallbackEmail}>";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Errore simulazione email per '{name}': {ex.Message}");
+                return $"{name} <{name.Replace(" ", ".").ToLowerInvariant()}@dedagroup.it>";
             }
         }
 
@@ -416,6 +486,10 @@ namespace JiraTicketManager.Services
             public string InterventionDate { get; set; } = "";
             public string InterventionTime { get; set; } = "";
             public string ClientPhone { get; set; } = "";
+
+            // Nomi delle persone (per simulazione email)
+            public string ProjectManagerName { get; set; } = "";
+            public string CommercialName { get; set; } = "";
 
             // Email destinatari
             public string ReporterEmail { get; set; } = "";

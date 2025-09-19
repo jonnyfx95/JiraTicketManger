@@ -586,7 +586,7 @@ namespace JiraTicketManager.Services
         #endregion
 
 
-       
+
 
         #region Comments API
 
@@ -693,27 +693,32 @@ namespace JiraTicketManager.Services
                 var lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
                 var contentArray = new JArray();
 
+                // Raggruppa righe consecutive non vuote in un singolo paragrafo
+                var currentParagraphLines = new List<string>();
+
                 foreach (var line in lines)
                 {
-                    // Crea un paragrafo per ogni riga (anche se vuota)
-                    var paragraph = new JObject
+                    if (string.IsNullOrWhiteSpace(line))
                     {
-                        ["type"] = "paragraph",
-                        ["content"] = new JArray()
-                    };
-
-                    if (!string.IsNullOrWhiteSpace(line))
-                    {
-                        // Aggiungi il testo al paragrafo
-                        var textNode = new JObject
+                        // Riga vuota: chiudi il paragrafo corrente e aggiungi spazio
+                        if (currentParagraphLines.Count > 0)
                         {
-                            ["type"] = "text",
-                            ["text"] = line
-                        };
-                        ((JArray)paragraph["content"]).Add(textNode);
+                            AddParagraphToContent(contentArray, currentParagraphLines);
+                            currentParagraphLines.Clear();
+                        }
+                        // Aggiungi un paragrafo vuoto per lo spazio
+                        AddEmptyParagraph(contentArray);
                     }
+                    else
+                    {
+                        currentParagraphLines.Add(line);
+                    }
+                }
 
-                    contentArray.Add(paragraph);
+                // Aggiungi l'ultimo paragrafo se presente
+                if (currentParagraphLines.Count > 0)
+                {
+                    AddParagraphToContent(contentArray, currentParagraphLines);
                 }
 
                 // Crea il documento ADF completo
@@ -732,6 +737,52 @@ namespace JiraTicketManager.Services
                 _logger.LogError($"Errore conversione testo in ADF: {ex.Message}");
                 return CreateEmptyADFDocument();
             }
+        }
+
+        private void AddEmptyParagraph(JArray contentArray)
+        {
+            contentArray.Add(new JObject
+            {
+                ["type"] = "paragraph",
+                ["content"] = new JArray()
+            });
+        }
+
+        // <summary>
+        /// Aggiunge un paragrafo con righe multiple al contenuto ADF
+        /// </summary>
+        private void AddParagraphToContent(JArray contentArray, List<string> lines)
+        {
+            if (lines.Count == 0) return;
+
+            var paragraph = new JObject
+            {
+                ["type"] = "paragraph",
+                ["content"] = new JArray()
+            };
+
+            var paragraphContent = (JArray)paragraph["content"];
+
+            for (int i = 0; i < lines.Count; i++)
+            {
+                // Aggiungi il testo della riga
+                paragraphContent.Add(new JObject
+                {
+                    ["type"] = "text",
+                    ["text"] = lines[i]
+                });
+
+                // Aggiungi hard break tra le righe (tranne l'ultima)
+                if (i < lines.Count - 1)
+                {
+                    paragraphContent.Add(new JObject
+                    {
+                        ["type"] = "hardBreak"
+                    });
+                }
+            }
+
+            contentArray.Add(paragraph);
         }
 
         /// <summary>
@@ -762,14 +813,15 @@ namespace JiraTicketManager.Services
             };
         }
 
+
         /// <summary>
         /// Metodo helper pubblico per ottenere l'header di autorizzazione
         /// (già esistente nel progetto, ma lo rendo pubblico se necessario)
         /// </summary>
-      
+
 
         #endregion
-       
+
 
 
         /// <summary>
