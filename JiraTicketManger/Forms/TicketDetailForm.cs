@@ -1330,12 +1330,6 @@ namespace JiraTicketManager.Forms
         /// <summary>
         /// Aggiunge commento Jira con dettagli della pianificazione
         /// </summary>
-        /// <summary>
-        /// Aggiunge commento Jira con dettagli della pianificazione
-        /// </summary>
-        /// <summary>
-        /// Aggiunge commento Jira con dettagli della pianificazione
-        /// </summary>
         private async Task AddJiraCommentAsync(PlanningTicketData data, string textContent)
         {
             try
@@ -1359,7 +1353,6 @@ namespace JiraTicketManager.Forms
                     data.WBS
                 );
 
-               
                 var jiraApiService = new JiraApiService(SettingsService.CreateDefault());
                 await jiraApiService.AddCommentToIssueAsync(data.TicketKey, comment);
 

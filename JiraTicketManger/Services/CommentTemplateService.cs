@@ -204,15 +204,34 @@ namespace JiraTicketManager.Services
         private string GenerateSingleInterventionText(CommentData data)
         {
             var content = new StringBuilder();
-            
+
             content.AppendLine("È stato pianificato un intervento di assistenza tecnica.");
             content.AppendLine();
             content.AppendLine($"📅 Data: {data.InterventionDate}");
             content.AppendLine($"🕐 Orario: {data.InterventionTime}");
             content.AppendLine($"👨‍💼 Consulente: {data.ConsultantName}");
             content.AppendLine();
-            content.AppendLine("Il consulente sarà disponibile all'orario concordato per fornire il supporto necessario.");
-            content.AppendLine($"Per eventuali modifiche o chiarimenti, contattare: {data.ClientPhone}");
+
+            
+            try
+            {
+                var emailTemplateService = new EmailTemplateService();
+                var dynamicContent = emailTemplateService.GenerateTextPreview(
+                    EmailTemplateService.TemplateType.SingleIntervention,
+                    data.ConsultantName,
+                    data.InterventionDate,
+                    data.InterventionTime,
+                    data.ClientPhone
+                );
+
+                content.AppendLine(dynamicContent);
+            }
+            catch (Exception ex)
+            {
+                // Fallback alla stringa fissa se il template dinamico fallisce
+                content.AppendLine("Il consulente sarà disponibile all'orario concordato per fornire il supporto necessario.");
+                content.AppendLine($"Per eventuali modifiche o chiarimenti, contattare: {data.ClientPhone}");
+            }
 
             return content.ToString();
         }
