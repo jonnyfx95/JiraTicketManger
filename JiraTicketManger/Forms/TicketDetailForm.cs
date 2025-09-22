@@ -1686,8 +1686,25 @@ namespace JiraTicketManager.Forms
                 _logger?.LogInfo($"[{operationId}] === FASE 3: GESTIONE RISULTATO ===");
                 await HandleCommentAndTransitionResult(planningData.TicketKey, commentSuccess, transitionResult);
 
+               
+
+                //FASE 4: COMPILA CAMBI CHIUSURA
+
+                _logger?.LogInfo($"[{operationId}] === FASE 4: COMPILA CAMBI CHIUSURA ===");
+
+                // CATEGORIA    
+                await apiService.UpdateWorkspaceFieldAsync(planningData.TicketKey, "customfield_10095", "c541ca01-a3a4-400b-a389-573d1f19899a", "958");
+
+                // MOTIVAZIONE CHIUSURA 
+                await apiService.UpdateWorkspaceFieldAsync(planningData.TicketKey, "customfield_10109", "c541ca01-a3a4-400b-a389-573d1f19899a", "769");
+
+                // METODOOGIA CHIUSURA  
+                await apiService.UpdateTextFieldAsync(planningData.TicketKey, "customfield_10087", "Schedulata");
+
                 _logger?.LogInfo($"[{operationId}] === OPERAZIONE COMPLETATA ===");
             }
+
+            
             catch (Exception ex)
             {
                 _logger?.LogError($"[{operationId}] ERRORE GENERALE: {ex.Message}");
@@ -1704,6 +1721,14 @@ namespace JiraTicketManager.Forms
                 _logger?.LogInfo($"[{operationId}] === FINE OnCommentoClick (CLEANUP ESEGUITO) ===");
             }
         }
+
+        /// <summary>
+        /// 
+        /// Aggiorna i campi di pianificazione
+        /// 
+        /// </summary>
+        /// 
+
 
 
         /// <summary>

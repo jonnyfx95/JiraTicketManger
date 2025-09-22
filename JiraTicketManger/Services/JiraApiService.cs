@@ -24,8 +24,8 @@ namespace JiraTicketManager.Services
         /// MODIFICA CREDENZIALI JIRA SSO
         /// </summary>
         // Credenziali per modalità Microsoft SSO (hardcoded come richiesto)
-        private const string SSO_USERNAME = "jonathan.felixdasilva@dedagroup.it";
-        private const string SSO_TOKEN = "ATATT3xFfGF0Ore44aYniWdWcF1c5p-R_WhsmnjXElNbLU_DlDKYmrIBnblAMYaRJmUAKPJXbG97sZt4hBVL_ZBSKqHFlkR8H21XkVPc5UAbA3sgtWMwbG2-XjMO8_kM9RjUN_q61ciFiQEwnJfZ2pdNhQnffN7CUn_D5nmibFazwYfWoMfe3J4=90AF50DB";
+        private const string SSO_USERNAME = "USERNAME_JIRA";
+        private const string SSO_TOKEN = "API_TOKEN";
 
         public string Domain { get; private set; }
         public string Username { get; private set; }
@@ -431,8 +431,6 @@ namespace JiraTicketManager.Services
 
         #endregion
 
-
-
         #region Search Methods
 
         /// <summary>
@@ -584,9 +582,6 @@ namespace JiraTicketManager.Services
         }
 
         #endregion
-
-
-
 
         #region Comments API
 
@@ -820,6 +815,293 @@ namespace JiraTicketManager.Services
         /// </summary>
 
 
+        #endregion
+
+
+        // ============================================================================
+        // AGGIUNGI QUESTI METODI ALLA CLASSE JiraApiService
+        // Posizionali dopo il metodo UpdateIssueAsync che abbiamo creato prima
+        // ============================================================================
+
+        #region Update Helper Methods
+
+        /// <summary>
+        /// Aggiorna un campo di testo semplice
+        /// </summary>
+        public async Task<bool> UpdateTextFieldAsync(string issueKey, string fieldName, string value)
+        {
+            var updateData = new
+            {
+                fields = new Dictionary<string, object>
+                {
+                    [fieldName] = value
+                }
+            };
+
+            return await UpdateIssueAsync(issueKey, updateData);
+        }
+
+        /// <summary>
+        /// Aggiorna un campo option (come Status, Priority)
+        /// </summary>
+        public async Task<bool> UpdateOptionFieldAsync(string issueKey, string fieldName, string optionValue)
+        {
+            var updateData = new
+            {
+                fields = new Dictionary<string, object>
+                {
+                    [fieldName] = new { value = optionValue }
+                }
+            };
+
+            return await UpdateIssueAsync(issueKey, updateData);
+        }
+
+        /// <summary>
+        /// Aggiorna un campo workspace object (CMDB)
+        /// </summary>
+        public async Task<bool> UpdateWorkspaceFieldAsync(string issueKey, string fieldName,
+            string workspaceId, string objectId)
+        {
+            var updateData = new
+            {
+                fields = new Dictionary<string, object>
+                {
+                    [fieldName] = new[]
+                    {
+                new
+                {
+                    workspaceId = workspaceId,
+                    id = $"{workspaceId}:{objectId}",
+                    objectId = objectId
+                }
+            }
+                }
+            };
+
+            return await UpdateIssueAsync(issueKey, updateData);
+        }
+
+        /// <summary>
+        /// Aggiorna campo dal valore di una TextBox
+        /// </summary>
+        public async Task<bool> UpdateFromTextBoxAsync(string issueKey, string fieldName, TextBox textBox)
+        {
+            if (textBox == null || string.IsNullOrEmpty(textBox.Text))
+            {
+                _logger.LogWarning($"TextBox vuota per campo {fieldName}");
+                return false;
+            }
+
+            return await UpdateTextFieldAsync(issueKey, fieldName, textBox.Text);
+        }
+
+        /// <summary>
+        /// Aggiorna campo dal valore di una ComboBox
+        /// </summary>
+        public async Task<bool> UpdateFromComboBoxAsync(string issueKey, string fieldName, ComboBox comboBox)
+        {
+            if (comboBox == null || comboBox.SelectedItem == null)
+            {
+                _logger.LogWarning($"ComboBox vuota per campo {fieldName}");
+                return false;
+            }
+
+            var selectedValue = comboBox.SelectedItem.ToString();
+            return await UpdateOptionFieldAsync(issueKey, fieldName, selectedValue);
+        }
+
+        /// <summary>
+        /// Aggiorna multipli campi da controlli UI
+        /// </summary>
+        public async Task<bool> UpdateFromControlsAsync(string issueKey,
+            Dictionary<string, Control> controlMappings)
+        {
+            try
+            {
+                var fields = new Dictionary<string, object>();
+
+                foreach (var mapping in controlMappings)
+                {
+                    var fieldName = mapping.Key;
+                    var control = mapping.Value;
+
+                    switch (control)
+                    {
+                        case TextBox textBox when !string.IsNullOrEmpty(textBox.Text):
+                            fields[fieldName] = textBox.Text;
+                            _logger.LogDebug($"Campo {fieldName}: '{textBox.Text}' (TextBox)");
+                            break;
+
+                        case ComboBox comboBox when comboBox.SelectedItem != null:
+                            fields[fieldName] = new { value = comboBox.SelectedItem.ToString() };
+                            _logger.LogDebug($"Campo {fieldName}: '{comboBox.SelectedItem}' (ComboBox)");
+                            break;
+
+                        case Label label when !string.IsNullOrEmpty(label.Text):
+                            fields[fieldName] = label.Text;
+                            _logger.LogDebug($"Campo {fieldName}: '{label.Text}' (Label)");
+                            break;
+
+                        default:
+                            _logger.LogDebug($"Campo {fieldName}: controllo vuoto o non supportato");
+                            break;
+                    }
+                }
+
+                if (fields.Count == 0)
+                {
+                    _logger.LogWarning($"Nessun campo da aggiornare per {issueKey}");
+                    return false;
+                }
+
+                _logger.LogInfo($"Aggiornamento {fields.Count} campi per {issueKey}");
+                var updateData = new { fields = fields };
+                return await UpdateIssueAsync(issueKey, updateData);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore update da controlli per {issueKey}", ex);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Aggiorna multipli campi workspace objects
+        /// </summary>
+        public async Task<bool> UpdateMultipleWorkspaceFieldsAsync(string issueKey,
+            Dictionary<string, (string workspaceId, string objectId)> workspaceFields)
+        {
+            try
+            {
+                var fields = new Dictionary<string, object>();
+
+                foreach (var field in workspaceFields)
+                {
+                    var fieldName = field.Key;
+                    var (workspaceId, objectId) = field.Value;
+
+                    fields[fieldName] = new[]
+                    {
+                new
+                {
+                    workspaceId = workspaceId,
+                    id = $"{workspaceId}:{objectId}",
+                    objectId = objectId
+                }
+            };
+
+                    _logger.LogDebug($"Campo workspace {fieldName}: objectId {objectId}");
+                }
+
+                if (fields.Count == 0)
+                {
+                    _logger.LogWarning($"Nessun campo workspace da aggiornare per {issueKey}");
+                    return false;
+                }
+
+                _logger.LogInfo($"Aggiornamento {fields.Count} campi workspace per {issueKey}");
+                var updateData = new { fields = fields };
+                return await UpdateIssueAsync(issueKey, updateData);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore update campi workspace per {issueKey}", ex);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Aggiorna i campi di un issue Jira
+        /// </summary>
+        /// <param name="issueKey">Chiave del ticket (es: CC-12345)</param>
+        /// <param name="updateData">Dati da aggiornare nel formato { fields: { ... } }</param>
+        /// <returns>True se l'aggiornamento è avvenuto con successo</returns>
+        public async Task<bool> UpdateIssueAsync(string issueKey, object updateData)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(issueKey))
+                {
+                    _logger.LogError("IssueKey non può essere vuoto");
+                    return false;
+                }
+
+                if (updateData == null)
+                {
+                    _logger.LogError("UpdateData non può essere null");
+                    return false;
+                }
+
+                _logger.LogInfo($"Aggiornamento issue: {issueKey}");
+
+                // Costruisci URL API v3
+                var url = $"{Domain}/rest/api/3/issue/{issueKey}";
+                _logger.LogDebug($"URL update: {url}");
+
+                // Serializza i dati in JSON
+                var jsonContent = Newtonsoft.Json.JsonConvert.SerializeObject(updateData, Newtonsoft.Json.Formatting.Indented);
+                _logger.LogDebug($"Payload update ({jsonContent.Length} chars): {jsonContent}");
+
+                // Crea la richiesta HTTP PUT
+                using (var request = new HttpRequestMessage(HttpMethod.Put, url))
+                {
+                    request.Headers.Add("Authorization", GetAuthorizationHeader());
+                    request.Headers.Add("Accept", "application/json");
+                    request.Content = new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");
+
+                    // Invia la richiesta
+                    using (var response = await _httpClient.SendAsync(request))
+                    {
+                        var responseContent = await response.Content.ReadAsStringAsync();
+
+                        if (response.IsSuccessStatusCode)
+                        {
+                            _logger.LogInfo($"✅ Issue {issueKey} aggiornato con successo");
+                            _logger.LogDebug($"Risposta API: {responseContent}");
+                            return true;
+                        }
+                        else
+                        {
+                            _logger.LogError($"❌ Errore aggiornamento {issueKey} - Status: {response.StatusCode}");
+                            _logger.LogError($"Risposta API: {responseContent}");
+
+                            // Tenta di parsare errore specifico da Jira
+                            try
+                            {
+                                var errorJson = JObject.Parse(responseContent);
+                                var errorMessages = errorJson["errorMessages"]?.ToObject<string[]>();
+                                var errors = errorJson["errors"]?.ToObject<Dictionary<string, string>>();
+
+                                if (errorMessages?.Length > 0)
+                                {
+                                    _logger.LogError($"Errori Jira: {string.Join(", ", errorMessages)}");
+                                }
+
+                                if (errors?.Count > 0)
+                                {
+                                    foreach (var error in errors)
+                                    {
+                                        _logger.LogError($"Campo {error.Key}: {error.Value}");
+                                    }
+                                }
+                            }
+                            catch
+                            {
+                                // Se non riesce a parsare l'errore, ignora
+                            }
+
+                            return false;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore generale aggiornamento {issueKey}: {ex.Message}", ex);
+                return false;
+            }
+        }
         #endregion
 
 
