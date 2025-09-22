@@ -119,6 +119,98 @@ namespace JiraTicketManager.Services
 
         #region Email Header Construction
 
+        // <summary>
+        /// Costruisce i destinatari email nel formato corretto
+        /// TO: Reporter (cliente) + Consulente
+        /// CC: PM + Commerciale + schedulazione.pa@dedagroup.it
+        /// </summary>
+        private (string To, string Cc) BuildEmailRecipients(CommentData data)
+        {
+            try
+            {
+                var toList = new List<string>();
+                var ccList = new List<string>();
+
+                // ✅ TO: Reporter (cliente) - SEMPRE presente
+                if (!string.IsNullOrWhiteSpace(data.ReporterEmail))
+                {
+                    // Formato: Nome Cliente (se disponibile)
+                    var reporterDisplay = !string.IsNullOrWhiteSpace(data.ClientName) && !data.ReporterEmail.Contains("@cliente.it")
+                        ? $"{data.ClientName} <{data.ReporterEmail}>"
+                        : data.ReporterEmail;
+                    toList.Add(reporterDisplay);
+                }
+
+                // ✅ TO: Consulente (se disponibile)
+                if (!string.IsNullOrWhiteSpace(data.ConsultantEmail))
+                {
+                    var consultantDisplay = !string.IsNullOrWhiteSpace(data.ConsultantName)
+                        ? $"{data.ConsultantName} <{data.ConsultantEmail}>"
+                        : data.ConsultantEmail;
+                    toList.Add(consultantDisplay);
+                }
+                else if (!string.IsNullOrWhiteSpace(data.ConsultantName))
+                {
+                    // Fallback: solo nome consulente se email non disponibile
+                    toList.Add(data.ConsultantName);
+                }
+
+                // ✅ CC: Project Manager (se disponibile)
+                if (!string.IsNullOrWhiteSpace(data.ProjectManagerEmail))
+                {
+                    var pmDisplay = !string.IsNullOrWhiteSpace(data.ProjectManagerName)
+                        ? $"{data.ProjectManagerName} <{data.ProjectManagerEmail}>"
+                        : data.ProjectManagerEmail;
+                    ccList.Add(pmDisplay);
+                }
+                else if (!string.IsNullOrWhiteSpace(data.ProjectManagerName))
+                {
+                    // Fallback: solo nome PM se email non disponibile
+                    ccList.Add(data.ProjectManagerName);
+                }
+
+                // ✅ CC: Commerciale (se disponibile)
+                if (!string.IsNullOrWhiteSpace(data.CommercialEmail))
+                {
+                    var commercialDisplay = !string.IsNullOrWhiteSpace(data.CommercialName)
+                        ? $"{data.CommercialName} <{data.CommercialEmail}>"
+                        : data.CommercialEmail;
+                    ccList.Add(commercialDisplay);
+                }
+                else if (!string.IsNullOrWhiteSpace(data.CommercialName))
+                {
+                    // Fallback: solo nome commerciale se email non disponibile
+                    ccList.Add(data.CommercialName);
+                }
+
+                // ✅ CC: SEMPRE Schedulazione PA
+                ccList.Add("DEDAGROUP Schedulazione PA <schedulazione.pa@dedagroup.it>");
+
+                // Costruisci stringhe finali
+                var to = toList.Any()
+                    ? string.Join("; ", toList)
+                    : "destinatario@cliente.it"; // Fallback se nessun TO
+
+                var cc = ccList.Any()
+                    ? string.Join("; ", ccList)
+                    : "DEDAGROUP Schedulazione PA <schedulazione.pa@dedagroup.it>"; // Fallback
+
+                _logger?.LogDebug($"Destinatari costruiti - TO: {to}");
+                _logger?.LogDebug($"Destinatari costruiti - CC: {cc}");
+
+                return (to, cc);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"Errore costruzione destinatari: {ex.Message}");
+                return (
+                    "destinatario@cliente.it",
+                    "DEDAGROUP Schedulazione PA <schedulazione.pa@dedagroup.it>"
+                );
+            }
+        }
+
+
         /// <summary>
         /// Costruisce l'intestazione email inoltrata
         /// </summary>
@@ -130,7 +222,7 @@ namespace JiraTicketManager.Services
             comment.AppendLine($"Inviato: {DateTime.Now:dd/MM/yyyy HH:mm}");
 
             // Destinatari
-            var (toRecipients, ccRecipients) = BuildEmailRecipients(data);
+           var (toRecipients, ccRecipients) = BuildEmailRecipients(data);
 
             if (!string.IsNullOrWhiteSpace(toRecipients))
             {
@@ -284,114 +376,71 @@ namespace JiraTicketManager.Services
 
         #region Helper Methods
 
-        /// <summary>
-        /// Costruisce i destinatari email simulati con formato completo
-        /// Segue la logica di OutlookHybridService.PrepareEmailFromTicketData
-        /// </summary>
-        private (string To, string Cc) BuildEmailRecipients(CommentData data)
-        {
-            try
-            {
-                var toList = new List<string>();
-                var ccList = new List<string>();
 
-                // TO: Commerciale (principale destinatario) - usa il nome se email vuota
-                if (!string.IsNullOrWhiteSpace(data.CommercialEmail))
-                {
-                    toList.Add(data.CommercialEmail);
-                }
-                else if (!string.IsNullOrWhiteSpace(data.ConsultantName))
-                {
-                    // Fallback: simula email dal nome consulente se commerciale non disponibile
-                    var simulatedEmail = SimulateEmailFromName(data.ConsultantName);
-                    if (!string.IsNullOrWhiteSpace(simulatedEmail))
-                        toList.Add(simulatedEmail);
-                }
-                
-                // Ulteriore fallback: Reporter
-                if (!toList.Any() && !string.IsNullOrWhiteSpace(data.ReporterEmail))
-                {
-                    toList.Add(data.ReporterEmail);
-                }
-
-                // CC: PM dal ticket reale
-                if (!string.IsNullOrWhiteSpace(data.ProjectManagerEmail))
-                {
-                    ccList.Add(data.ProjectManagerEmail);
-                }
-                // Se PM email vuota ma abbiamo il nome PM dal ticket, simulalo
-                else if (!string.IsNullOrWhiteSpace(data.ProjectManagerName))
-                {
-                    var simulatedPMEmail = SimulateEmailFromName(data.ProjectManagerName);
-                    if (!string.IsNullOrWhiteSpace(simulatedPMEmail))
-                        ccList.Add(simulatedPMEmail);
-                }
-
-                // CC: Consulente
-                if (!string.IsNullOrWhiteSpace(data.ConsultantEmail))
-                {
-                    ccList.Add(data.ConsultantEmail);
-                }
-                else if (!string.IsNullOrWhiteSpace(data.ConsultantName))
-                {
-                    // Simula consulente email dal nome
-                    var simulatedConsultant = SimulateEmailFromName(data.ConsultantName);
-                    if (!string.IsNullOrWhiteSpace(simulatedConsultant))
-                        ccList.Add(simulatedConsultant);
-                }
-
-                // Sempre in CC: DEDAGROUP Schedulazione PA
-                ccList.Add("DEDAGROUP Schedulazione PA <schedulazione.pa@dedagroup.it>");
-
-                var to = toList.Any() ? string.Join("; ", toList) : data.ReporterEmail ?? "destinatario@cliente.it";
-                var cc = ccList.Any() ? string.Join("; ", ccList) : "DEDAGROUP Schedulazione PA <schedulazione.pa@dedagroup.it>";
-
-                _logger.LogDebug($"Destinatari costruiti - TO: {to}, CC: {cc}");
-                return (to, cc);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Errore costruzione destinatari: {ex.Message}");
-                return ("", "DEDAGROUP Schedulazione PA <schedulazione.pa@dedagroup.it>");
-            }
-        }
 
         /// <summary>
         /// Simula un'email dal nome per scopi dimostrativi nel commento
         /// </summary>
-        private string SimulateEmailFromName(string name)
+        // <summary>
+        /// Simula email dal nome in formato corretto: Nome.Cognome@dedagroup.it
+        /// </summary>
+        private string SimulateEmailFromName(string fullName, string role = "")
         {
-            if (string.IsNullOrWhiteSpace(name))
-                return "";
-
             try
             {
-                // Converti nome in formato email simulato
-                var cleanName = name.Trim();
-                
-                // Se contiene spazi, prova a creare nome.cognome
-                if (cleanName.Contains(" "))
+                if (string.IsNullOrWhiteSpace(fullName))
+                    return "";
+
+                // Rimuovi caratteri speciali e normalizza
+                var cleanName = fullName.Trim()
+                    .Replace("  ", " ")
+                    .Replace("'", "")
+                    .Replace("`", "")
+                    .Replace("\"", "");
+
+                // Split per nome e cognome
+                var parts = cleanName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+                if (parts.Length == 0)
+                    return "";
+
+                if (parts.Length == 1)
                 {
-                    var parts = cleanName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length >= 2)
-                    {
-                        var firstName = parts[0].ToLowerInvariant();
-                        var lastName = parts[1].ToLowerInvariant();
-                        var emailAddress = $"{firstName}.{lastName}@dedagroup.it";
-                        return $"{cleanName} <{emailAddress}>";
-                    }
+                    // Solo un nome
+                    var single = CapitalizeFirst(parts[0]);
+                    return $"{single}@dedagroup.it";
                 }
-                
-                // Fallback: usa nome completo
-                var fallbackEmail = $"{cleanName.Replace(" ", ".").ToLowerInvariant()}@dedagroup.it";
-                return $"{cleanName} <{fallbackEmail}>";
+
+                if (parts.Length >= 2)
+                {
+                    // Nome + Cognome (ignora parti aggiuntive)
+                    var firstName = CapitalizeFirst(parts[0]);
+                    var lastName = CapitalizeFirst(parts[1]);
+
+                    // Formato: Nome.Cognome@dedagroup.it
+                    return $"{firstName}.{lastName}@dedagroup.it";
+                }
+
+                return "";
             }
             catch (Exception ex)
             {
-                _logger.LogWarning($"Errore simulazione email per '{name}': {ex.Message}");
-                return $"{name} <{name.Replace(" ", ".").ToLowerInvariant()}@dedagroup.it>";
+                _logger?.LogError($"Errore simulazione email da nome '{fullName}': {ex.Message}");
+                return $"{fullName?.Replace(" ", "")}@dedagroup.it";
             }
         }
+
+        // <summary>
+        /// Helper per capitalizzare prima lettera
+        /// </summary>
+        private string CapitalizeFirst(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return input;
+
+            return char.ToUpperInvariant(input[0]) + input.Substring(1).ToLowerInvariant();
+        }
+
 
         /// <summary>
         /// Costruisce l'oggetto email simulato

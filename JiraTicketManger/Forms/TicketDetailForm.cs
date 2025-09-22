@@ -1311,7 +1311,7 @@ namespace JiraTicketManager.Forms
                 }
 
                 // Genera commento Jira (sempre)
-                await AddJiraCommentAsync(planningData, emailContent.TextBody);
+
 
                 _logger.LogInfo("=== FINE PIANIFICAZIONE ===");
             }
@@ -1629,7 +1629,11 @@ namespace JiraTicketManager.Forms
                     return;
                 }
 
-                var commentContent = GenerateForwardedEmailComment(planningData);
+                // ✅ USA CommentTemplateService (non più funzione locale duplicata)
+                var commentTemplateService = new CommentTemplateService();
+                var commentData = CreateCommentDataFromPlanning(planningData);
+                var commentContent = commentTemplateService.GenerateForwardedEmailComment(commentData);
+
                 if (string.IsNullOrWhiteSpace(commentContent))
                 {
                     _logger?.LogError($"[{operationId}] Comment content vuoto, uscita");
@@ -1697,6 +1701,7 @@ namespace JiraTicketManager.Forms
                 _logger?.LogInfo($"[{operationId}] === FINE OnCommentoClick (CLEANUP ESEGUITO) ===");
             }
         }
+
 
         /// <summary>
         /// Wrapper per SendCommentToJira con debug avanzato
@@ -1842,35 +1847,7 @@ namespace JiraTicketManager.Forms
 
 
 
-        /// <summary>
-        /// Genera il commento formato "email inoltrata" usando CommentTemplateService
-        /// </summary>
-        /// <param name="planningData">Dati della pianificazione</param>
-        /// <returns>Testo del commento formattato</returns>
-        private string GenerateForwardedEmailComment(PlanningTicketData planningData)
-        {
-            try
-            {
-                _logger.LogInfo("Generazione commento email inoltrata");
 
-                // Crea il servizio per i template commenti
-                var commentTemplateService = new CommentTemplateService();
-
-                // Converte PlanningTicketData in CommentData
-                var commentData = CreateCommentDataFromPlanning(planningData);
-
-                // Genera il commento formato "email inoltrata"
-                var commentContent = commentTemplateService.GenerateForwardedEmailComment(commentData);
-
-                _logger.LogInfo($"Commento generato con successo - {commentContent.Length} caratteri");
-                return commentContent;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Errore generazione commento: {ex.Message}");
-                return $"Errore nella generazione del commento: {ex.Message}";
-            }
-        }
 
 
         /// <summary>
@@ -1883,7 +1860,7 @@ namespace JiraTicketManager.Forms
             try
             {
                 // Ottiene summary del ticket dalla UI
-                var ticketSummary = lblTicketSummary?.Text?.Trim() ?? "Riepilogo non disponibile";
+                var ticketSummary = lblTicketSummary?.Text?.Trim() ?? planningData.Summary;
 
                 return new CommentTemplateService.CommentData
                 {
@@ -1899,22 +1876,34 @@ namespace JiraTicketManager.Forms
                     InterventionDate = planningData.InterventionDate,
                     InterventionTime = planningData.InterventionTime,
                     ClientPhone = planningData.ClientPhone,
-                  
 
+                    // ✅ CORREZIONE: Nomi delle persone per simulazione email
+                    ProjectManagerName = planningData.ProjectManager,
+                    CommercialName = planningData.Commercial,
 
-                    // Email destinatari (converti nomi in email se necessario)
+                    // Email destinatari (dai campi UI)
                     ReporterEmail = planningData.ReporterEmail,
-                    ConsultantEmail = ConvertNameToEmail(planningData.ConsultantName),
-                    ProjectManagerEmail = ConvertNameToEmail(planningData.ProjectManager),
-                    CommercialEmail = ConvertNameToEmail(planningData.Commercial)
+                    ConsultantEmail = GetConsultantEmailFromName(planningData.ConsultantName),
+                    ProjectManagerEmail = GetPMEmailFromName(planningData.ProjectManager),
+                    CommercialEmail = GetCommercialEmailFromName(planningData.Commercial)
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Errore conversione dati: {ex.Message}");
+                _logger?.LogError($"Errore conversione planning data: {ex.Message}");
                 throw;
             }
         }
+
+
+        private string GetConsultantEmailFromName(string consultantName) =>
+    EmailConverterHelper.ConvertNameToEmail(consultantName);
+
+        private string GetPMEmailFromName(string pmName) =>
+            EmailConverterHelper.ConvertNameToEmail(pmName);
+
+        private string GetCommercialEmailFromName(string commercialName) =>
+            EmailConverterHelper.ConvertNameToEmail(commercialName);
 
         /// <summary>
         /// Converte nome persona in email aziendale con formato "Nome Cognome <email@dedagroup.it>"
@@ -2300,21 +2289,36 @@ namespace JiraTicketManager.Forms
             {
                 _logger.LogInfo($"Copia commento negli appunti per ticket {ticketKey}");
 
-                // Rigenera il commento per la copia
+                // Raccoglie i dati dalla UI
                 var planningData = CollectPlanningTicketData();
-                if (planningData != null)
+                if (planningData == null)
                 {
-                    var commentContent = GenerateForwardedEmailComment(planningData);
-
-                    if (!string.IsNullOrWhiteSpace(commentContent))
-                    {
-                        Clipboard.SetText(commentContent);
-                        ShowInfo("Copiato negli Appunti",
-                            $"Commento copiato negli appunti.\n" +
-                            $"Puoi incollarlo manualmente in Jira per il ticket {ticketKey}");
-                        _logger.LogInfo("Commento copiato negli appunti con successo");
-                    }
+                    _logger.LogError("Planning data null - impossibile generare commento");
+                    ShowError("Errore", "Impossibile raccogliere i dati necessari per il commento");
+                    return;
                 }
+
+                // Usa CommentTemplateService
+                var commentTemplateService = new CommentTemplateService();
+                var commentData = CreateCommentDataFromPlanning(planningData);
+                var commentContent = commentTemplateService.GenerateForwardedEmailComment(commentData);
+
+                if (string.IsNullOrWhiteSpace(commentContent))
+                {
+                    _logger.LogError("Comment content vuoto dopo generazione");
+                    ShowError("Errore", "Errore nella generazione del commento");
+                    return;
+                }
+
+                // Copia negli appunti
+                Clipboard.SetText(commentContent);
+
+                ShowInfo("Copiato negli Appunti",
+                    $"Commento copiato negli appunti.\n" +
+                    $"Puoi incollarlo manualmente in Jira per il ticket {ticketKey}\n\n" +
+                    $"Lunghezza: {commentContent.Length} caratteri");
+
+                _logger.LogInfo($"Commento copiato negli appunti con successo - {commentContent.Length} caratteri");
             }
             catch (Exception ex)
             {
