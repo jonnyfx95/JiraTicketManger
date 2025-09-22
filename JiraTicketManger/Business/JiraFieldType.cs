@@ -1,4 +1,6 @@
-﻿namespace JiraTicketManager.Business
+﻿using JiraTicketManager.Services;
+
+namespace JiraTicketManager.Business
 {
     /// <summary>
     /// Enumerazione dei tipi di campi Jira supportati.
@@ -203,6 +205,79 @@
         public static bool HasDirectApiEndpoint(JiraFieldType fieldType)
         {
             return ApiEndpoints.ContainsKey(fieldType);
+        }
+    }
+}
+
+// <summary>
+/// Configurazione campi di chiusura (estensione di JiraFieldTypeHelper esistente)
+/// </summary>
+public static class ClosureFieldsConfig
+{
+    /// <summary>
+    /// Workspace ID principale per CMDB
+    /// </summary>
+    public const string WORKSPACE_ID = "c541ca01-a3a4-400b-a389-573d1f19899a";
+
+    /// <summary>
+    /// Campi per chiusura pianificazione
+    /// </summary>
+    public static class Planning
+    {
+        public static readonly (string fieldId, string displayName, string workspaceId, string objectId, string value)
+            Categoria = ("customfield_10095", "Categoria", WORKSPACE_ID, "958", "PIANIFICAZIONE");
+
+        public static readonly (string fieldId, string displayName, string workspaceId, string objectId, string value)
+            Motivazione = ("customfield_10109", "Motivazione Chiusura", WORKSPACE_ID, "769", "Inviata in Pianificazione");
+
+        public static readonly (string fieldId, string displayName, string value)
+            Metodologia = ("customfield_10087", "Metodologia Chiusura", "Schedulata");
+    }
+
+    /// <summary>
+    /// Helper per aggiornare tutti i campi di chiusura pianificazione
+    /// </summary>
+    public static async Task<bool> UpdatePlanningClosureFieldsAsync(JiraApiService apiService, string ticketKey, LoggingService logger = null)
+    {
+        try
+        {
+            logger?.LogInfo($"Aggiornamento campi chiusura pianificazione per {ticketKey}");
+
+            // Categoria
+            logger?.LogInfo($"• {Planning.Categoria.displayName}: {Planning.Categoria.value}");
+            var categoriaSuccess = await apiService.UpdateWorkspaceFieldAsync(
+                ticketKey, Planning.Categoria.fieldId, Planning.Categoria.workspaceId, Planning.Categoria.objectId);
+
+            // Motivazione
+            logger?.LogInfo($"• {Planning.Motivazione.displayName}: {Planning.Motivazione.value}");
+            var motivazioneSuccess = await apiService.UpdateWorkspaceFieldAsync(
+                ticketKey, Planning.Motivazione.fieldId, Planning.Motivazione.workspaceId, Planning.Motivazione.objectId);
+
+            // Metodologia  
+            logger?.LogInfo($"• {Planning.Metodologia.displayName}: {Planning.Metodologia.value}");
+            var metodologiaSuccess = await apiService.UpdateOptionFieldAsync(
+                ticketKey, Planning.Metodologia.fieldId, Planning.Metodologia.value);
+
+            var allSuccess = categoriaSuccess && motivazioneSuccess && metodologiaSuccess;
+
+            if (allSuccess)
+            {
+                logger?.LogInfo($"✅ Tutti i campi chiusura aggiornati per {ticketKey}");
+            }
+            else
+            {
+                logger?.LogError($"❌ Alcuni campi chiusura falliti per {ticketKey}");
+                logger?.LogError($"  Categoria: {(categoriaSuccess ? "✅" : "❌")}");
+                logger?.LogError($"  Motivazione: {(motivazioneSuccess ? "✅" : "❌")}");
+                logger?.LogError($"  Metodologia: {(metodologiaSuccess ? "✅" : "❌")}");
+            }
+
+            return allSuccess;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError($"Errore aggiornamento campi chiusura {ticketKey}", ex);
+            return false;
         }
     }
 }

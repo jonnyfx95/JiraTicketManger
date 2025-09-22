@@ -631,6 +631,40 @@ namespace JiraTicketManager.Forms
 
         #region Private Methods - Helpers
 
+
+        // <summary>
+        /// Estensione per altri tipi di chiusura (futuro)
+        /// </summary>
+        public static class FutureClosureTypes
+        {
+            /// <summary>
+            /// Campi per chiusura intervento (esempio futuro)
+            /// </summary>
+            public static class Intervento
+            {
+                // TODO: Definire campi per chiusura interventi
+                // public static readonly (string fieldId, string displayName, string value)
+                //     TipoIntervento = ("customfield_10XXX", "Tipo Intervento", "Risolto");
+            }
+
+            /// <summary>
+            /// Aggiorna campi per diversi tipi di chiusura
+            /// </summary>
+            public static async Task<bool> UpdateClosureFieldsByTypeAsync(
+                JiraApiService apiService, string ticketKey, string closureType, LoggingService logger = null)
+            {
+                return closureType.ToLower() switch
+                {
+                    "planning" or "pianificazione" =>
+                        await ClosureFieldsConfig.UpdatePlanningClosureFieldsAsync(apiService, ticketKey, logger),
+
+                    // "intervento" => 
+                    //     await UpdateInterventoClosureFieldsAsync(apiService, ticketKey, logger),
+
+                    _ => throw new ArgumentException($"Tipo chiusura non supportato: {closureType}")
+                };
+            }
+        }
         // <summary>
         /// Calcola e imposta il responsabile basato sull'area
         /// </summary>
@@ -1686,20 +1720,32 @@ namespace JiraTicketManager.Forms
                 _logger?.LogInfo($"[{operationId}] === FASE 3: GESTIONE RISULTATO ===");
                 await HandleCommentAndTransitionResult(planningData.TicketKey, commentSuccess, transitionResult);
 
-               
 
-                //FASE 4: COMPILA CAMBI CHIUSURA
 
-                _logger?.LogInfo($"[{operationId}] === FASE 4: COMPILA CAMBI CHIUSURA ===");
+                // FASE 4: COMPILA CAMPI CHIUSURA (VERSIONE FINALE)
+                _logger?.LogInfo($"[{operationId}] === FASE 4: COMPILA CAMPI CHIUSURA ===");
 
-                // CATEGORIA    
-                await apiService.UpdateWorkspaceFieldAsync(planningData.TicketKey, "customfield_10095", "c541ca01-a3a4-400b-a389-573d1f19899a", "958");
+                try
+                {
+                    var closureSuccess = await ClosureFieldsConfig.UpdatePlanningClosureFieldsAsync(
+                        apiService, planningData.TicketKey, _logger);
 
-                // MOTIVAZIONE CHIUSURA 
-                await apiService.UpdateWorkspaceFieldAsync(planningData.TicketKey, "customfield_10109", "c541ca01-a3a4-400b-a389-573d1f19899a", "769");
-
-                // METODOOGIA CHIUSURA  
-                await apiService.UpdateTextFieldAsync(planningData.TicketKey, "customfield_10087", "Schedulata");
+                    if (closureSuccess)
+                    {
+                        _logger?.LogInfo($"[{operationId}] ✅ Campi chiusura completati con successo");
+                        _toastService?.ShowSuccess("Chiusura Completata", $"Ticket {planningData.TicketKey} aggiornato con campi di chiusura");
+                    }
+                    else
+                    {
+                        _logger?.LogWarning($"[{operationId}] ⚠️ Alcuni campi chiusura falliti (ticket comunque pianificato)");
+                        _toastService?.ShowWarning("Chiusura Parziale", "Ticket pianificato ma alcuni campi chiusura falliti");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError($"[{operationId}] ERRORE FASE 4: {ex.Message}");
+                    _toastService?.ShowWarning("Campi Chiusura", "Errore aggiornamento campi (ticket già pianificato)");
+                }
 
                 _logger?.LogInfo($"[{operationId}] === OPERAZIONE COMPLETATA ===");
             }
