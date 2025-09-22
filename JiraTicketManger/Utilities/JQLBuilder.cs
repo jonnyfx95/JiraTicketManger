@@ -92,7 +92,7 @@ namespace JiraTicketManager.Utilities    // ← CORRETTO: "Manager"
         {
             if (!string.IsNullOrWhiteSpace(organization))
             {
-                return Where("organizations", organization);
+                return Where("\"cliente[dropdown]\"", organization);
             }
             return this;
         }

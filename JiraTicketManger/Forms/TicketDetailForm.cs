@@ -46,6 +46,11 @@ namespace JiraTicketManager.Forms
         private string _currentEmailPreview = "";
         private string _currentHtmlContent = "";
 
+        // === STATO COMMENTO ===
+
+        private static int _commentCallCount = 0;
+        private static bool _commentInProgress = false;
+
         private readonly WindowsToastService _toastService;
 
         #endregion
@@ -119,10 +124,7 @@ namespace JiraTicketManager.Forms
         {
             try
             {
-                // Rimuovi handler esistente se presente (per evitare duplicati)
                 btnCommento.Click -= OnCommentoClick;
-
-                // Aggiungi l'handler
                 btnCommento.Click += OnCommentoClick;
 
                 _logger.LogInfo("Event handler btnCommento collegato");
@@ -1573,91 +1575,271 @@ namespace JiraTicketManager.Forms
 
         #region Comment Functionality
 
+
+
         /// <summary>
-        /// Event handler per il pulsante Commento - genera commento formato "email inoltrata"
+        /// Event handler per il pulsante Commento - genera commento formato "email inoltrata" + TRANSIZIONE
+        /// 
         /// </summary>
         private async void OnCommentoClick(object sender, EventArgs e)
         {
+            var callNumber = ++_commentCallCount;
+            _logger?.LogInfo($"*** OnCommentoClick CHIAMATA #{callNumber} ***");
+
+            var operationId = Guid.NewGuid().ToString("N")[..8]; // ID univoco per questa operazione
+
             try
             {
-                _logger.LogInfo("=== INIZIO GENERAZIONE COMMENTO ===");
+                _logger?.LogInfo($"[{operationId}] === INIZIO OnCommentoClick ===");
 
-                // Disabilita pulsante durante elaborazione
+                // 🛑 PROTEZIONE GLOBALE ANTI-DUPLICAZIONE
+                if (_commentInProgress)
+                {
+                    _logger?.LogWarning($"[{operationId}] BLOCCATO: Operazione commento già in corso");
+                    return;
+                }
+
+                // Protezione locale del bottone
+                if (!btnCommento.Enabled)
+                {
+                    _logger?.LogWarning($"[{operationId}] BLOCCATO: Bottone già disabilitato");
+                    return;
+                }
+
+                // ATTIVA PROTEZIONI
+                _commentInProgress = true;
                 btnCommento.Enabled = false;
                 btnCommento.Text = "⏳ Elaborazione...";
                 this.Cursor = Cursors.WaitCursor;
 
-                // Validazione dati (riutilizza la stessa di btnPianifica)
+                _logger?.LogInfo($"[{operationId}] Protezioni attivate, inizio elaborazione");
+
+                // Validazione dati
                 if (!ValidatePlanningData())
                 {
+                    _logger?.LogInfo($"[{operationId}] Validazione fallita, uscita");
                     return;
                 }
 
-                // Raccoglie dati dai campi UI (stesso metodo di btnPianifica)
                 var planningData = CollectPlanningTicketData();
                 if (planningData == null)
                 {
-                    ShowError("Errore Dati", "Impossibile raccogliere i dati dalla UI");
+                    _logger?.LogError($"[{operationId}] Planning data null, uscita");
+                    _toastService?.ShowError("Errore Dati", "Impossibile raccogliere i dati dalla UI");
                     return;
                 }
 
-                // Genera commento formato "email inoltrata"
                 var commentContent = GenerateForwardedEmailComment(planningData);
                 if (string.IsNullOrWhiteSpace(commentContent))
                 {
-                    ShowError("Errore Generazione", "Errore nella generazione del commento");
+                    _logger?.LogError($"[{operationId}] Comment content vuoto, uscita");
+                    _toastService?.ShowError("Errore Generazione", "Errore nella generazione del commento");
                     return;
                 }
 
-                _logger.LogInfo($"Commento generato - Lunghezza: {commentContent.Length} caratteri");
+                _logger?.LogInfo($"[{operationId}] Commento generato - Lunghezza: {commentContent.Length}");
 
-                // Mostra dialog di conferma con anteprima
+                // Dialog conferma
                 var templateDisplayName = GetTemplateDisplayName(planningData.TemplateType);
                 var confirmResult = CommentPreviewDialog.ShowCommentPreview(
-                    this,
-                    commentContent,
-                    planningData.TicketKey,
-                    templateDisplayName);
+                    this, commentContent, planningData.TicketKey, templateDisplayName);
 
                 if (confirmResult != DialogResult.OK)
                 {
-                    _logger.LogInfo("Invio commento annullato dall'utente");
-                    ShowInfo("Operazione Annullata", "Invio commento annullato");
+                    _logger?.LogInfo($"[{operationId}] Operazione annullata dall'utente");
+                    _toastService?.ShowInfo("Operazione Annullata", "Invio commento annullato");
                     return;
                 }
 
-                // Invia commento a Jira
-                bool success = await SendCommentToJira(planningData.TicketKey, commentContent);
+                // 🎯 FASE 1: Invio commento (CON TRACKING)
+                _logger?.LogInfo($"[{operationId}] === FASE 1: INVIO COMMENTO ===");
+                _logger?.LogInfo($"[{operationId}] Target ticket: {planningData.TicketKey}");
 
-                if (success)
-                {
-                    _logger.LogInfo("Commento inviato con successo a Jira");
-                    ShowSuccess("Commento Inviato",
-                        $"Commento di pianificazione aggiunto al ticket {planningData.TicketKey}");
+                bool commentSuccess = await SendCommentToJiraWithDebug(planningData.TicketKey, commentContent, operationId);
 
-                    // Refresh dei commenti se necessario
-                    await RefreshCommentsTab();
-                }
-                else
+                if (!commentSuccess)
                 {
-                    ShowError("Errore Invio", "Errore durante l'invio del commento a Jira");
+                    _logger?.LogError($"[{operationId}] FASE 1 FALLITA: Errore invio commento");
+                    _toastService?.ShowError("Errore Invio", "Errore durante l'invio del commento a Jira");
+                    return;
                 }
 
-                _logger.LogInfo("=== FINE GENERAZIONE COMMENTO ===");
+                _logger?.LogInfo($"[{operationId}] === FASE 1 COMPLETATA ===");
+
+                // 🎯 FASE 2: Transizione
+                _logger?.LogInfo($"[{operationId}] === FASE 2: TRANSIZIONE ===");
+
+                var apiService = JiraApiService.CreateFromSettings(SettingsService.CreateDefault());
+                var transitionService = new JiraTransitionService(apiService);
+                var transitionResult = await transitionService.TransitionToPlanningCompleteAsync(planningData.TicketKey);
+
+                _logger?.LogInfo($"[{operationId}] === FASE 2 COMPLETATA ===");
+
+                // 🎯 FASE 3: Gestione risultato
+                _logger?.LogInfo($"[{operationId}] === FASE 3: GESTIONE RISULTATO ===");
+                await HandleCommentAndTransitionResult(planningData.TicketKey, commentSuccess, transitionResult);
+
+                _logger?.LogInfo($"[{operationId}] === OPERAZIONE COMPLETATA ===");
             }
             catch (Exception ex)
             {
-                _logger.LogError("Errore durante generazione commento", ex);
-                ShowError("Errore Commento", $"Errore durante la generazione del commento: {ex.Message}");
+                _logger?.LogError($"[{operationId}] ERRORE GENERALE: {ex.Message}");
+                _toastService?.ShowError("Errore Commento", $"Errore durante la generazione del commento: {ex.Message}");
             }
             finally
             {
-                // Ripristina stato UI
+                // DISATTIVA PROTEZIONI SEMPRE
+                _commentInProgress = false;
                 btnCommento.Enabled = true;
                 btnCommento.Text = "💬 Commento";
                 this.Cursor = Cursors.Default;
+
+                _logger?.LogInfo($"[{operationId}] === FINE OnCommentoClick (CLEANUP ESEGUITO) ===");
             }
         }
+
+        /// <summary>
+        /// Wrapper per SendCommentToJira con debug avanzato
+        /// </summary>
+        private async Task<bool> SendCommentToJiraWithDebug(string ticketKey, string commentContent, string operationId)
+        {
+            _logger?.LogInfo($"[{operationId}] SendCommentToJiraWithDebug INIZIO");
+            _logger?.LogInfo($"[{operationId}] Ticket: {ticketKey}, Content Length: {commentContent.Length}");
+
+            try
+            {
+                // Verifica che non ci siano chiamate multiple
+                var commentId = $"{ticketKey}_{DateTime.Now:HHmmss}";
+                _logger?.LogInfo($"[{operationId}] Comment ID univoco: {commentId}");
+
+                var result = await SendCommentToJiraWithRetry(ticketKey, commentContent, maxRetries: 1);
+
+                _logger?.LogInfo($"[{operationId}] SendCommentToJiraWithDebug FINE - Result: {result}");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"[{operationId}] SendCommentToJiraWithDebug ERRORE: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Gestisce il risultato combinato di commento + transizione
+        /// per il nuovo TransitionResult
+        /// </summary>
+        private async Task HandleCommentAndTransitionResult(string ticketKey, bool commentSuccess, JiraTransitionService.TransitionResult transitionResult)
+        {
+            try
+            {
+                if (commentSuccess && transitionResult.Success)
+                {
+                    // Successo completo
+                    _logger.LogInfo($"Operazione completa per {ticketKey}: commento inviato e stato transizionato");
+
+                    string statusMessage = !string.IsNullOrEmpty(transitionResult.NewStatus) && transitionResult.CurrentStatus != transitionResult.NewStatus
+                        ? $"Stato cambiato da '{transitionResult.CurrentStatus}' a '{transitionResult.NewStatus}'"
+                        : $"Stato confermato: '{transitionResult.NewStatus}'";
+
+                    _toastService?.ShowSuccess("Operazione Completata",
+                        $"Commento aggiunto al ticket {ticketKey}\n{statusMessage}");
+
+                    // Refresh dei commenti e stato
+                    await RefreshCommentsTab();
+                    await RefreshTicketStatusDisplayIfNeeded(ticketKey, transitionResult.NewStatus);
+                }
+                else if (commentSuccess && !transitionResult.Success)
+                {
+                    // Successo parziale - commento ok, transizione fallita
+                    _logger.LogWarning($"Successo parziale per {ticketKey}: commento ok, transizione fallita");
+                    _logger.LogInfo($"Dettagli transizione: {transitionResult.ErrorMessage}");
+
+                    var warningMessage = $"Commento aggiunto al ticket {ticketKey}\n" +
+                                        $"Transizione automatica non riuscita: {transitionResult.ErrorMessage}\n";
+
+                    // Se ci sono transizioni alternative, suggeriscile
+                    if (transitionResult.AvailableTransitions?.Any() == true)
+                    {
+                        var suggestions = string.Join(", ", transitionResult.AvailableTransitions.Take(3));
+                        warningMessage += $"Transizioni disponibili: {suggestions}";
+                    }
+                    else
+                    {
+                        warningMessage += "Completa manualmente il workflow in Jira";
+                    }
+
+                    _toastService?.ShowWarning("Operazione Parziale", warningMessage);
+
+                    // Refresh solo commenti - usa il metodo senza parametri per questo caso
+                    await RefreshCommentsTab();
+                    await RefreshTicketStatusDisplayIfNeeded(ticketKey);
+                }
+                else
+                {
+                    // Commento fallito - non dovrebbe succedere perché è già controllato sopra
+                    _logger.LogError($"Stato inconsistente per {ticketKey}");
+                    _toastService?.ShowError("Errore", "Stato inconsistente dell'operazione");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore gestione risultato per {ticketKey}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Aggiorna la visualizzazione dello stato del ticket nella UI se presente
+        /// </summary>
+        private async Task RefreshTicketStatusDisplayIfNeeded(string ticketKey, string newStatus = null)
+        {
+            try
+            {
+                _logger.LogInfo($"🔄 Tentativo aggiornamento display stato per {ticketKey}");
+
+                // Se c'è una label che mostra lo stato del ticket, aggiornala
+                // Cerca controlli che potrebbero mostrare lo stato
+                var statusControls = new[]
+                {
+            this.Controls.Find("lblStatus", true).FirstOrDefault(),
+            this.Controls.Find("lblTicketStatus", true).FirstOrDefault(),
+            this.Controls.Find("txtStatus", true).FirstOrDefault()
+        };
+
+                var statusControl = statusControls.FirstOrDefault(c => c != null);
+
+                if (statusControl != null)
+                {
+                    // Aggiorna il testo dello stato
+                    if (statusControl is Label label)
+                    {
+                        label.Text = "Attività pianifica";
+                        label.ForeColor = Color.DarkGreen;
+                        _logger.LogInfo("✅ Status label aggiornata");
+                    }
+                    else if (statusControl is TextBox textBox)
+                    {
+                        textBox.Text = "Attività pianifica";
+                        textBox.BackColor = Color.LightGreen;
+                        _logger.LogInfo("✅ Status textbox aggiornata");
+                    }
+                }
+                else
+                {
+                    _logger.LogDebug("📋 Nessun controllo stato trovato da aggiornare");
+                }
+
+                // Placeholder per refresh più completo se necessario
+                await Task.Delay(100);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Errore aggiornamento display stato: {ex.Message}");
+                // Non bloccare il flusso per questo errore
+            }
+        }
+
+
+
 
 
         /// <summary>
@@ -2673,70 +2855,38 @@ namespace JiraTicketManager.Forms
 #if DEBUG
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            // F2 - Test Debug Firma Outlook
+            if (keyData == Keys.F3)
+            {
+                // F3 = Debug Transizioni
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        //await TestDebugTransitionsAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError($"Errore F3 debug: {ex.Message}");
+                    }
+                });
+                return true;
+            }
+
+            // F2 esistente (se presente)
             if (keyData == Keys.F2)
             {
-                _ = TestOutlookSignatureDebugFromForm();
+                // Metodo F2 esistente se presente
+                // TestOutlookSignatureDebugFromForm();
                 return true;
             }
 
             return base.ProcessCmdKey(ref msg, keyData);
         }
-
-        /// <summary>
-        /// Test debug firma Outlook dalla form dettaglio - F2
-        /// </summary>
-        private async Task TestOutlookSignatureDebugFromForm()
-        {
-            try
-            {
-                _logger?.LogInfo("F2 - Test Debug Firma Outlook");
-
-                // Crea il servizio Outlook
-                var outlookService = new OutlookHybridService();
-
-                // Chiama il metodo debug
-                var debugResult = outlookService.DebugSignatureReading();
-
-                _logger?.LogInfo($"Debug Firma completato");
-
-                // Crea file di testo con timestamp
-                var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                var fileName = $"outlook_signature_debug_{timestamp}.txt";
-                var filePath = Path.Combine(Environment.CurrentDirectory, fileName);
-
-                // Scrivi risultato nel file
-                var fileContent = $"OUTLOOK SIGNATURE DEBUG REPORT\n";
-                fileContent += $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\n";
-                fileContent += $"Machine: {Environment.MachineName}\n";
-                fileContent += $"User: {Environment.UserName}\n";
-                fileContent += new string('=', 50) + "\n\n";
-                fileContent += debugResult;
-
-                await File.WriteAllTextAsync(filePath, fileContent);
-
-                // Apri automaticamente il file
-                var processInfo = new ProcessStartInfo
-                {
-                    FileName = filePath,
-                    UseShellExecute = true
-                };
-
-                Process.Start(processInfo);
-
-                _logger?.LogInfo($"File debug firma creato e aperto: {fileName}");
-
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError($"Errore test firma: {ex.Message}");
-                MessageBox.Show($"Errore test firma: {ex.Message}",
-                               "Errore F2",
-                               MessageBoxButtons.OK,
-                               MessageBoxIcon.Error);
-            }
-        }
 #endif
+
+   
+
+
 
     }
 

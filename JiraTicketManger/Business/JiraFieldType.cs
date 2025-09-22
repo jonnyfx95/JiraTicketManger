@@ -62,6 +62,12 @@
         Commerciale,
 
         /// <summary>
+        /// Cliente (customfield_10117) - API: search con distinct values
+        /// Nome JQL: "cliente[dropdown]"
+        /// </summary>
+        Cliente,
+
+        /// <summary>
         /// Custom field generico - richiede field ID
         /// </summary>
         CustomField
@@ -93,8 +99,9 @@
     { JiraFieldType.Area, "customfield_10113" },
     { JiraFieldType.Application, "customfield_10114" },
     { JiraFieldType.Consulente, "customfield_10238" },
-    { JiraFieldType.PM, "customfield_10271" },           // ✅ NUOVO
-    { JiraFieldType.Commerciale, "customfield_10272" }   // ✅ NUOVO
+    { JiraFieldType.PM, "customfield_10271" },           
+    { JiraFieldType.Commerciale, "customfield_10272" },
+    { JiraFieldType.Cliente, "customfield_10117" },
 };
 
         /// <summary>
@@ -110,9 +117,10 @@
     { JiraFieldType.Application, "\"Applicativo\"" },
     { JiraFieldType.Assignee, "assignee" },
     { JiraFieldType.Consulente, "\"Consulente\"" },
-    { JiraFieldType.PM, "\"PM\"" },                     // ✅ NUOVO
-    { JiraFieldType.Commerciale, "\"Commerciale\"" },   // ✅ NUOVO
-    { JiraFieldType.Project, "project" }
+    { JiraFieldType.PM, "\"PM\"" },                     
+    { JiraFieldType.Commerciale, "\"Commerciale\"" },   
+    { JiraFieldType.Project, "project" },
+    { JiraFieldType.Cliente, "\"cliente[dropdown]\"" },
 };
 
         /// <summary>
@@ -120,7 +128,8 @@
         /// </summary>
         public static readonly Dictionary<JiraFieldType, string> DisplayNames = new()
 {
-    { JiraFieldType.Organization, "Clienti" },
+    { JiraFieldType.Organization, "Organizzazioni" },
+    { JiraFieldType.Cliente, "Clienti" },
     { JiraFieldType.Status, "Stati" },
     { JiraFieldType.Priority, "Priorità" },
     { JiraFieldType.IssueType, "Tipi" },
@@ -181,9 +190,10 @@
         {
             return fieldType == JiraFieldType.Area ||
                    fieldType == JiraFieldType.Application ||
+                   fieldType == JiraFieldType.Cliente ||
                    fieldType == JiraFieldType.Consulente ||
-                   fieldType == JiraFieldType.PM ||           // ✅ NUOVO
-                   fieldType == JiraFieldType.Commerciale ||  // ✅ NUOVO
+                   fieldType == JiraFieldType.PM ||           
+                   fieldType == JiraFieldType.Commerciale ||  
                    fieldType == JiraFieldType.CustomField;
         }
 

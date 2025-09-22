@@ -424,6 +424,13 @@ namespace JiraTicketManager.Tools
 
         public static string ExtractAreaFromApplicativo(string applicativo)
         {
+
+            // 🆕 CASO SPECIALE: Metadatamenager -> MDMGR appartiene ad Area Tecnica
+            if (applicativo.Contains("Metadatamanager -> MDMGR"))
+            {
+                return "Tecnica";
+            }
+
             if (string.IsNullOrEmpty(applicativo))
                 return null;
 

@@ -693,8 +693,9 @@ namespace JiraTicketManager.Data
                 "customfield_10113" => JiraFieldType.Area,
                 "customfield_10114" => JiraFieldType.Application,
                 "customfield_10238" => JiraFieldType.Consulente,
-                "customfield_10271" => JiraFieldType.PM,           // ✅ NUOVO
-                "customfield_10272" => JiraFieldType.Commerciale,  // ✅ NUOVO
+                "customfield_10271" => JiraFieldType.PM,          
+                "customfield_10272" => JiraFieldType.Commerciale,
+                "customfield_10117" => JiraFieldType.Cliente,
                 _ => JiraFieldType.CustomField
             };
         }

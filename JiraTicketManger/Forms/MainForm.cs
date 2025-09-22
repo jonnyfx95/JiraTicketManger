@@ -2198,7 +2198,7 @@ namespace JiraTicketManager
                 // Step 3: Carica ComboBox Cliente (operazione più lunga)
                 _progressService.UpdateProgress(operationId, 3, "Caricamento organizzazioni...");
                 _logger.LogInfo("🏢 Caricamento ComboBox Cliente");
-                await _comboBoxManager.LoadAsync(cmbCliente, JiraFieldType.Organization, "-- Tutti i Clienti --", progress);
+                await _comboBoxManager.LoadAsync(cmbCliente, JiraFieldType.Cliente, "-- Tutti Clienti --", progress);
 
                 // Step 4: Carica ComboBox Stato
                 _progressService.UpdateProgress(operationId, 4, "Caricamento stati...");
