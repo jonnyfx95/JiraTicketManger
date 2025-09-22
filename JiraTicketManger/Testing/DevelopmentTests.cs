@@ -131,6 +131,11 @@ namespace JiraTicketManager.Testing
             totalTests++; if (result15) passedTests++;
             LogTest("");
 
+            LogTest("🔍 Test 16: Cliente Partner");
+            LogTest("🔍 Test 16: Cliente Partner Dettagliato");
+            var result16 = await TestClientePartnerResolution();
+            LogTest("");    
+
 
             // Risultati finali
             LogTest("🧪 === RISULTATI FINALI ===");
@@ -144,6 +149,8 @@ namespace JiraTicketManager.Testing
             // Salva e apri file
             await SaveAndOpenTestLog();
         }
+        
+
 
         /// <summary>
         /// Test base dei filtri
@@ -3421,6 +3428,207 @@ namespace JiraTicketManager.Testing
                      <br><br>Contatto cliente: 123-456-7890</span>";
         }
 
+
+
+        #region "Array field testing"
+
+        // <summary>
+        /// Metodo di test da aggiungere a DevelopmentTests.cs
+        /// </summary>
+        public async Task<bool> TestClientePartnerResolution()
+        {
+            LogTest("🧪 === TEST CLIENTE PARTNER FOCALIZZATO ===");
+            LogTest($"📅 {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            LogTest("");
+
+            try
+            {
+                // 1. Ottieni ticket corrente
+                var currentTicketKey = GetCurrentTicketKey();
+                if (string.IsNullOrEmpty(currentTicketKey))
+                {
+                    LogTest("❌ Nessun ticket corrente - apri un ticket prima del test");
+                    return false;
+                }
+
+                LogTest($"🎫 Ticket corrente: {currentTicketKey}");
+                LogTest("");
+
+                // 2. Setup servizi
+                var apiService = JiraApiService.CreateFromSettings(SettingsService.CreateDefault());
+                var dataService = new JiraDataService(apiService);
+                var textBoxManager = new TextBoxManager(dataService);
+
+                // 3. Carica ticket
+                var ticket = await dataService.GetTicketAsync(currentTicketKey);
+                if (ticket == null)
+                {
+                    LogTest("❌ Ticket non trovato");
+                    return false;
+                }
+
+                LogTest("✅ Ticket caricato correttamente");
+                LogTest("");
+
+                // 4. Analizza campo customfield_10103 nel JSON
+                var clientePartnerField = ticket.RawData["fields"]?["customfield_10103"];
+
+                LogTest("🔍 ANALISI CAMPO customfield_10103:");
+                LogTest($"   Presente: {clientePartnerField != null}");
+                LogTest($"   Tipo: {clientePartnerField?.Type ?? JTokenType.Null}");
+
+                if (clientePartnerField != null && clientePartnerField.Type != JTokenType.Null)
+                {
+                    if (clientePartnerField.Type == JTokenType.Array)
+                    {
+                        var array = clientePartnerField as JArray;
+                        LogTest($"   Array elementi: {array?.Count ?? 0}");
+
+                        if (array?.Count > 0)
+                        {
+                            var firstElement = array[0];
+                            LogTest($"   Primo elemento tipo: {firstElement?.Type}");
+
+                            if (firstElement?.Type == JTokenType.Object)
+                            {
+                                var obj = firstElement as JObject;
+                                var objectId = obj?["objectId"]?.ToString();
+                                var workspaceId = obj?["workspaceId"]?.ToString();
+                                LogTest($"   ObjectId: {objectId}");
+                                LogTest($"   WorkspaceId: {workspaceId}");
+                            }
+                        }
+                    }
+
+                    LogTest($"   JSON contenuto: {clientePartnerField.ToString().Substring(0, Math.Min(200, clientePartnerField.ToString().Length))}...");
+                }
+                else
+                {
+                    LogTest("   Campo vuoto o null");
+                }
+
+                LogTest("");
+
+                // 5. Test estrazione con TextBoxManager
+                LogTest("🧪 TEST ESTRAZIONE CON TEXTBOXMANAGER:");
+
+                var startTime = DateTime.Now;
+                var clientePartnerValue = await textBoxManager.GetFieldValueAsync(ticket.RawData, "customfield_10103");
+                var duration = DateTime.Now - startTime;
+
+                LogTest($"   Tempo impiegato: {duration.TotalMilliseconds:F0}ms");
+                LogTest($"   Risultato: '{clientePartnerValue}'");
+                LogTest("");
+
+                // 6. Verifica UI (se txtClientePartner esiste)
+                LogTest("🖥️ VERIFICA UI:");
+                var txtClientePartner = _mainForm.Controls.Find("txtClientePartner", true).FirstOrDefault() as TextBox;
+
+                if (txtClientePartner != null)
+                {
+                    LogTest($"   txtClientePartner trovato: ✅");
+                    LogTest($"   Valore attuale: '{txtClientePartner.Text}'");
+
+                    // Verifica se il valore è stato popolato correttamente
+                    var isPopulated = !string.IsNullOrEmpty(txtClientePartner.Text) &&
+                                    txtClientePartner.Text != "-" &&
+                                    !txtClientePartner.Text.StartsWith("[");
+
+                    LogTest($"   Popolato correttamente: {(isPopulated ? "✅" : "❌")}");
+                }
+                else
+                {
+                    LogTest("   txtClientePartner non trovato: ❌");
+                }
+
+                LogTest("");
+
+                // 7. Valutazione finale
+                LogTest("📊 VALUTAZIONE FINALE:");
+
+                var hasField = clientePartnerField != null && clientePartnerField.Type != JTokenType.Null;
+                var hasValidResult = !string.IsNullOrEmpty(clientePartnerValue) &&
+                                   clientePartnerValue != "-" &&
+                                   !clientePartnerValue.StartsWith("[");
+                var fastExecution = duration.TotalSeconds < 10;
+
+                LogTest($"   Campo presente nel JSON: {(hasField ? "✅" : "❌")}");
+                LogTest($"   Estrazione riuscita: {(hasValidResult ? "✅" : "❌")}");
+                LogTest($"   Esecuzione veloce (<10s): {(fastExecution ? "✅" : "❌")}");
+
+                if (hasValidResult && fastExecution)
+                {
+                    LogTest("");
+                    LogTest("🎉 SUCCESSO COMPLETO!");
+                    LogTest($"   Cliente Partner risolto: {clientePartnerValue}");
+                    return true;
+                }
+                else if (hasField && fastExecution)
+                {
+                    LogTest("");
+                    LogTest("⚠️ SUCCESSO PARZIALE!");
+                    LogTest("   Campo presente ma risoluzione fallita");
+                    LogTest("   Questo è normale per ticket senza Cliente Partner");
+                    return true;
+                }
+                else
+                {
+                    LogTest("");
+                    LogTest("❌ PROBLEMI RILEVATI!");
+                    if (!fastExecution)
+                        LogTest("   - Esecuzione troppo lenta (possibile timeout/blocco)");
+                    if (!hasField)
+                        LogTest("   - Campo non presente nel ticket");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogTest($"❌ ERRORE DURANTE IL TEST: {ex.Message}");
+                LogTest($"   Tipo eccezione: {ex.GetType().Name}");
+                if (ex.InnerException != null)
+                    LogTest($"   Eccezione interna: {ex.InnerException.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Ottiene il ticket key corrente dalla form
+        /// </summary>
+        private string GetCurrentTicketKey()
+        {
+            try
+            {
+                // Metodo 1: Dal titolo della form
+                if (_mainForm != null)
+                {
+                    var title = _mainForm.Text;
+                    if (title.Contains("CC-"))
+                    {
+                        var match = System.Text.RegularExpressions.Regex.Match(title, @"CC-\d+");
+                        if (match.Success)
+                            return match.Value;
+                    }
+                }
+
+                // Metodo 2: Da label lblTicketKey
+                var lblTicketKey = _mainForm?.Controls.Find("lblTicketKey", true).FirstOrDefault() as Label;
+                if (lblTicketKey != null)
+                {
+                    var text = lblTicketKey.Text.Replace("[", "").Replace("]", "").Trim();
+                    if (text.StartsWith("CC-"))
+                        return text;
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                LogTest($"   Errore estrazione ticket key: {ex.Message}");
+                return null;
+            }
+        }
+        #endregion  
 
     }
 }

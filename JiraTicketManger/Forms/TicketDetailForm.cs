@@ -4,10 +4,10 @@ using JiraTicketManager.Data.Converters;
 using JiraTicketManager.Helpers;
 using JiraTicketManager.Services;
 using JiraTicketManager.Services.Activity;
+using JiraTicketManager.Testing;
 using JiraTicketManager.UI.Managers;
 using JiraTicketManager.UI.Managers.Activity;
 using JiraTicketManager.UI.Manger.Activity;
-using OutlookInterop = Microsoft.Office.Interop.Outlook;
 using Org.BouncyCastle.Asn1.Cmp;
 using System;
 using System.Collections.Generic;
@@ -17,6 +17,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using static System.Windows.Forms.MonthCalendar;
+using OutlookInterop = Microsoft.Office.Interop.Outlook;
 
 
 
@@ -31,6 +32,7 @@ namespace JiraTicketManager.Forms
         private readonly JiraDataService _dataService;
         private readonly TextBoxManager _textBoxManager;
         private ComboBoxManager _comboBoxManager;
+        private DevelopmentTests _devTests; 
 
         private IActivityTabManager _activityTabManager;
 
@@ -84,6 +86,7 @@ namespace JiraTicketManager.Forms
             SetupForm();
 
             InitializeCommentFunctionality();
+            InitializeDevelopmentTests();
 
 
 
@@ -1464,7 +1467,7 @@ namespace JiraTicketManager.Forms
                     InterventionDate = txtDataIntervento?.Text?.Trim() ?? "",
                     InterventionTime = txtOraIntervento?.Text?.Trim() ?? "",
                     ClientPhone = txtTelefono?.Text?.Trim() ?? "",
-                  
+
 
                     // Dati team
                     ProjectManager = GetSelectedComboValue(cmbPM),
@@ -1546,7 +1549,7 @@ namespace JiraTicketManager.Forms
         {
             public string TicketKey { get; set; } = "";
             public EmailTemplateService.TemplateType TemplateType { get; set; }
-            
+
 
             // Dati base ticket
             public string ClientName { get; set; } = "";
@@ -2859,36 +2862,172 @@ namespace JiraTicketManager.Forms
 #if DEBUG
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            if (keyData == Keys.F3)
+#if DEBUG
+            try
             {
-                // F3 = Debug Transizioni
-                Task.Run(async () =>
+                // F2 = Test Cliente Partner
+                if (keyData == Keys.F2)
                 {
-                    try
+                    Task.Run(async () =>
                     {
-                        //await TestDebugTransitionsAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.LogError($"Errore F3 debug: {ex.Message}");
-                    }
-                });
-                return true;
-            }
+                        try
+                        {
+                            _logger?.LogInfo("🧪 F2: Avvio test Cliente Partner");
 
-            // F2 esistente (se presente)
-            if (keyData == Keys.F2)
-            {
-                // Metodo F2 esistente se presente
-                // TestOutlookSignatureDebugFromForm();
-                return true;
+                            if (_devTests != null)
+                            {
+                                var result = await _devTests.TestClientePartnerResolution();
+                                _logger?.LogInfo($"🧪 F2: Test Cliente Partner {(result ? "✅ SUPERATO" : "❌ FALLITO")}");
+
+                                // Mostra toast con risultato
+                                var toastService = WindowsToastService.CreateDefault();
+                                if (result)
+                                    toastService.ShowSuccess("Test F2", "Cliente Partner test superato!");
+                                else
+                                    toastService.ShowError("Test F2", "Cliente Partner test fallito!");
+                            }
+                            else
+                            {
+                                _logger?.LogWarning("❌ DevelopmentTests non inizializzato");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogError($"Errore F2: {ex.Message}");
+                        }
+                    });
+                    return true;
+                }
+
+                // F3 = Test Firma Outlook
+                if (keyData == Keys.F3)
+                {
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            _logger?.LogInfo("🧪 F3: Avvio test Firma Outlook");
+
+                            if (_devTests != null)
+                            {
+                                var result = await _devTests.TestOutlookSignatureDebug();
+                                _logger?.LogInfo($"🧪 F3: Test Firma {(result ? "✅ SUPERATO" : "❌ FALLITO")}");
+
+                                var toastService = WindowsToastService.CreateDefault();
+                                if (result)
+                                    toastService.ShowSuccess("Test F3", "Firma Outlook test superato!");
+                                else
+                                    toastService.ShowError("Test F3", "Firma Outlook test fallito!");
+                            }
+                            else
+                            {
+                                _logger?.LogWarning("❌ DevelopmentTests non inizializzato");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogError($"Errore F3: {ex.Message}");
+                        }
+                    });
+                    return true;
+                }
+
+                // Ctrl+F3 = Test Completo
+                if (keyData == (Keys.Control | Keys.F3))
+                {
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            _logger?.LogInfo("🧪 Ctrl+F3: Avvio test completo");
+
+                            if (_devTests != null)
+                            {
+                                var clienteResult = await _devTests.TestClientePartnerResolution();
+                                var firmaResult = await _devTests.TestOutlookSignatureDebug();
+
+                                var message = $"Cliente Partner: {(clienteResult ? "✅" : "❌")}, Firma: {(firmaResult ? "✅" : "❌")}";
+                                _logger?.LogInfo($"🧪 Ctrl+F3: {message}");
+
+                                var toastService = WindowsToastService.CreateDefault();
+                                if (clienteResult && firmaResult)
+                                    toastService.ShowSuccess("Test Completo", "Tutti i test superati!");
+                                else
+                                    toastService.ShowWarning("Test Completo", $"Risultati: {message}");
+                            }
+                            else
+                            {
+                                _logger?.LogWarning("❌ DevelopmentTests non inizializzato");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogError($"Errore Ctrl+F3: {ex.Message}");
+                        }
+                    });
+                    return true;
+                }
+
+                // F4 = Tutti i test di sviluppo
+                if (keyData == Keys.F4)
+                {
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            _logger?.LogInfo("🧪 F4: Avvio tutti i test di sviluppo");
+
+                            if (_devTests != null)
+                            {
+                                await _devTests.RunAllAsync();
+                                _logger?.LogInfo("🧪 F4: Tutti i test completati");
+
+                                var toastService = WindowsToastService.CreateDefault();
+                                toastService.ShowInfo("Test F4", "Tutti i test completati! Controlla i log.");
+                            }
+                            else
+                            {
+                                _logger?.LogWarning("❌ DevelopmentTests non inizializzato");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogError($"Errore F4: {ex.Message}");
+                        }
+                    });
+                    return true;
+                }
             }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"Errore ProcessCmdKey: {ex.Message}");
+            }
+#endif
 
             return base.ProcessCmdKey(ref msg, keyData);
         }
 #endif
 
-   
+
+#if DEBUG
+        /// <summary>
+        /// Inizializza i test di sviluppo solo in modalità DEBUG
+        /// </summary>
+        private void InitializeDevelopmentTests()
+        {
+            try
+            {
+                _logger?.LogInfo("Inizializzazione DevelopmentTests...");
+                _devTests = new DevelopmentTests(_logger, this);
+                _logger?.LogInfo("✅ DevelopmentTests inizializzati con successo");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"❌ Errore inizializzazione DevelopmentTests: {ex.Message}");
+                _devTests = null; // Assicurati che sia null in caso di errore
+            }
+        }
+#endif
 
 
 

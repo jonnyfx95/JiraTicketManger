@@ -7,6 +7,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using JiraTicketManager.Testing; // Per DevelopmentTests
+using System.Threading; // Per CancellationToken
 
 
 namespace JiraTicketManager.UI.Managers
@@ -163,6 +165,26 @@ namespace JiraTicketManager.UI.Managers
             _logger.LogDebug("Tutte le TextBox mappate pulite");
         }
 
+        /// <summary>
+        /// Estrae il valore di un campo Jira dal RawData del ticket
+        /// Metodo pubblico per testing e debugging
+        /// </summary>
+        /// <param name="rawData">RawData del ticket</param>
+        /// <param name="jiraField">Nome campo Jira</param>
+        /// <returns>Valore del campo</returns>
+        public async Task<string> GetFieldValueAsync(JToken rawData, string jiraField)
+        {
+            try
+            {
+                return await ExtractFieldValueAsync(rawData, jiraField);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore estrazione campo {jiraField}", ex);
+                return $"Errore: {ex.Message}";
+            }
+        }
+
         #endregion
 
         #region Private Helper Methods
@@ -195,7 +217,7 @@ namespace JiraTicketManager.UI.Managers
                     {
                         string description;
 
-                        // ✅ NUOVO: Gestisce sia stringa che ADF
+                        // Gestisce sia stringa che ADF (Atlassian Document Format)
                         if (descriptionField.Type == JTokenType.String)
                         {
                             description = descriptionField.ToString();
@@ -219,59 +241,103 @@ namespace JiraTicketManager.UI.Managers
                     return "-";
                 }
 
-                // === GESTIONE SPECIALE PER DESCRIZIONE ===
-                if (jiraField == "description")
-                {
-                    var descriptionField = rawData["fields"]?["description"];
-                    if (descriptionField != null && descriptionField.Type != JTokenType.Null)
-                    {
-                        var description = descriptionField.ToString();
-                        if (!string.IsNullOrEmpty(description))
-                        {
-                            // Formatta la descrizione per migliorare la leggibilità
-                            return FormatDescription(description);
-                        }
-                    }
-                    return "-";
-                }
-
                 // === GESTIONE CLIENTE PARTNER CON WORKSPACE OBJECT RESOLVER ===
                 if (jiraField == "customfield_10103")
                 {
                     try
                     {
+                        _logger.LogInfo($"🔍 Inizio risoluzione Cliente Partner per customfield_10103");
+
                         var clientePartnerField = rawData["fields"]?["customfield_10103"];
 
-                        if (clientePartnerField != null && clientePartnerField.Type != JTokenType.Null)
+                        if (clientePartnerField == null || clientePartnerField.Type == JTokenType.Null)
+                        {
+                            _logger.LogInfo("Cliente Partner campo vuoto/null");
+                            return "-";
+                        }
+
+                        _logger.LogInfo($"Cliente Partner tipo: {clientePartnerField.Type}");
+
+                        // CONTROLLO CRITICO: Verifica se è array vuoto PRIMA di usare WorkspaceObjectResolver
+                        if (clientePartnerField.Type == JTokenType.Array)
+                        {
+                            var array = clientePartnerField as JArray;
+                            if (array == null || array.Count == 0)
+                            {
+                                _logger.LogInfo("Cliente Partner array vuoto - nessuna risoluzione necessaria");
+                                return "-";
+                            }
+
+                            _logger.LogInfo($"Cliente Partner array con {array.Count} elementi - procedo con risoluzione");
+                        }
+
+                        // TIMEOUT PER EVITARE BLOCCHI
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+                        try
                         {
                             using var resolver = new WorkspaceObjectResolver();
 
+                            string resolvedName = null;
+
                             if (clientePartnerField.Type == JTokenType.Array)
                             {
-                                var resolvedName = await resolver.ResolveArrayAsync(clientePartnerField);
-                                if (!string.IsNullOrEmpty(resolvedName) && !resolvedName.StartsWith("["))
+                                _logger.LogInfo("Risoluzione Cliente Partner come Array");
+
+                                // Usa timeout per evitare blocchi
+                                var task = resolver.ResolveArrayAsync(clientePartnerField);
+                                if (await Task.WhenAny(task, Task.Delay(8000, cts.Token)) == task)
                                 {
-                                    _logger.LogInfo($"Cliente Partner risolto: {resolvedName}");
-                                    return resolvedName;
+                                    resolvedName = await task;
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("Timeout risoluzione array Cliente Partner");
+                                    return "[Timeout risoluzione]";
                                 }
                             }
                             else if (clientePartnerField.Type == JTokenType.Object)
                             {
-                                var resolvedName = await resolver.ResolveFromTokenAsync(clientePartnerField);
-                                if (!string.IsNullOrEmpty(resolvedName) && !resolvedName.StartsWith("["))
+                                _logger.LogInfo("Risoluzione Cliente Partner come Object");
+
+                                var task = resolver.ResolveFromTokenAsync(clientePartnerField);
+                                if (await Task.WhenAny(task, Task.Delay(8000, cts.Token)) == task)
                                 {
-                                    _logger.LogInfo($"Cliente Partner risolto: {resolvedName}");
-                                    return resolvedName;
+                                    resolvedName = await task;
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("Timeout risoluzione object Cliente Partner");
+                                    return "[Timeout risoluzione]";
                                 }
                             }
-                        }
+                            else
+                            {
+                                _logger.LogInfo($"Cliente Partner tipo non supportato: {clientePartnerField.Type}");
+                                return clientePartnerField.ToString();
+                            }
 
-                        return "-"; // Campo vuoto o non risolto
+                            if (!string.IsNullOrEmpty(resolvedName) && !resolvedName.StartsWith("["))
+                            {
+                                _logger.LogInfo($"✅ Cliente Partner risolto con successo: {resolvedName}");
+                                return resolvedName;
+                            }
+                            else
+                            {
+                                _logger.LogWarning($"❌ Cliente Partner risoluzione fallita: {resolvedName}");
+                                return "-"; // Cambiato da messaggio di errore a "-"
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            _logger.LogWarning("Operazione risoluzione Cliente Partner cancellata per timeout");
+                            return "[Timeout]";
+                        }
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError($"Errore risoluzione Cliente Partner", ex);
-                        return "[Errore risoluzione]";
+                        _logger.LogError($"❌ Errore completo risoluzione Cliente Partner: {ex.Message}", ex);
+                        return "-"; // Cambiato da messaggio di errore a "-"
                     }
                 }
 
@@ -294,6 +360,7 @@ namespace JiraTicketManager.UI.Managers
                 return "Errore estrazione";
             }
         }
+
 
 
 

@@ -70,9 +70,11 @@ namespace JiraTicketManager.Utilities
         {
             try
             {
+                _logger.LogDebug("🔍 Inizio ResolveFromTokenAsync");
+
                 if (workspaceObjectToken?.Type != JTokenType.Object)
                 {
-                    _logger.LogDebug("Token workspace object non è un oggetto valido");
+                    _logger.LogWarning($"Token non è oggetto valido. Tipo: {workspaceObjectToken?.Type}");
                     return "[Token non valido]";
                 }
 
@@ -80,18 +82,24 @@ namespace JiraTicketManager.Utilities
                 var workspaceId = obj?["workspaceId"]?.ToString();
                 var objectId = obj?["objectId"]?.ToString();
 
+                _logger.LogInfo($"Workspace ID: {workspaceId}");
+                _logger.LogInfo($"Object ID: {objectId}");
+
                 if (string.IsNullOrEmpty(workspaceId) || string.IsNullOrEmpty(objectId))
                 {
-                    _logger.LogDebug($"Workspace object con ID mancanti: WS={workspaceId}, Obj={objectId}");
-                    return $"WorkspaceObject #{objectId ?? "Unknown"}";
+                    _logger.LogWarning($"ID mancanti - WS: '{workspaceId}', Obj: '{objectId}'");
+                    return $"[ID mancanti: WS={workspaceId}, Obj={objectId}]";
                 }
 
-                return await ResolveWorkspaceObjectAsync(workspaceId, objectId);
+                var result = await ResolveWorkspaceObjectAsync(workspaceId, objectId);
+                _logger.LogInfo($"Risultato risoluzione: {result}");
+
+                return result;
             }
             catch (Exception ex)
             {
-                _logger.LogError("Errore risoluzione workspace object da token", ex);
-                return "[Errore risoluzione]";
+                _logger.LogError("Errore ResolveFromTokenAsync", ex);
+                return "[Errore risoluzione token]";
             }
         }
 
@@ -104,44 +112,59 @@ namespace JiraTicketManager.Utilities
         {
             try
             {
+                _logger.LogDebug("🔍 Inizio ResolveArrayAsync");
+
                 if (workspaceObjectArray?.Type != JTokenType.Array)
                 {
-                    _logger.LogDebug("Token non è un array di workspace objects");
+                    _logger.LogWarning($"Token non è array valido. Tipo: {workspaceObjectArray?.Type}");
                     return "[Non è un array]";
                 }
 
                 var array = workspaceObjectArray as JArray;
+                _logger.LogInfo($"Array con {array?.Count ?? 0} elementi");
+
                 if (array?.Count == 0)
                 {
+                    _logger.LogInfo("Array vuoto");
                     return "";
                 }
 
                 var resolvedNames = new List<string>();
 
-                foreach (var item in array)
+                for (int i = 0; i < array.Count; i++)
                 {
+                    var item = array[i];
+                    _logger.LogInfo($"Elaborazione elemento {i + 1}/{array.Count}");
+
                     var resolvedName = await ResolveFromTokenAsync(item);
                     if (!string.IsNullOrEmpty(resolvedName) && !resolvedName.StartsWith("["))
                     {
                         resolvedNames.Add(resolvedName);
+                        _logger.LogInfo($"✅ Elemento {i + 1} risolto: {resolvedName}");
+                    }
+                    else
+                    {
+                        _logger.LogWarning($"❌ Elemento {i + 1} non risolto: {resolvedName}");
                     }
                 }
 
                 if (resolvedNames.Count == 0)
                 {
-                    // Se nessuno è stato risolto, prova almeno con il primo
-                    var firstItem = array[0];
-                    return await ResolveFromTokenAsync(firstItem);
+                    _logger.LogWarning("Nessun elemento risolto nell'array");
+                    return "[Nessun elemento risolto]";
                 }
 
-                return string.Join(", ", resolvedNames);
+                var result = string.Join(", ", resolvedNames);
+                _logger.LogInfo($"✅ Array risolto completamente: {result}");
+                return result;
             }
             catch (Exception ex)
             {
-                _logger.LogError("Errore risoluzione array workspace objects", ex);
-                return "[Errore array]";
+                _logger.LogError("Errore ResolveArrayAsync", ex);
+                return "[Errore risoluzione array]";
             }
         }
+
 
         /// <summary>
         /// Risolve direttamente workspace object con ID specifici
