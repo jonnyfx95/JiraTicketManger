@@ -1,7 +1,7 @@
 ﻿using JiraTicketManager.Business;
 using JiraTicketManager.Data;
 using JiraTicketManager.Data.Converters;
-using JiraTicketManager.Data.Models; 
+using JiraTicketManager.Data.Models;
 using JiraTicketManager.Services;
 using JiraTicketManager.UI;
 using JiraTicketManager.UI.Managers;
@@ -610,6 +610,9 @@ namespace JiraTicketManager
 
                 if (btnPulisci != null)
                     btnPulisci.Click += OnPulisciClick;
+
+                if (btnJiraAutomation != null)
+                    btnJiraAutomation.Click += OnAutomationClick;
 
                 // Navigation events
                 SetupNavigationEvents();
@@ -2343,21 +2346,21 @@ namespace JiraTicketManager
         /// Aggiunge un filtro data se il DateTimePicker è abilitato e selezionato
         /// </summary>
         private void AddDateFilter(Dictionary<string, object> filters, string key, DateTimePicker dateTimePicker)
-{
-    if (dateTimePicker == null || !dateTimePicker.Checked)
-        return;
+        {
+            if (dateTimePicker == null || !dateTimePicker.Checked)
+                return;
 
-    try
-    {
-        var dateValue = dateTimePicker.Value.ToString("yyyy-MM-dd");
-        filters[key] = dateValue;
-        _logger.LogDebug($"📅 Filtro data {key}: {dateValue}");
-    }
-    catch (Exception ex)
-    {
-        _logger.LogWarning($"Errore ottenimento data per {key}: {ex.Message}");
-    }
-}
+            try
+            {
+                var dateValue = dateTimePicker.Value.ToString("yyyy-MM-dd");
+                filters[key] = dateValue;
+                _logger.LogDebug($"📅 Filtro data {key}: {dateValue}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Errore ottenimento data per {key}: {ex.Message}");
+            }
+        }
 
         #endregion
 
@@ -2388,7 +2391,7 @@ namespace JiraTicketManager
                 var visibleColumns = new Dictionary<string, (string DisplayName, int Width)>
        {
            { "Key", ("Key", 80) },
-           { "Descrizione", ("Descrizione", 300) },  
+           { "Descrizione", ("Descrizione", 300) },
            { "Stato", ("Stato", 120) },
            { "Cliente", ("Cliente", 200) },
            { "Assegnatario", ("Assegnatario", 150) },
@@ -2455,17 +2458,17 @@ namespace JiraTicketManager
         {
 
 
-            
-                // F1 - Test specifico Consulente
-                if (keyData == Keys.F1)
-                {
-                    _ = _devTests?.TestConsulenteAPIs();
-                    return true;
-                }
+
+            // F1 - Test specifico Consulente
+            if (keyData == Keys.F1)
+            {
+                _ = _devTests?.TestConsulenteAPIs();
+                return true;
+            }
 
 
-                // F9 - Esegui tutti i test di sviluppo
-                if (keyData == Keys.F9)
+            // F9 - Esegui tutti i test di sviluppo
+            if (keyData == Keys.F9)
             {
                 _ = RunDevTestsAsync();
                 return true;
@@ -2585,7 +2588,46 @@ namespace JiraTicketManager
 #endif
 
 
-        
+        #region Automation
+
+        /// <summary>
+        /// Event handler per il pulsante Automation
+        /// </summary>
+        private void OnAutomationClick(object sender, EventArgs e)
+        {
+            try
+            {
+                _logger.LogInfo("Apertura AutomationForm");
+
+                // Verifica connessione Jira prima di aprire automation
+                if (!_dataService.IsConfigured)
+                {
+                    _toastService.ShowError("Errore", "Configurazione Jira mancante. Configurare prima le credenziali.");
+                    return;
+                }
+
+                // Crea e mostra AutomationForm
+                using (var automationForm = new AutomationForm())
+                {
+                    // Imposta parent per centrare la finestra
+                    automationForm.Owner = this;
+
+                    // Mostra come dialog modale
+                    var result = automationForm.ShowDialog();
+
+                    _logger.LogInfo($"AutomationForm chiusa con risultato: {result}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore apertura AutomationForm", ex);
+                _toastService.ShowError("Errore", $"Impossibile aprire automazione: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+
 
 
     }

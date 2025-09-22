@@ -205,8 +205,7 @@ namespace JiraTicketManager.UI
             if (_dashboardButton != null)
                 _dashboardButton.Click += OnDashboardClick;
 
-            if (_automationButton != null)
-                _automationButton.Click += OnAutomationClick;
+           
 
             if (_testButton != null)
                 _testButton.Click += OnTestClick;
@@ -392,11 +391,7 @@ namespace JiraTicketManager.UI
             DashboardRequested?.Invoke(this, EventArgs.Empty);
         }
 
-        private void OnAutomationClick(object sender, EventArgs e)
-        {
-            System.Diagnostics.Debug.WriteLine("ToolbarManager: Automation requested");
-            AutomationRequested?.Invoke(this, EventArgs.Empty);
-        }
+        
 
         private void OnTestClick(object sender, EventArgs e)
         {
