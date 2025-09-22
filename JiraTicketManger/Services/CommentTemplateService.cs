@@ -1,8 +1,9 @@
-﻿using System;
+﻿using JiraTicketManager.Helpers;
+using JiraTicketManager.Services;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using JiraTicketManager.Services;
 
 namespace JiraTicketManager.Services
 {
@@ -131,56 +132,129 @@ namespace JiraTicketManager.Services
                 var toList = new List<string>();
                 var ccList = new List<string>();
 
-                // ✅ TO: Reporter (cliente) - SEMPRE presente
+                // ✅ TO: Reporter (cliente) con DISPLAY NAME formattato
                 if (!string.IsNullOrWhiteSpace(data.ReporterEmail))
                 {
-                    // Formato: Nome Cliente (se disponibile)
-                    var reporterDisplay = !string.IsNullOrWhiteSpace(data.ClientName) && !data.ReporterEmail.Contains("@cliente.it")
-                        ? $"{data.ClientName} <{data.ReporterEmail}>"
-                        : data.ReporterEmail;
+                    string reporterDisplay;
+
+                    if (!string.IsNullOrWhiteSpace(data.ReporterDisplayName))
+                    {
+                        // ✅ FORMATTA il nome: "JONATHAN FELIX DA SILVA" → "Jonathan Felix Da Silva"
+                        var formattedReporterName = EmailConverterHelper.FormatPersonName(data.ReporterDisplayName);
+                        reporterDisplay = $"{formattedReporterName} <{data.ReporterEmail}>";
+                    }
+                    else
+                    {
+                        reporterDisplay = data.ReporterEmail;
+                    }
+
                     toList.Add(reporterDisplay);
                 }
+                else if (!string.IsNullOrWhiteSpace(data.ReporterDisplayName))
+                {
+                    // ✅ Formatta anche il fallback solo nome
+                    var formattedReporterName = EmailConverterHelper.FormatPersonName(data.ReporterDisplayName);
+                    toList.Add(formattedReporterName);
+                }
 
-                // ✅ TO: Consulente (se disponibile)
+                // ✅ TO: Consulente (se disponibile) con nome formattato
                 if (!string.IsNullOrWhiteSpace(data.ConsultantEmail))
                 {
-                    var consultantDisplay = !string.IsNullOrWhiteSpace(data.ConsultantName)
-                        ? $"{data.ConsultantName} <{data.ConsultantEmail}>"
-                        : data.ConsultantEmail;
+                    string consultantDisplay;
+
+                    if (!string.IsNullOrWhiteSpace(data.ConsultantName))
+                    {
+                        // ✅ FORMATTA: "ALESSANDRO MAGNATERRA" → "Alessandro Magnaterra"
+                        var formattedConsultantName = EmailConverterHelper.FormatPersonName(data.ConsultantName);
+                        consultantDisplay = $"{formattedConsultantName} <{data.ConsultantEmail}>";
+                    }
+                    else
+                    {
+                        consultantDisplay = data.ConsultantEmail;
+                    }
+
                     toList.Add(consultantDisplay);
                 }
                 else if (!string.IsNullOrWhiteSpace(data.ConsultantName))
                 {
-                    // Fallback: solo nome consulente se email non disponibile
-                    toList.Add(data.ConsultantName);
+                    // Fallback: usa EmailConverterHelper per generare email
+                    var consultantEmail = EmailConverterHelper.ConvertNameToEmail(data.ConsultantName);
+                    var formattedConsultantName = EmailConverterHelper.FormatPersonName(data.ConsultantName);
+
+                    if (!string.IsNullOrWhiteSpace(consultantEmail))
+                    {
+                        toList.Add($"{formattedConsultantName} <{consultantEmail}>");
+                    }
+                    else
+                    {
+                        toList.Add(formattedConsultantName);
+                    }
                 }
 
-                // ✅ CC: Project Manager (se disponibile)
+                // ✅ CC: Project Manager con nome formattato
                 if (!string.IsNullOrWhiteSpace(data.ProjectManagerEmail))
                 {
-                    var pmDisplay = !string.IsNullOrWhiteSpace(data.ProjectManagerName)
-                        ? $"{data.ProjectManagerName} <{data.ProjectManagerEmail}>"
-                        : data.ProjectManagerEmail;
+                    string pmDisplay;
+
+                    if (!string.IsNullOrWhiteSpace(data.ProjectManagerName))
+                    {
+                        // ✅ FORMATTA: "LAURA BRIOSCHI" → "Laura Brioschi"
+                        var formattedPMName = EmailConverterHelper.FormatPersonName(data.ProjectManagerName);
+                        pmDisplay = $"{formattedPMName} <{data.ProjectManagerEmail}>";
+                    }
+                    else
+                    {
+                        pmDisplay = data.ProjectManagerEmail;
+                    }
+
                     ccList.Add(pmDisplay);
                 }
                 else if (!string.IsNullOrWhiteSpace(data.ProjectManagerName))
                 {
-                    // Fallback: solo nome PM se email non disponibile
-                    ccList.Add(data.ProjectManagerName);
+                    var pmEmail = EmailConverterHelper.ConvertNameToEmail(data.ProjectManagerName);
+                    var formattedPMName = EmailConverterHelper.FormatPersonName(data.ProjectManagerName);
+
+                    if (!string.IsNullOrWhiteSpace(pmEmail))
+                    {
+                        ccList.Add($"{formattedPMName} <{pmEmail}>");
+                    }
+                    else
+                    {
+                        ccList.Add(formattedPMName);
+                    }
                 }
 
-                // ✅ CC: Commerciale (se disponibile)
+                // ✅ CC: Commerciale con nome formattato
                 if (!string.IsNullOrWhiteSpace(data.CommercialEmail))
                 {
-                    var commercialDisplay = !string.IsNullOrWhiteSpace(data.CommercialName)
-                        ? $"{data.CommercialName} <{data.CommercialEmail}>"
-                        : data.CommercialEmail;
+                    string commercialDisplay;
+
+                    if (!string.IsNullOrWhiteSpace(data.CommercialName))
+                    {
+                        // ✅ FORMATTA: "MATTEO MOSCA" → "Matteo Mosca"
+                        var formattedCommercialName = EmailConverterHelper.FormatPersonName(data.CommercialName);
+                        commercialDisplay = $"{formattedCommercialName} <{data.CommercialEmail}>";
+                    }
+                    else
+                    {
+                        commercialDisplay = data.CommercialEmail;
+                    }
+
                     ccList.Add(commercialDisplay);
                 }
                 else if (!string.IsNullOrWhiteSpace(data.CommercialName))
                 {
-                    // Fallback: solo nome commerciale se email non disponibile
-                    ccList.Add(data.CommercialName);
+                    var commercialEmail = EmailConverterHelper.ConvertNameToEmail(data.CommercialName);
+                    var formattedCommercialName = EmailConverterHelper.FormatPersonName(data.CommercialName);
+
+                    if (!string.IsNullOrWhiteSpace(commercialEmail))
+                    {
+                        ccList.Add($"{formattedCommercialName} <{commercialEmail}>");
+                    }
+                    else
+                    {
+                        ccList.Add(formattedCommercialName);
+                    }
                 }
 
                 // ✅ CC: SEMPRE Schedulazione PA
@@ -189,11 +263,11 @@ namespace JiraTicketManager.Services
                 // Costruisci stringhe finali
                 var to = toList.Any()
                     ? string.Join("; ", toList)
-                    : "destinatario@cliente.it"; // Fallback se nessun TO
+                    : "destinatario@cliente.it";
 
                 var cc = ccList.Any()
                     ? string.Join("; ", ccList)
-                    : "DEDAGROUP Schedulazione PA <schedulazione.pa@dedagroup.it>"; // Fallback
+                    : "DEDAGROUP Schedulazione PA <schedulazione.pa@dedagroup.it>";
 
                 _logger?.LogDebug($"Destinatari costruiti - TO: {to}");
                 _logger?.LogDebug($"Destinatari costruiti - CC: {cc}");
@@ -447,21 +521,41 @@ namespace JiraTicketManager.Services
         /// </summary>
         private string BuildEmailSubject(CommentData data)
         {
-            var wbsCode = ExtractWbsCode(data.WBS);
-            return $"{data.ClientName}: {data.TicketKey} - {data.TicketSummary} - {wbsCode}";
+            try
+            {
+                var cleanClientName = EmailConverterHelper.CleanClientName(data.ClientName);
+                var wbsCode = ExtractWbsCode(data.WBS);
+
+                return $"{cleanClientName}: {data.TicketKey} - {data.TicketSummary} - {wbsCode}";
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"Errore costruzione oggetto email: {ex.Message}");
+                return $"{data.ClientName}: {data.TicketKey}";
+            }
         }
 
         /// <summary>
         /// Estrae il codice WBS (prima parte prima del -)
         /// </summary>
-        private string ExtractWbsCode(string wbsComplete)
+        private string ExtractWbsCode(string wbs)
         {
-            if (string.IsNullOrWhiteSpace(wbsComplete))
-                return "WBS-000";
+            if (string.IsNullOrWhiteSpace(wbs))
+                return "";
 
-            var parts = wbsComplete.Split('-');
-            return parts[0].Trim();
+            try
+            {
+                // Se il WBS contiene " - ", prendi solo la prima parte (il codice)
+                var parts = wbs.Split(new[] { " - " }, StringSplitOptions.RemoveEmptyEntries);
+                return parts.Length > 0 ? parts[0].Trim() : wbs.Trim();
+            }
+            catch
+            {
+                return wbs.Trim();
+            }
         }
+
+       
 
         /// <summary>
         /// Ottiene il nome visualizzato del template
@@ -554,6 +648,7 @@ namespace JiraTicketManager.Services
             public string InterventionDate { get; set; } = "";
             public string InterventionTime { get; set; } = "";
             public string ClientPhone { get; set; } = "";
+            public string ReporterDisplayName { get; set; } = "";
 
             // Nomi delle persone (per simulazione email)
             public string ProjectManagerName { get; set; } = "";

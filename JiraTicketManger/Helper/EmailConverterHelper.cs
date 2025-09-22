@@ -293,5 +293,120 @@ namespace JiraTicketManager.Helpers
                 return username; // Fallback al valore originale
             }
         }
+
+
+        // <summary>
+        /// Pulisce il nome cliente rimuovendo asterischi e altri caratteri indesiderati
+        /// </summary>
+        /// <param name="clientName">Nome cliente da pulire</param>
+        /// <returns>Nome cliente pulito senza asterischi</returns>
+        public static string CleanClientName(string clientName)
+        {
+            if (string.IsNullOrWhiteSpace(clientName))
+                return clientName ?? "";
+
+            try
+            {
+                // Rimuovi asterischi multipli e singoli con tutti i pattern possibili
+                var cleaned = clientName
+                    .Replace(" ***", "")      // Rimuovi " ***" (con spazio)
+                    .Replace("*** ", "")      // Rimuovi "*** " (con spazio dopo)
+                    .Replace("***", "")       // Rimuovi "***" standalone
+                    .Replace(" **", "")       // Rimuovi " **" (con spazio)
+                    .Replace("** ", "")       // Rimuovi "** " (con spazio dopo)  
+                    .Replace("**", "")        // Rimuovi "**" standalone
+                    .Replace(" *", "")        // Rimuovi " *" (con spazio)
+                    .Replace("* ", "")        // Rimuovi "* " (con spazio dopo)
+                    .Trim()                   // Rimuovi spazi extra all'inizio/fine
+                    .Replace("  ", " ");      // Rimuovi doppi spazi interni
+
+                // Se il risultato è vuoto dopo la pulizia, ritorna l'originale
+                return string.IsNullOrWhiteSpace(cleaned) ? clientName : cleaned;
+            }
+            catch (Exception)
+            {
+                // In caso di errore, ritorna il nome originale
+                return clientName;
+            }
+        }
+
+        /// <summary>
+        /// Formatta il nome di una persona da MAIUSCOLO a Proper Case
+        /// Es: "SERENA BELLAGOTTI" → "Serena Bellagotti"
+        /// </summary>
+        /// <param name="personName">Nome in formato maiuscolo</param>
+        /// <returns>Nome formattato in Proper Case</returns>
+        public static string FormatPersonName(string personName)
+        {
+            if (string.IsNullOrWhiteSpace(personName))
+                return personName ?? "";
+
+            try
+            {
+                // Split per parole e formatta ognuna
+                var words = personName.Trim()
+                    .Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+
+                var formattedWords = new List<string>();
+
+                foreach (var word in words)
+                {
+                    if (string.IsNullOrEmpty(word))
+                        continue;
+
+                    // Gestisci casi speciali per nomi italiani
+                    var formattedWord = FormatSingleWord(word.Trim());
+                    formattedWords.Add(formattedWord);
+                }
+
+                return string.Join(" ", formattedWords);
+            }
+            catch (Exception)
+            {
+                // Fallback: ritorna originale
+                return personName;
+            }
+        }
+
+        /// <summary>
+        /// Formatta una singola parola gestendo casi speciali italiani
+        /// </summary>
+        public static string FormatSingleWord(string word)
+        {
+            if (string.IsNullOrEmpty(word))
+                return word;
+
+            // Converti tutto in minuscolo
+            var lowerWord = word.ToLowerInvariant();
+
+            // Gestisci prefissi e particelle comuni nei nomi italiani
+            if (IsItalianNameParticle(lowerWord))
+            {
+                return lowerWord; // mantieni minuscolo per "di", "del", "della", etc.
+            }
+
+            // Gestisci abbreviazioni
+            if (lowerWord.Length <= 2)
+            {
+                return word.ToUpperInvariant(); // "MC", "LA", etc.
+            }
+
+            // Formattazione standard: Prima lettera maiuscola
+            return char.ToUpperInvariant(lowerWord[0]) + lowerWord.Substring(1);
+        }
+
+        /// <summary>
+        /// Controlla se è una particella italiana da mantenere minuscola
+        /// </summary>
+        public static bool IsItalianNameParticle(string word)
+        {
+            var particles = new[]
+            {
+        "di", "del", "della", "delle", "dei", "degli", "da", "dal", "dalla",
+        "de", "la", "le", "lo", "gli", "van", "von", "d'", "dell'", "dall'"
+    };
+
+            return particles.Contains(word.ToLowerInvariant());
+        }
     }
 }

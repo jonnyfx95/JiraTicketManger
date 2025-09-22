@@ -1844,12 +1844,6 @@ namespace JiraTicketManager.Forms
         }
 
 
-
-
-
-
-
-
         /// <summary>
         /// Converte PlanningTicketData in CommentData per CommentTemplateService
         /// </summary>
@@ -1861,6 +1855,9 @@ namespace JiraTicketManager.Forms
             {
                 // Ottiene summary del ticket dalla UI
                 var ticketSummary = lblTicketSummary?.Text?.Trim() ?? planningData.Summary;
+
+                // ✅ NUOVO: Ottieni reporter display name dalla UI
+                var reporterDisplayName = txtRichiedente?.Text?.Trim() ?? "";
 
                 return new CommentTemplateService.CommentData
                 {
@@ -1877,15 +1874,18 @@ namespace JiraTicketManager.Forms
                     InterventionTime = planningData.InterventionTime,
                     ClientPhone = planningData.ClientPhone,
 
-                    // ✅ CORREZIONE: Nomi delle persone per simulazione email
+                    // Nomi delle persone per simulazione email
                     ProjectManagerName = planningData.ProjectManager,
                     CommercialName = planningData.Commercial,
 
-                    // Email destinatari (dai campi UI)
+                    // ✅ NUOVO: Reporter display name (non ClientName!)
+                    ReporterDisplayName = reporterDisplayName,
+
+                    // Email destinatari
                     ReporterEmail = planningData.ReporterEmail,
-                    ConsultantEmail = GetConsultantEmailFromName(planningData.ConsultantName),
-                    ProjectManagerEmail = GetPMEmailFromName(planningData.ProjectManager),
-                    CommercialEmail = GetCommercialEmailFromName(planningData.Commercial)
+                    ConsultantEmail = EmailConverterHelper.ConvertNameToEmail(planningData.ConsultantName),
+                    ProjectManagerEmail = EmailConverterHelper.ConvertNameToEmail(planningData.ProjectManager),
+                    CommercialEmail = EmailConverterHelper.ConvertNameToEmail(planningData.Commercial)
                 };
             }
             catch (Exception ex)

@@ -494,7 +494,8 @@ namespace JiraTicketManager.Services
                 }
 
                 var wbsCode = ExtractWbsCode(wbs);
-                var subject = $"{clientName}: {ticketKey} - {description} - {wbsCode}";
+                var cleanClientName = EmailConverterHelper.CleanClientName(clientName);
+                var subject = $"{cleanClientName}: {ticketKey} - {description} - {wbsCode}";
 
                 return new EmailData
                 {
