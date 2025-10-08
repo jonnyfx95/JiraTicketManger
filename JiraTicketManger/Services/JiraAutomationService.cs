@@ -6,14 +6,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using JiraTicketManager.Services;
+using JiraTicketManager.Data.Models;
+using JiraTicketManager.Data.Converters;
 
 namespace JiraTicketManager.Services
 {
     /// <summary>
     /// Servizio per l'automazione ticket Jira - Area Demografia
-    /// Gestisce lettura configurazione, ricerca ticket, aggiornamento campi e transizioni
+    /// Utilizza classi esistenti per parsing e aggiornamento campi
     /// </summary>
     public class JiraAutomationService
     {
@@ -27,6 +28,10 @@ namespace JiraTicketManager.Services
         private string _currentLogFile;
         private string _currentErrorLogFile;
 
+        // Configurazione workspace CMDB per categoria  
+        private const string WORKSPACE_ID = "c541ca01-a3a4-400b-a389-573d1f19899a";
+        private const string CATEGORIA_SUPPORTO_OBJECT_ID = "956"; // CORREZIONE: Prova 956 invece di 957
+
         #endregion
 
         #region Constructor
@@ -35,7 +40,7 @@ namespace JiraTicketManager.Services
         {
             _logger = LoggingService.CreateForComponent("JiraAutomationService");
 
-            // Ottieni servizi esistenti
+            // Usa servizi esistenti
             var settingsService = SettingsService.CreateDefault();
             _jiraApiService = JiraApiService.CreateFromSettings(settingsService);
             _transitionService = new JiraTransitionService(_jiraApiService);
@@ -50,56 +55,55 @@ namespace JiraTicketManager.Services
         /// <summary>
         /// Esegue l'automazione completa per l'area Demografia
         /// </summary>
-        /// <param name="cancellationToken">Token per cancellazione</param>
-        /// <param name="progressCallback">Callback per aggiornamenti progresso</param>
-        /// <param name="ticketCallback">Callback per risultati singoli ticket</param>
-        public async Task ExecuteAutomationAsync(
-            CancellationToken cancellationToken,
-            Action<string, int, int> progressCallback,
-            Action<string, bool, string> ticketCallback)
+        /// <summary>
+        /// Esegue l'automazione completa per l'area Demografia
+        /// VERSIONE SEMPLICE - SOLO CANCELLATION TOKEN
+        /// </summary>
+        public async Task<AutomationResult> ExecuteAutomationAsync(CancellationToken cancellationToken)
         {
             try
             {
                 _logger.LogInfo("=== AVVIO AUTOMAZIONE AREA DEMOGRAFIA ===");
 
-                // Step 1: Inizializzazione
+                // Inizializzazione
                 await InitializeAutomationAsync(cancellationToken);
-                progressCallback?.Invoke("Inizializzazione completata", 1, 7);
-
-                // Step 2: Carica configurazione
                 await LoadConfigurationAsync(cancellationToken);
-                progressCallback?.Invoke("Configurazione caricata", 2, 7);
 
-                // Step 3: Ricerca ticket Demografia
+                // Ricerca ticket
                 var tickets = await SearchDemografiaTicketsAsync(cancellationToken);
-                progressCallback?.Invoke($"Trovati {tickets.Count} ticket", 3, 7);
 
                 if (tickets.Count == 0)
                 {
                     LogToFile("Nessun ticket trovato per l'automazione", false);
-                    progressCallback?.Invoke("Automazione completata - nessun ticket", 7, 7);
-                    return;
+                    return new AutomationResult { Success = true, ProcessedCount = 0 };
                 }
 
-                // Step 4-6: Processa ogni ticket
+                // Processa ogni ticket
+                var processedCount = 0;
+                var successCount = 0;
+
                 LogToFile($"Inizio processamento {tickets.Count} ticket", false);
 
-                for (int i = 0; i < tickets.Count; i++)
+                foreach (var ticket in tickets)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    var ticket = tickets[i];
-                    var success = await ProcessSingleTicketAsync(ticket, cancellationToken);
+                    var result = await ProcessSingleTicketAsync(ticket, cancellationToken);
 
-                    ticketCallback?.Invoke(ticket.Key, success.Success, success.Message);
-                    progressCallback?.Invoke($"Processato {i + 1}/{tickets.Count}", 4 + (i * 2 / tickets.Count), 7);
+                    processedCount++;
+                    if (result.Success) successCount++;
                 }
 
-                // Step 7: Completamento
-                progressCallback?.Invoke("Automazione completata con successo", 7, 7);
-                LogToFile("Automazione completata con successo", false);
-
+                // Risultato finale
+                LogToFile($"Automazione completata: {successCount}/{processedCount} ticket processati con successo", false);
                 _logger.LogInfo("=== AUTOMAZIONE COMPLETATA ===");
+
+                return new AutomationResult
+                {
+                    Success = true,
+                    ProcessedCount = processedCount,
+                    SuccessCount = successCount
+                };
             }
             catch (OperationCanceledException)
             {
@@ -136,9 +140,10 @@ namespace JiraTicketManager.Services
                 _currentErrorLogFile = Path.Combine(logDirectory, $"automation_errors_{timestamp}.log");
 
                 // Verifica connessione Jira
-                if (!await _jiraApiService.TestConnectionAsync())
+                var connectionResult = await _jiraApiService.TestConnectionAsync();
+                if (!connectionResult)
                 {
-                    throw new Exception("Connessione Jira non disponibile");
+                    throw new Exception("Connessione Jira fallita - verificare credenziali e connessione di rete");
                 }
 
                 LogToFile("Automazione inizializzata correttamente", false);
@@ -159,7 +164,6 @@ namespace JiraTicketManager.Services
 
                 if (!File.Exists(configPath))
                 {
-                    // Crea configurazione di default
                     await CreateDefaultConfigurationAsync(configPath);
                 }
 
@@ -171,10 +175,7 @@ namespace JiraTicketManager.Services
                     throw new Exception("Configurazione per area Demografia non trovata");
                 }
 
-                _config = new AutomationConfig
-                {
-                    Demografia = configData["Demografia"]
-                };
+                _config = new AutomationConfig { Demografia = configData["Demografia"] };
 
                 LogToFile($"Configurazione caricata: {_config.Demografia.Keywords.Count} keywords, {_config.Demografia.Assignees.Count} assegnatari", false);
                 _logger.LogInfo("Configurazione automazione caricata con successo");
@@ -233,113 +234,214 @@ namespace JiraTicketManager.Services
 
         #region Private Methods - Ticket Processing
 
-        private async Task<List<AutomationTicket>> SearchDemografiaTicketsAsync(CancellationToken cancellationToken)
+        private async Task<List<JiraTicket>> SearchDemografiaTicketsAsync(CancellationToken cancellationToken)
         {
             try
             {
+                // USA LA QUERY DIRETTAMENTE DAL CONFIG
                 var query = _config.Demografia.Query;
-                _logger.LogInfo($"=== RICERCA TICKET DEMOGRAFIA ===");
-                _logger.LogInfo($"Query JQL: {query}");
                 LogToFile($"Query JQL: {query}", false);
 
-                // Usa JiraApiService esistente per la ricerca
-                var searchResult = await _jiraApiService.SearchIssuesAsync(query, 0, 100); // Max 100 ticket per automazione
+                // USA JiraApiService esistente per la ricerca
+                var searchResult = await _jiraApiService.SearchIssuesAsync(query, 0, 100);
 
-                // DEBUG: Log struttura risultato
-                _logger.LogInfo($"SearchResult: Total={searchResult.Total}, Issues.Count={searchResult.Issues.Count}");
-                LogToFile($"Risultati API: Total={searchResult.Total}, Issues.Count={searchResult.Issues.Count}", false);
-
-                if (searchResult.Issues.Count == 0)
+                if (searchResult?.Issues == null || !searchResult.Issues.Any())
                 {
-                    LogToFile("NESSUN TICKET TROVATO per la query", false);
-                    return new List<AutomationTicket>();
+                    LogToFile("Nessun ticket trovato per l'automazione", false);
+                    return new List<JiraTicket>();
                 }
 
-                var tickets = new List<AutomationTicket>();
+                LogToFile($"API Search Result: Found={searchResult.Total}, Returned={searchResult.Issues.Count}", false);
+
+                var tickets = new List<JiraTicket>();
 
                 foreach (var issue in searchResult.Issues)
                 {
                     try
                     {
-                        _logger.LogInfo($"=== PROCESSAMENTO ISSUE RAW ===");
-                        _logger.LogInfo($"Issue type: {issue.GetType()}");
-                        _logger.LogInfo($"Issue content: {issue.ToString().Substring(0, Math.Min(500, issue.ToString().Length))}");
+                        LogToFile("=== DEBUG PARSING TICKET ===", false);
 
-                        var ticketKey = GetSafeStringValue(issue["key"]);
-                        _logger.LogInfo($"Step 1: TicketKey = {ticketKey}");
+                        // DEBUG: Log del tipo di issue
+                        LogToFile($"Issue type: {issue?.GetType()?.Name}", false);
 
-                        if (string.IsNullOrWhiteSpace(ticketKey))
+                        // Test accesso key
+                        var ticketKey = "UNKNOWN";
+                        try
                         {
-                            _logger.LogWarning("Ticket key vuoto o null - saltato");
+                            ticketKey = issue["key"]?.ToString();
+                            LogToFile($"✓ Key estratto: {ticketKey}", false);
+                        }
+                        catch (Exception keyEx)
+                        {
+                            LogToFile($"✗ Errore estrazione key: {keyEx.Message}", true);
                             continue;
                         }
 
-                        var ticketSummary = GetSafeStringValue(issue["fields"]?["summary"]);
-                        _logger.LogInfo($"Step 2: TicketSummary = {ticketSummary}");
-
-                        var ticketStatus = GetSafeStringValue(issue["fields"]?["status"]?["name"]);
-                        _logger.LogInfo($"Step 3: TicketStatus = {ticketStatus}");
-
-                        var ticketArea = GetCustomFieldValue(issue, "customfield_10113");
-                        _logger.LogInfo($"Step 4: TicketArea = {ticketArea}");
-
-                        var ticketAssignee = GetSafeStringValue(issue["fields"]?["assignee"]?["displayName"]);
-                        _logger.LogInfo($"Step 5: TicketAssignee = {ticketAssignee}");
-
-                        var ticketOrganization = GetSafeStringValue(issue["fields"]?["organization"]?["name"]);
-                        _logger.LogInfo($"Step 6: TicketOrganization = {ticketOrganization}");
-
-                        _logger.LogInfo($"=== TICKET TROVATO: {ticketKey} ===");
-                        _logger.LogInfo($"Summary: {ticketSummary}");
-                        _logger.LogInfo($"Status: {ticketStatus}");
-                        _logger.LogInfo($"Area: {ticketArea}");
-                        _logger.LogInfo($"Assignee: {ticketAssignee}");
-                        _logger.LogInfo($"Organization: {ticketOrganization}");
-
-                        // VERIFICA CRITICA: Se assignee non è vuoto, questo ticket non dovrebbe essere qui
-                        if (!string.IsNullOrWhiteSpace(ticketAssignee))
+                        if (string.IsNullOrWhiteSpace(ticketKey))
                         {
-                            _logger.LogWarning($"ANOMALIA: {ticketKey} ha assignee '{ticketAssignee}' ma dovrebbe essere vuoto!");
-                            LogToFile($"ANOMALIA: {ticketKey} ha assignee '{ticketAssignee}' ma query richiede assignee = empty", true);
+                            LogToFile("Key vuoto - saltato", true);
+                            continue;
                         }
 
-                        // VERIFICA se questo ticket dovrebbe essere nei risultati
-                        LogToFile($"TICKET TROVATO: {ticketKey}", false);
-                        LogToFile($"  Status: {ticketStatus}", false);
-                        LogToFile($"  Area: {ticketArea}", false);
-                        LogToFile($"  Summary: {ticketSummary}", false);
-                        LogToFile($"  Assignee: {ticketAssignee}", false);
-                        LogToFile($"  Organization: {ticketOrganization}", false);
-
-                        var ticket = new AutomationTicket
+                        // Test accesso fields
+                        var fields = issue["fields"];
+                        if (fields == null)
                         {
-                            Key = ticketKey,
-                            Summary = ticketSummary,
-                            Description = GetSafeStringValue(issue["fields"]?["description"]),
-                            Status = ticketStatus,
-                            Assignee = ticketAssignee,
-                            Organization = ticketOrganization,
-                            Area = ticketArea,
-                            Application = GetCustomFieldValue(issue, "customfield_10114"),
-                            Customer = GetCustomFieldValue(issue, "customfield_10115"),
-                            Category = "SUPPORTO CLIENTE",
-                            RawData = issue
-                        };
+                            LogToFile($"{ticketKey}: Fields è null", true);
+                            continue;
+                        }
+
+                        LogToFile($"✓ Fields accessibili per {ticketKey}", false);
+
+                        // Estrazione sicura campo per campo con debug
+                        var ticket = new JiraTicket { Key = ticketKey, RawData = issue };
+
+                        // Summary
+                        try
+                        {
+                            ticket.Summary = fields["summary"]?.ToString() ?? "";
+                            LogToFile($"✓ Summary: {ticket.Summary.Substring(0, Math.Min(50, ticket.Summary.Length))}...", false);
+                        }
+                        catch (Exception ex)
+                        {
+                            LogToFile($"✗ Errore Summary: {ex.Message}", true);
+                            ticket.Summary = "";
+                        }
+
+                        // Status
+                        try
+                        {
+                            var statusObj = fields["status"];
+                            if (statusObj != null && statusObj.Type == Newtonsoft.Json.Linq.JTokenType.Object)
+                            {
+                                ticket.Status = statusObj["name"]?.ToString() ?? "";
+                            }
+                            else
+                            {
+                                ticket.Status = statusObj?.ToString() ?? "";
+                            }
+                            LogToFile($"✓ Status: {ticket.Status}", false);
+                        }
+                        catch (Exception ex)
+                        {
+                            LogToFile($"✗ Errore Status: {ex.Message}", true);
+                            ticket.Status = "";
+                        }
+
+                        // Area (customfield_10113)
+                        try
+                        {
+                            var areaField = fields["customfield_10113"];
+                            if (areaField != null && areaField.Type != Newtonsoft.Json.Linq.JTokenType.Null)
+                            {
+                                if (areaField.Type == Newtonsoft.Json.Linq.JTokenType.Object)
+                                {
+                                    ticket.Area = areaField["value"]?.ToString() ?? areaField["displayName"]?.ToString() ?? "";
+                                }
+                                else
+                                {
+                                    ticket.Area = areaField.ToString();
+                                }
+                            }
+                            else
+                            {
+                                ticket.Area = "";
+                            }
+                            LogToFile($"✓ Area: {ticket.Area}", false);
+                        }
+                        catch (Exception ex)
+                        {
+                            LogToFile($"✗ Errore Area: {ex.Message}", true);
+                            ticket.Area = "";
+                        }
+
+                        // Application (customfield_10114)
+                        try
+                        {
+                            var appField = fields["customfield_10114"];
+                            if (appField != null && appField.Type != Newtonsoft.Json.Linq.JTokenType.Null)
+                            {
+                                if (appField.Type == Newtonsoft.Json.Linq.JTokenType.Object)
+                                {
+                                    ticket.Application = appField["value"]?.ToString() ?? appField["displayName"]?.ToString() ?? "";
+                                }
+                                else
+                                {
+                                    ticket.Application = appField.ToString();
+                                }
+                            }
+                            else
+                            {
+                                ticket.Application = "";
+                            }
+                            LogToFile($"✓ Application: {ticket.Application}", false);
+                        }
+                        catch (Exception ex)
+                        {
+                            LogToFile($"✗ Errore Application: {ex.Message}", true);
+                            ticket.Application = "";
+                        }
+
+                        // Assignee
+                        try
+                        {
+                            var assigneeObj = fields["assignee"];
+                            if (assigneeObj != null && assigneeObj.Type == Newtonsoft.Json.Linq.JTokenType.Object)
+                            {
+                                ticket.Assignee = assigneeObj["name"]?.ToString() ?? "";
+                                ticket.AssigneeDisplayName = assigneeObj["displayName"]?.ToString() ?? "";
+                            }
+                            else
+                            {
+                                ticket.Assignee = "";
+                                ticket.AssigneeDisplayName = "";
+                            }
+                            LogToFile($"✓ Assignee: {ticket.AssigneeDisplayName}", false);
+                        }
+                        catch (Exception ex)
+                        {
+                            LogToFile($"✗ Errore Assignee: {ex.Message}", true);
+                            ticket.Assignee = "";
+                            ticket.AssigneeDisplayName = "";
+                        }
+
+                        // Organization
+                        try
+                        {
+                            var orgObj = fields["organization"];
+                            if (orgObj != null && orgObj.Type == Newtonsoft.Json.Linq.JTokenType.Object)
+                            {
+                                ticket.Organization = orgObj["name"]?.ToString() ?? "";
+                            }
+                            else
+                            {
+                                ticket.Organization = orgObj?.ToString() ?? "";
+                            }
+                            LogToFile($"✓ Organization: {ticket.Organization}", false);
+                        }
+                        catch (Exception ex)
+                        {
+                            LogToFile($"✗ Errore Organization: {ex.Message}", true);
+                            ticket.Organization = "";
+                        }
+
+                        // Campi data placeholder
+                        ticket.Created = DateTime.Now;
+                        ticket.Updated = DateTime.Now;
+                        ticket.Description = "";
 
                         tickets.Add(ticket);
-                        _logger.LogInfo($"Ticket aggiunto alla lista: {ticket.Key}");
+                        LogToFile($"✅ TICKET PROCESSATO: {ticket.Key} - {ticket.Status} - Area: {ticket.Area}", false);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError($"Errore processamento singolo ticket: {ex.Message}");
-                        LogToFile($"Errore processamento ticket: {ex.Message}", true);
+                        LogToFile($"✗ ERRORE GENERALE parsing ticket: {ex.Message}", true);
+                        LogToFile($"✗ StackTrace: {ex.StackTrace?.Substring(0, Math.Min(200, ex.StackTrace?.Length ?? 0))}", true);
                         // Continua con il prossimo ticket
                     }
                 }
 
-                LogToFile($"TOTALE TICKET PROCESSABILI: {tickets.Count}", false);
-                _logger.LogInfo($"=== FINE RICERCA: {tickets.Count} ticket trovati ===");
-
+                LogToFile($"=== TOTALE TICKET PROCESSABILI: {tickets.Count} ===", false);
                 return tickets;
             }
             catch (Exception ex)
@@ -350,71 +452,199 @@ namespace JiraTicketManager.Services
             }
         }
 
-        private async Task<(bool Success, string Message)> ProcessSingleTicketAsync(AutomationTicket ticket, CancellationToken cancellationToken)
+        private async Task<(bool Success, string Message)> ProcessSingleTicketAsync(JiraTicket ticket, CancellationToken cancellationToken)
         {
             try
             {
                 _logger.LogInfo($"Processamento ticket: {ticket.Key}");
                 LogToFile($"Inizio processamento ticket: {ticket.Key}", false);
 
-                var updates = new List<string>();
+                var updatedFields = new List<string>();
+                var failedFields = new List<string>();
 
-                // Step 1: Determina applicativo (se vuoto)
+                // 1. CATEGORIA - Sempre "SUPPORTO CLIENTE"
+                await UpdateCategoriaAsync(ticket.Key, updatedFields, failedFields);
+
+                // 2. APPLICATIVO - Solo se vuoto
                 if (string.IsNullOrWhiteSpace(ticket.Application))
                 {
-                    var newApplication = DetermineApplication(ticket);
-                    if (!string.IsNullOrWhiteSpace(newApplication))
-                    {
-                        ticket.Application = newApplication;
-                        updates.Add($"Applicativo: {newApplication}");
-                    }
+                    await UpdateApplicativoAsync(ticket, updatedFields, failedFields);
                 }
 
-                // Step 2: Determina assegnatario
-                var assignee = DetermineAssignee(ticket.Application);
-                if (!string.IsNullOrWhiteSpace(assignee))
+                // 3. ASSEGNATARIO - Basato sull'applicativo
+                await UpdateAssegnatarioAsync(ticket, updatedFields, failedFields);
+
+                // 4. CLIENTE - Solo se vuoto e organizzazione presente
+                if (string.IsNullOrWhiteSpace(GetCustomerFromTicket(ticket)) && !string.IsNullOrWhiteSpace(ticket.Organization))
                 {
-                    ticket.Assignee = assignee;
-                    updates.Add($"Assegnatario: {assignee}");
+                    await UpdateClienteAsync(ticket, updatedFields, failedFields, cancellationToken);
                 }
 
-                // Step 3: Determina cliente (se vuoto)
-                if (string.IsNullOrWhiteSpace(ticket.Customer) && !string.IsNullOrWhiteSpace(ticket.Organization))
-                {
-                    var customer = await DetermineCustomerAsync(ticket.Organization, cancellationToken);
-                    if (!string.IsNullOrWhiteSpace(customer))
-                    {
-                        ticket.Customer = customer;
-                        updates.Add($"Cliente: {customer}");
-                    }
-                }
-
-                // Step 4: Imposta categoria
-                ticket.Category = "SUPPORTO CLIENTE";
-                updates.Add("Categoria: SUPPORTO CLIENTE");
-
-                // Step 5: Aggiorna ticket su Jira
-                if (updates.Count > 0)
-                {
-                    await UpdateTicketFieldsAsync(ticket, cancellationToken);
-                    LogToFile($"{ticket.Key}: Campi aggiornati - {string.Join(", ", updates)}", false);
-                }
-
-                // Step 6: Esegui transizioni di stato
+                // 5. TRANSIZIONI DI STATO
                 await ExecuteStatusTransitionsAsync(ticket, cancellationToken);
 
-                var message = $"Processato con successo - {updates.Count} campi aggiornati";
-                LogToFile($"{ticket.Key}: {message}", false);
+                // Summary risultati
+                var totalUpdated = updatedFields.Count;
+                var totalFailed = failedFields.Count;
 
-                return (true, message);
+                if (totalUpdated > 0)
+                {
+                    LogToFile($"{ticket.Key}: SUCCESSO - {totalUpdated} campi aggiornati: {string.Join(", ", updatedFields)}", false);
+                }
+
+                if (totalFailed > 0)
+                {
+                    LogToFile($"{ticket.Key}: FALLIMENTI - {totalFailed} campi falliti: {string.Join(", ", failedFields)}", true);
+                }
+
+                var message = $"Processato - {totalUpdated} successi, {totalFailed} fallimenti";
+                return (totalUpdated > 0, message);
             }
             catch (Exception ex)
             {
                 var errorMessage = $"Errore processamento: {ex.Message}";
                 LogToFile($"{ticket.Key}: {errorMessage}", true);
                 _logger.LogError($"Errore processamento ticket {ticket.Key}", ex);
-
                 return (false, errorMessage);
+            }
+        }
+
+        #endregion
+
+        #region Private Methods - Field Updates (Using Existing Services)
+
+        private async Task UpdateCategoriaAsync(string ticketKey, List<string> updatedFields, List<string> failedFields)
+        {
+            try
+            {
+                // USA UpdateWorkspaceFieldAsync esistente
+                var success = await _jiraApiService.UpdateWorkspaceFieldAsync(
+                    ticketKey,
+                    "customfield_10095",
+                    WORKSPACE_ID,
+                    CATEGORIA_SUPPORTO_OBJECT_ID);
+
+                if (success)
+                {
+                    updatedFields.Add("Categoria: SUPPORTO CLIENTE");
+                    LogToFile($"{ticketKey}: ✓ Categoria aggiornata: SUPPORTO CLIENTE", false);
+                }
+                else
+                {
+                    failedFields.Add("Categoria");
+                    LogToFile($"{ticketKey}: ✗ Errore aggiornamento categoria", true);
+                }
+            }
+            catch (Exception ex)
+            {
+                failedFields.Add("Categoria");
+                LogToFile($"{ticketKey}: ✗ Eccezione categoria: {ex.Message}", true);
+                _logger.LogError($"Errore categoria per {ticketKey}", ex);
+            }
+        }
+
+        private async Task UpdateApplicativoAsync(JiraTicket ticket, List<string> updatedFields, List<string> failedFields)
+        {
+            try
+            {
+                var newApplication = DetermineApplication(ticket);
+                if (!string.IsNullOrWhiteSpace(newApplication))
+                {
+                    // USA UpdateOptionFieldAsync esistente
+                    var success = await _jiraApiService.UpdateOptionFieldAsync(
+                        ticket.Key, "customfield_10114", newApplication);
+
+                    if (success)
+                    {
+                        updatedFields.Add($"Applicativo: {newApplication}");
+                        LogToFile($"{ticket.Key}: ✓ Applicativo aggiornato: {newApplication}", false);
+                    }
+                    else
+                    {
+                        failedFields.Add("Applicativo");
+                        LogToFile($"{ticket.Key}: ✗ Errore aggiornamento applicativo", true);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                failedFields.Add("Applicativo");
+                LogToFile($"{ticket.Key}: ✗ Eccezione applicativo: {ex.Message}", true);
+                _logger.LogError($"Errore applicativo per {ticket.Key}", ex);
+            }
+        }
+
+        private async Task UpdateAssegnatarioAsync(JiraTicket ticket, List<string> updatedFields, List<string> failedFields)
+        {
+            try
+            {
+                var assignee = DetermineAssignee(ticket.Application);
+                if (!string.IsNullOrWhiteSpace(assignee))
+                {
+                    var username = ConvertDisplayNameToUsername(assignee);
+
+                    // USA UpdateIssueAsync esistente con formato corretto
+                    var assigneeFields = new Dictionary<string, object>
+                    {
+                        ["assignee"] = new { name = username }
+                    };
+
+                    var success = await _jiraApiService.UpdateIssueAsync(
+                        ticket.Key, new { fields = assigneeFields });
+
+                    if (success)
+                    {
+                        updatedFields.Add($"Assegnatario: {assignee} ({username})");
+                        LogToFile($"{ticket.Key}: ✓ Assegnatario aggiornato: {assignee} -> {username}", false);
+                    }
+                    else
+                    {
+                        failedFields.Add("Assegnatario");
+                        LogToFile($"{ticket.Key}: ✗ Errore aggiornamento assegnatario", true);
+                    }
+                }
+                else
+                {
+                    failedFields.Add("Assegnatario");
+                    LogToFile($"{ticket.Key}: ✗ Assegnatario non determinabile", true);
+                }
+            }
+            catch (Exception ex)
+            {
+                failedFields.Add("Assegnatario");
+                LogToFile($"{ticket.Key}: ✗ Eccezione assegnatario: {ex.Message}", true);
+                _logger.LogError($"Errore assegnatario per {ticket.Key}", ex);
+            }
+        }
+
+        private async Task UpdateClienteAsync(JiraTicket ticket, List<string> updatedFields, List<string> failedFields, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var customer = await DetermineCustomerAsync(ticket.Organization, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(customer))
+                {
+                    // USA UpdateTextFieldAsync esistente
+                    var success = await _jiraApiService.UpdateTextFieldAsync(
+                        ticket.Key, "customfield_10115", customer);
+
+                    if (success)
+                    {
+                        updatedFields.Add($"Cliente: {customer}");
+                        LogToFile($"{ticket.Key}: ✓ Cliente aggiornato: {customer}", false);
+                    }
+                    else
+                    {
+                        failedFields.Add("Cliente");
+                        LogToFile($"{ticket.Key}: ✗ Errore aggiornamento cliente", true);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                failedFields.Add("Cliente");
+                LogToFile($"{ticket.Key}: ✗ Eccezione cliente: {ex.Message}", true);
+                _logger.LogError($"Errore cliente per {ticket.Key}", ex);
             }
         }
 
@@ -422,13 +652,13 @@ namespace JiraTicketManager.Services
 
         #region Private Methods - Business Logic
 
-        private string DetermineApplication(AutomationTicket ticket)
+        private string DetermineApplication(JiraTicket ticket)
         {
             try
             {
                 var searchText = $"{ticket.Summary} {ticket.Description}".ToUpper();
 
-                // Cerca keywords CASE-SENSITIVE (convertite in maiuscolo per il confronto)
+                // Cerca keywords CASE-SENSITIVE
                 foreach (var keyword in _config.Demografia.Keywords)
                 {
                     if (keyword.Key != "default" && searchText.Contains(keyword.Key.ToUpper()))
@@ -454,8 +684,7 @@ namespace JiraTicketManager.Services
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(application))
-                    return null;
+                if (string.IsNullOrWhiteSpace(application)) return null;
 
                 // Estrae nome applicativo dalla parte dopo " -> "
                 var appName = application.Contains(" -> ")
@@ -484,18 +713,20 @@ namespace JiraTicketManager.Services
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(organizationName))
-                    return null;
+                if (string.IsNullOrWhiteSpace(organizationName)) return null;
 
-                // Esegui query per trovare ticket con Cliente valorizzato per questa organizzazione
+                // Esegui query per trovare ticket con Cliente valorizzato
                 var query = $"reporter in organizationMembers({organizationName}) AND project = CC AND issuetype is not EMPTY";
                 _logger.LogInfo($"Ricerca cliente per organizzazione: {organizationName}");
 
-                var searchResult = await _jiraApiService.SearchIssuesAsync(query, 0, 10); // Primi 10 risultati
+                var searchResult = await _jiraApiService.SearchIssuesAsync(query, 0, 10);
 
                 foreach (var issue in searchResult.Issues)
                 {
-                    var customerValue = GetCustomFieldValue(issue, "customfield_10115"); // Campo Cliente
+                    // USA il metodo esistente per estrazione sicura
+                    var ticket = JiraTicket.FromJiraJson(issue);
+                    var customerValue = GetCustomerFromTicket(ticket);
+
                     if (!string.IsNullOrWhiteSpace(customerValue))
                     {
                         _logger.LogInfo($"Cliente trovato per {organizationName}: {customerValue}");
@@ -513,113 +744,14 @@ namespace JiraTicketManager.Services
             }
         }
 
-        #endregion
-
-        #region Private Methods - Jira API Operations
-
-        private async Task UpdateTicketFieldsAsync(AutomationTicket ticket, CancellationToken cancellationToken)
-        {
-            try
-            {
-                var updateFields = new Dictionary<string, object>();
-
-                // PRIORITA': Assegnatario DEVE essere impostato prima delle transizioni
-                if (!string.IsNullOrWhiteSpace(ticket.Assignee))
-                {
-                    var username = ConvertDisplayNameToUsername(ticket.Assignee);
-                    updateFields["assignee"] = new { name = username };
-                    _logger.LogInfo($"{ticket.Key}: Impostazione assegnatario: '{ticket.Assignee}' -> username: '{username}'");
-                }
-
-                // Prepara altri campi per aggiornamento
-                if (!string.IsNullOrWhiteSpace(ticket.Application))
-                {
-                    updateFields["customfield_10114"] = new { value = ticket.Application };
-                }
-
-                if (!string.IsNullOrWhiteSpace(ticket.Customer))
-                {
-                    updateFields["customfield_10115"] = ticket.Customer;
-                }
-
-                if (updateFields.Count == 0)
-                {
-                    _logger.LogInfo($"{ticket.Key}: Nessun campo da aggiornare");
-                    return;
-                }
-
-                // Log dettagli update
-                _logger.LogInfo($"{ticket.Key}: Aggiornamento {updateFields.Count} campi:");
-                foreach (var field in updateFields)
-                {
-                    _logger.LogInfo($"  {field.Key}: {field.Value}");
-                }
-
-                // Esegui aggiornamento via API
-                await UpdateTicketViaApiAsync(ticket.Key, updateFields, cancellationToken);
-
-                _logger.LogInfo($"{ticket.Key}: Aggiornati {updateFields.Count} campi con successo");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Errore aggiornamento campi per {ticket.Key}", ex);
-                throw;
-            }
-        }
-
-        private async Task UpdateTicketViaApiAsync(string ticketKey, Dictionary<string, object> fields, CancellationToken cancellationToken)
-        {
-            try
-            {
-                // Usa HttpClient per chiamata PUT diretta (JiraApiService potrebbe non avere metodo update)
-                using var httpClient = new System.Net.Http.HttpClient();
-
-                var authHeader = _jiraApiService.GetAuthorizationHeader();
-                httpClient.DefaultRequestHeaders.Add("Authorization", authHeader);
-                httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-
-                var updatePayload = new
-                {
-                    fields = fields
-                };
-
-                var jsonContent = JsonConvert.SerializeObject(updatePayload);
-                var content = new System.Net.Http.StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");
-
-                var url = $"{_jiraApiService.Domain}/rest/api/2/issue/{ticketKey}";
-                var response = await httpClient.PutAsync(url, content, cancellationToken);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    throw new Exception($"API Error {response.StatusCode}: {errorContent}");
-                }
-
-                _logger.LogInfo($"{ticketKey}: Campi aggiornati via API");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Errore chiamata API update per {ticketKey}", ex);
-                throw;
-            }
-        }
-
-        private async Task ExecuteStatusTransitionsAsync(AutomationTicket ticket, CancellationToken cancellationToken)
+        private async Task ExecuteStatusTransitionsAsync(JiraTicket ticket, CancellationToken cancellationToken)
         {
             try
             {
                 var currentStatus = ticket.Status;
                 _logger.LogInfo($"{ticket.Key}: Stato attuale: {currentStatus}");
 
-                // VERIFICA CRITICA: Assegnatario deve essere presente per le transizioni
-                if (string.IsNullOrWhiteSpace(ticket.Assignee))
-                {
-                    LogToFile($"{ticket.Key}: ERRORE - Assegnatario mancante, transizioni saltate", true);
-                    _logger.LogWarning($"{ticket.Key}: Nessun assegnatario impostato, salto le transizioni");
-                    return;
-                }
-
-                // Determina sequenza transizioni in base allo stato corrente
+                // Determina sequenza transizioni
                 var targetStates = currentStatus switch
                 {
                     "Nuovo" => new[] { "Preso In Carico", "Assegnato (Primo Livello)", "Assegnato (Secondo Livello)" },
@@ -635,7 +767,7 @@ namespace JiraTicketManager.Services
 
                 LogToFile($"{ticket.Key}: Inizio transizioni: {string.Join(" -> ", targetStates)}", false);
 
-                // Esegui transizioni sequenziali
+                // USA JiraTransitionService esistente
                 foreach (var targetState in targetStates)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -647,24 +779,21 @@ namespace JiraTicketManager.Services
                         if (result.Success)
                         {
                             LogToFile($"{ticket.Key}: Transizione {currentStatus} -> {targetState} completata", false);
-                            _logger.LogInfo($"{ticket.Key}: Transizione verso {targetState} completata");
                             currentStatus = targetState;
                         }
                         else
                         {
                             LogToFile($"{ticket.Key}: Transizione verso {targetState} fallita: {result.ErrorMessage}", true);
-                            _logger.LogWarning($"{ticket.Key}: Transizione verso {targetState} fallita: {result.ErrorMessage}");
-                            break; // Interrompi sequenza se una transizione fallisce
+                            break;
                         }
 
-                        // Piccola pausa tra transizioni
                         await Task.Delay(500, cancellationToken);
                     }
                     catch (Exception ex)
                     {
                         LogToFile($"{ticket.Key}: Errore transizione verso {targetState}: {ex.Message}", true);
                         _logger.LogError($"Errore transizione {ticket.Key} verso {targetState}", ex);
-                        break; // Continua con il prossimo ticket
+                        break;
                     }
                 }
             }
@@ -672,7 +801,6 @@ namespace JiraTicketManager.Services
             {
                 LogToFile($"{ticket.Key}: Errore generale transizioni: {ex.Message}", true);
                 _logger.LogError($"Errore transizioni per {ticket.Key}", ex);
-                // Non rilanciare - continua con il prossimo ticket
             }
         }
 
@@ -680,81 +808,24 @@ namespace JiraTicketManager.Services
 
         #region Private Methods - Helpers
 
-        private string GetSafeStringValue(JToken token)
+        private string GetCustomerFromTicket(JiraTicket ticket)
         {
             try
             {
-                if (token == null || token.Type == JTokenType.Null)
-                    return null;
-
-                if (token.Type == JTokenType.String)
-                    return token.ToString();
-
-                // Se è un oggetto, prova ad accedere a proprietà comuni
-                if (token.Type == JTokenType.Object)
+                // Prova ad estrarre il cliente dai raw data se disponibili
+                if (ticket.RawData != null)
                 {
-                    var nameValue = token["name"]?.ToString();
-                    if (!string.IsNullOrEmpty(nameValue))
-                        return nameValue;
-
-                    var displayNameValue = token["displayName"]?.ToString();
-                    if (!string.IsNullOrEmpty(displayNameValue))
-                        return displayNameValue;
-
-                    var valueValue = token["value"]?.ToString();
-                    if (!string.IsNullOrEmpty(valueValue))
-                        return valueValue;
+                    var customerField = ticket.RawData["fields"]?["customfield_10115"];
+                    if (customerField != null && customerField.Type != Newtonsoft.Json.Linq.JTokenType.Null)
+                    {
+                        return customerField.ToString();
+                    }
                 }
-
-                return token.ToString();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning($"Errore GetSafeStringValue: {ex.Message}, Token: {token}");
                 return null;
             }
-        }
-
-        private string GetCustomFieldValue(JToken issue, string fieldId)
-        {
-            try
-            {
-                var field = issue["fields"]?[fieldId];
-
-                if (field == null || field.Type == JTokenType.Null)
-                    return null;
-
-                // Gestisce diversi tipi di campi custom
-                if (field.Type == JTokenType.String)
-                    return field.ToString();
-
-                if (field.Type == JTokenType.Object)
-                {
-                    // Prova diverse proprietà comuni per custom fields
-                    var valueProperty = field["value"];
-                    if (valueProperty != null && valueProperty.Type != JTokenType.Null)
-                        return valueProperty.ToString();
-
-                    var displayNameProperty = field["displayName"];
-                    if (displayNameProperty != null && displayNameProperty.Type != JTokenType.Null)
-                        return displayNameProperty.ToString();
-
-                    var nameProperty = field["name"];
-                    if (nameProperty != null && nameProperty.Type != JTokenType.Null)
-                        return nameProperty.ToString();
-                }
-
-                if (field.Type == JTokenType.Array && field.HasValues)
-                {
-                    var firstElement = field.First;
-                    return GetSafeStringValue(firstElement);
-                }
-
-                return field.ToString();
-            }
             catch (Exception ex)
             {
-                _logger.LogWarning($"Errore lettura campo {fieldId}: {ex.Message}");
+                _logger.LogWarning($"Errore estrazione cliente: {ex.Message}");
                 return null;
             }
         }
@@ -763,7 +834,7 @@ namespace JiraTicketManager.Services
         {
             try
             {
-                // MAPPING SPECIFICO per gli assegnatari Demografia
+                // Mapping specifico per Demografia
                 var displayNameMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["Jonathan Felix Da Silva"] = "jonathan.felixdasilva",
@@ -777,14 +848,13 @@ namespace JiraTicketManager.Services
                     return username;
                 }
 
-                // Se non troviamo mapping specifico, NON convertire
                 _logger.LogWarning($"Nessun mapping trovato per display name: '{displayName}' - uso il valore originale");
-                return displayName; // Usa il display name originale
+                return displayName;
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Errore conversione display name: {displayName}", ex);
-                return displayName; // Fallback al valore originale
+                return displayName;
             }
         }
 
@@ -832,21 +902,14 @@ namespace JiraTicketManager.Services
     }
 
     /// <summary>
-    /// Modello semplificato ticket Jira per automazione
+    /// Risultato dell'automazione
     /// </summary>
-    public class AutomationTicket
+    public class AutomationResult
     {
-        public string Key { get; set; }
-        public string Summary { get; set; }
-        public string Description { get; set; }
-        public string Status { get; set; }
-        public string Assignee { get; set; }
-        public string Organization { get; set; }
-        public string Area { get; set; }
-        public string Application { get; set; }
-        public string Customer { get; set; }
-        public string Category { get; set; }
-        public JToken RawData { get; set; }
+        public bool Success { get; set; }
+        public int ProcessedCount { get; set; }
+        public int SuccessCount { get; set; }
+        public string ErrorMessage { get; set; }
     }
 
     #endregion

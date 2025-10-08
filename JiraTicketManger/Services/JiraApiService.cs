@@ -24,8 +24,8 @@ namespace JiraTicketManager.Services
         /// MODIFICA CREDENZIALI JIRA SSO
         /// </summary>
         // Credenziali per modalità Microsoft SSO (hardcoded come richiesto)
-        private const string SSO_USERNAME = "USERNAME_JIRA";
-        private const string SSO_TOKEN = "API_TOKEN";
+        private const string SSO_USERNAME = "jonathan.felixdasilva@dedagroup.it";
+        private const string SSO_TOKEN = "ATATT3xFfGF041zNHpbMRvSACF-TjTW761hqx8xvQ0joZWWestNJtJy3_nZ0pEm8ujDk801u5opUcRSMBw91V6Ero0wQGNY58cH7Gg0Zvkk7nFDSgvQe2rtsjySzj8xlsWjNOCG8WNHWGBIX1AMk9soEwZbmmEL7o8pdDPWb49YzGzUhxaJlwhA=226A75B9";
 
         public string Domain { get; private set; }
         public string Username { get; private set; }
@@ -818,10 +818,7 @@ namespace JiraTicketManager.Services
         #endregion
 
 
-        // ============================================================================
-        // AGGIUNGI QUESTI METODI ALLA CLASSE JiraApiService
-        // Posizionali dopo il metodo UpdateIssueAsync che abbiamo creato prima
-        // ============================================================================
+       
 
         #region Update Helper Methods
 

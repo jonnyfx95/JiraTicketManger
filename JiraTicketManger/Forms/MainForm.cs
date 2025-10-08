@@ -614,6 +614,10 @@ namespace JiraTicketManager
                 if (btnJiraAutomation != null)
                     btnJiraAutomation.Click += OnAutomationClick;
 
+                if (btnPhoneBook != null)
+                    btnPhoneBook.Click += OnPhoneBookClick;
+
+
                 // Navigation events
                 SetupNavigationEvents();
 
@@ -681,6 +685,29 @@ namespace JiraTicketManager
             {
                 _logger.LogError("❌ Errore setup event handlers", ex);
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// Apre la form della rubrica telefonica
+        /// </summary>
+        private void OnPhoneBookClick(object sender, EventArgs e)
+        {
+            try
+            {
+                _logger.LogInfo("Apertura rubrica telefonica");
+
+                using (var phoneBookForm = new Forms.PhoneBookForm())
+                {
+                    phoneBookForm.ShowDialog(this);
+                }
+
+                _logger.LogInfo("Rubrica telefonica chiusa");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore apertura rubrica telefonica", ex);
+                _toastService.ShowError("Errore", $"Impossibile aprire la rubrica: {ex.Message}");
             }
         }
 

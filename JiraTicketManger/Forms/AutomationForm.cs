@@ -247,11 +247,7 @@ namespace JiraTicketManager.Forms
                 // Crea cancellation token per permettere lo stop
                 _cancellationTokenSource = new CancellationTokenSource();
 
-                // Esegui automazione tramite servizio
-                await _automationService.ExecuteAutomationAsync(
-                    _cancellationTokenSource.Token,
-                    OnProgressUpdate,
-                    OnTicketProcessed);
+                var result = await _automationService.ExecuteAutomationAsync(_cancellationTokenSource.Token);
 
                 // Automazione completata
                 OnAutomationCompleted();

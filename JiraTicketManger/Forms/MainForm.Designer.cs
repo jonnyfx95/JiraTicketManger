@@ -86,8 +86,8 @@ namespace JiraTicketManager
 
         private void InitializeComponent()
         {
-            DataGridViewCellStyle dataGridViewCellStyle3 = new DataGridViewCellStyle();
-            DataGridViewCellStyle dataGridViewCellStyle4 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
             pnlHeader = new Panel();
             lblConnectionStatus = new Label();
             lblSubTitle = new Label();
@@ -140,6 +140,7 @@ namespace JiraTicketManager
             tslConnection = new ToolStripStatusLabel();
             tslResults = new ToolStripStatusLabel();
             tslLastUpdate = new ToolStripStatusLabel();
+            btnPhoneBook = new Button();
             pnlHeader.SuspendLayout();
             pnlMain.SuspendLayout();
             pnlContent.SuspendLayout();
@@ -231,24 +232,24 @@ namespace JiraTicketManager
             dgvTickets.BorderStyle = BorderStyle.None;
             dgvTickets.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
             dgvTickets.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
-            dataGridViewCellStyle3.Alignment = DataGridViewContentAlignment.MiddleLeft;
-            dataGridViewCellStyle3.BackColor = Color.FromArgb(248, 249, 250);
-            dataGridViewCellStyle3.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            dataGridViewCellStyle3.ForeColor = Color.FromArgb(52, 73, 94);
-            dataGridViewCellStyle3.SelectionBackColor = Color.FromArgb(248, 249, 250);
-            dataGridViewCellStyle3.SelectionForeColor = Color.FromArgb(52, 73, 94);
-            dataGridViewCellStyle3.WrapMode = DataGridViewTriState.True;
-            dgvTickets.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle3;
+            dataGridViewCellStyle1.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle1.BackColor = Color.FromArgb(248, 249, 250);
+            dataGridViewCellStyle1.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            dataGridViewCellStyle1.ForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle1.SelectionBackColor = Color.FromArgb(248, 249, 250);
+            dataGridViewCellStyle1.SelectionForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle1.WrapMode = DataGridViewTriState.True;
+            dgvTickets.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
             dgvTickets.ColumnHeadersHeight = 40;
             dgvTickets.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-            dataGridViewCellStyle4.Alignment = DataGridViewContentAlignment.MiddleLeft;
-            dataGridViewCellStyle4.BackColor = Color.White;
-            dataGridViewCellStyle4.Font = new Font("Segoe UI", 8F);
-            dataGridViewCellStyle4.ForeColor = Color.FromArgb(52, 73, 94);
-            dataGridViewCellStyle4.SelectionBackColor = Color.FromArgb(233, 246, 255);
-            dataGridViewCellStyle4.SelectionForeColor = Color.FromArgb(52, 73, 94);
-            dataGridViewCellStyle4.WrapMode = DataGridViewTriState.False;
-            dgvTickets.DefaultCellStyle = dataGridViewCellStyle4;
+            dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle2.BackColor = Color.White;
+            dataGridViewCellStyle2.Font = new Font("Segoe UI", 8F);
+            dataGridViewCellStyle2.ForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle2.SelectionBackColor = Color.FromArgb(233, 246, 255);
+            dataGridViewCellStyle2.SelectionForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle2.WrapMode = DataGridViewTriState.False;
+            dgvTickets.DefaultCellStyle = dataGridViewCellStyle2;
             dgvTickets.Dock = DockStyle.Fill;
             dgvTickets.EnableHeadersVisualStyles = false;
             dgvTickets.GridColor = Color.FromArgb(226, 232, 240);
@@ -520,6 +521,7 @@ namespace JiraTicketManager
             // 
             pnlToolbar.BackColor = Color.FromArgb(248, 249, 250);
             pnlToolbar.BorderStyle = BorderStyle.FixedSingle;
+            pnlToolbar.Controls.Add(btnPhoneBook);
             pnlToolbar.Controls.Add(btnConfig);
             pnlToolbar.Controls.Add(btnTest);
             pnlToolbar.Controls.Add(btnJiraAutomation);
@@ -829,6 +831,21 @@ namespace JiraTicketManager
             tslLastUpdate.Text = "🕒 Ultimo aggiornamento: 20:13:08";
             tslLastUpdate.TextAlign = ContentAlignment.MiddleRight;
             // 
+            // btnPhoneBook
+            // 
+            btnPhoneBook.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnPhoneBook.BackColor = Color.FromArgb(99, 102, 241);
+            btnPhoneBook.FlatAppearance.BorderSize = 0;
+            btnPhoneBook.FlatStyle = FlatStyle.Flat;
+            btnPhoneBook.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnPhoneBook.ForeColor = Color.White;
+            btnPhoneBook.Location = new Point(1496, 14);
+            btnPhoneBook.Name = "btnPhoneBook";
+            btnPhoneBook.Size = new Size(90, 23);
+            btnPhoneBook.TabIndex = 31;
+            btnPhoneBook.Text = "📞 Rubrica";
+            btnPhoneBook.UseVisualStyleBackColor = false;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -870,5 +887,6 @@ namespace JiraTicketManager
         private Label lblFreccia2;
         private Panel pnlDate;
         private RadioButton rbDate;
+        private Button btnPhoneBook;
     }
 }
