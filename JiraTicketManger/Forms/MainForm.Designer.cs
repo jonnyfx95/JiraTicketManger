@@ -117,11 +117,12 @@ namespace JiraTicketManager
             rbJQLMode = new RadioButton();
             rbBasicMode = new RadioButton();
             pnlToolbar = new Panel();
-            btnConfig = new Button();
-            btnTest = new Button();
             btnJiraAutomation = new Button();
-            btnPulisci = new Button();
             btnDashboard = new Button();
+            btnTest = new Button();
+            btnConfig = new Button();
+            btnPhoneBook = new Button();
+            btnPulisci = new Button();
             btnExportExcel = new Button();
             btnRefresh = new Button();
             btnSearch = new Button();
@@ -140,7 +141,6 @@ namespace JiraTicketManager
             tslConnection = new ToolStripStatusLabel();
             tslResults = new ToolStripStatusLabel();
             tslLastUpdate = new ToolStripStatusLabel();
-            btnPhoneBook = new Button();
             pnlHeader.SuspendLayout();
             pnlMain.SuspendLayout();
             pnlContent.SuspendLayout();
@@ -521,12 +521,12 @@ namespace JiraTicketManager
             // 
             pnlToolbar.BackColor = Color.FromArgb(248, 249, 250);
             pnlToolbar.BorderStyle = BorderStyle.FixedSingle;
-            pnlToolbar.Controls.Add(btnPhoneBook);
             pnlToolbar.Controls.Add(btnConfig);
             pnlToolbar.Controls.Add(btnTest);
-            pnlToolbar.Controls.Add(btnJiraAutomation);
-            pnlToolbar.Controls.Add(btnPulisci);
             pnlToolbar.Controls.Add(btnDashboard);
+            pnlToolbar.Controls.Add(btnJiraAutomation);
+            pnlToolbar.Controls.Add(btnPhoneBook);
+            pnlToolbar.Controls.Add(btnPulisci);
             pnlToolbar.Controls.Add(btnExportExcel);
             pnlToolbar.Controls.Add(btnRefresh);
             pnlToolbar.Controls.Add(btnSearch);
@@ -537,20 +537,35 @@ namespace JiraTicketManager
             pnlToolbar.Size = new Size(2102, 50);
             pnlToolbar.TabIndex = 0;
             // 
-            // btnConfig
+            // btnJiraAutomation
             // 
-            btnConfig.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnConfig.BackColor = Color.FromArgb(108, 117, 125);
-            btnConfig.FlatAppearance.BorderSize = 0;
-            btnConfig.FlatStyle = FlatStyle.Flat;
-            btnConfig.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            btnConfig.ForeColor = Color.White;
-            btnConfig.Location = new Point(1972, 14);
-            btnConfig.Name = "btnConfig";
-            btnConfig.Size = new Size(70, 23);
-            btnConfig.TabIndex = 7;
-            btnConfig.Text = "⚙️ Config";
-            btnConfig.UseVisualStyleBackColor = false;
+            btnJiraAutomation.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnJiraAutomation.BackColor = Color.FromArgb(124, 58, 237);
+            btnJiraAutomation.FlatAppearance.BorderSize = 0;
+            btnJiraAutomation.FlatStyle = FlatStyle.Flat;
+            btnJiraAutomation.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnJiraAutomation.ForeColor = Color.White;
+            btnJiraAutomation.Location = new Point(1802, 13);
+            btnJiraAutomation.Name = "btnJiraAutomation";
+            btnJiraAutomation.Size = new Size(100, 23);
+            btnJiraAutomation.TabIndex = 5;
+            btnJiraAutomation.Text = "🤖 Automation";
+            btnJiraAutomation.UseVisualStyleBackColor = false;
+            // 
+            // btnDashboard
+            // 
+            btnDashboard.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnDashboard.BackColor = Color.FromArgb(8, 145, 178);
+            btnDashboard.FlatAppearance.BorderSize = 0;
+            btnDashboard.FlatStyle = FlatStyle.Flat;
+            btnDashboard.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnDashboard.ForeColor = Color.White;
+            btnDashboard.Location = new Point(1912, 15);
+            btnDashboard.Name = "btnDashboard";
+            btnDashboard.Size = new Size(90, 23);
+            btnDashboard.TabIndex = 4;
+            btnDashboard.Text = "📈 Dashboard";
+            btnDashboard.UseVisualStyleBackColor = false;
             // 
             // btnTest
             // 
@@ -560,27 +575,42 @@ namespace JiraTicketManager
             btnTest.FlatStyle = FlatStyle.Flat;
             btnTest.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
             btnTest.ForeColor = Color.White;
-            btnTest.Location = new Point(1902, 14);
+            btnTest.Location = new Point(2008, 14);
             btnTest.Name = "btnTest";
             btnTest.Size = new Size(60, 23);
             btnTest.TabIndex = 6;
             btnTest.Text = "🔧 Test";
             btnTest.UseVisualStyleBackColor = false;
             // 
-            // btnJiraAutomation
+            // btnConfig
             // 
-            btnJiraAutomation.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnJiraAutomation.BackColor = Color.FromArgb(124, 58, 237);
-            btnJiraAutomation.FlatAppearance.BorderSize = 0;
-            btnJiraAutomation.FlatStyle = FlatStyle.Flat;
-            btnJiraAutomation.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            btnJiraAutomation.ForeColor = Color.White;
-            btnJiraAutomation.Location = new Point(1792, 14);
-            btnJiraAutomation.Name = "btnJiraAutomation";
-            btnJiraAutomation.Size = new Size(100, 23);
-            btnJiraAutomation.TabIndex = 5;
-            btnJiraAutomation.Text = "🤖 Automation";
-            btnJiraAutomation.UseVisualStyleBackColor = false;
+            btnConfig.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnConfig.BackColor = Color.FromArgb(108, 117, 125);
+            btnConfig.FlatAppearance.BorderSize = 0;
+            btnConfig.FlatStyle = FlatStyle.Flat;
+            btnConfig.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnConfig.ForeColor = Color.White;
+            btnConfig.Location = new Point(1726, 13);
+            btnConfig.Name = "btnConfig";
+            btnConfig.Size = new Size(70, 23);
+            btnConfig.TabIndex = 7;
+            btnConfig.Text = "⚙️ Config";
+            btnConfig.UseVisualStyleBackColor = false;
+            // 
+            // btnPhoneBook
+            // 
+            btnPhoneBook.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnPhoneBook.BackColor = Color.FromArgb(99, 102, 241);
+            btnPhoneBook.FlatAppearance.BorderSize = 0;
+            btnPhoneBook.FlatStyle = FlatStyle.Flat;
+            btnPhoneBook.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnPhoneBook.ForeColor = Color.White;
+            btnPhoneBook.Location = new Point(518, 15);
+            btnPhoneBook.Name = "btnPhoneBook";
+            btnPhoneBook.Size = new Size(90, 23);
+            btnPhoneBook.TabIndex = 31;
+            btnPhoneBook.Text = "📞 Rubrica";
+            btnPhoneBook.UseVisualStyleBackColor = false;
             // 
             // btnPulisci
             // 
@@ -596,21 +626,6 @@ namespace JiraTicketManager
             btnPulisci.Text = "Pulisci";
             btnPulisci.UseVisualStyleBackColor = false;
             // 
-            // btnDashboard
-            // 
-            btnDashboard.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnDashboard.BackColor = Color.FromArgb(8, 145, 178);
-            btnDashboard.FlatAppearance.BorderSize = 0;
-            btnDashboard.FlatStyle = FlatStyle.Flat;
-            btnDashboard.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            btnDashboard.ForeColor = Color.White;
-            btnDashboard.Location = new Point(1692, 14);
-            btnDashboard.Name = "btnDashboard";
-            btnDashboard.Size = new Size(90, 23);
-            btnDashboard.TabIndex = 4;
-            btnDashboard.Text = "📈 Dashboard";
-            btnDashboard.UseVisualStyleBackColor = false;
-            // 
             // btnExportExcel
             // 
             btnExportExcel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
@@ -619,7 +634,7 @@ namespace JiraTicketManager
             btnExportExcel.FlatStyle = FlatStyle.Flat;
             btnExportExcel.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
             btnExportExcel.ForeColor = Color.White;
-            btnExportExcel.Location = new Point(1592, 14);
+            btnExportExcel.Location = new Point(614, 15);
             btnExportExcel.Name = "btnExportExcel";
             btnExportExcel.Size = new Size(90, 23);
             btnExportExcel.TabIndex = 3;
@@ -830,21 +845,6 @@ namespace JiraTicketManager
             tslLastUpdate.Size = new Size(187, 17);
             tslLastUpdate.Text = "🕒 Ultimo aggiornamento: 20:13:08";
             tslLastUpdate.TextAlign = ContentAlignment.MiddleRight;
-            // 
-            // btnPhoneBook
-            // 
-            btnPhoneBook.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnPhoneBook.BackColor = Color.FromArgb(99, 102, 241);
-            btnPhoneBook.FlatAppearance.BorderSize = 0;
-            btnPhoneBook.FlatStyle = FlatStyle.Flat;
-            btnPhoneBook.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            btnPhoneBook.ForeColor = Color.White;
-            btnPhoneBook.Location = new Point(1496, 14);
-            btnPhoneBook.Name = "btnPhoneBook";
-            btnPhoneBook.Size = new Size(90, 23);
-            btnPhoneBook.TabIndex = 31;
-            btnPhoneBook.Text = "📞 Rubrica";
-            btnPhoneBook.UseVisualStyleBackColor = false;
             // 
             // MainForm
             // 

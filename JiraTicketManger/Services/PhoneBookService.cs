@@ -485,8 +485,8 @@ namespace JiraTicketManager.Services
         {
             // Header
             worksheet.Cell(1, 1).Value = "Cliente";
-            worksheet.Cell(1, 2).Value = "Applicativo";
-            worksheet.Cell(1, 3).Value = "Area";
+            worksheet.Cell(1, 2).Value = "Area";
+            worksheet.Cell(1, 3).Value = "Applicativo";
             worksheet.Cell(1, 4).Value = "Nome";
             worksheet.Cell(1, 5).Value = "Email";
             worksheet.Cell(1, 6).Value = "Telefono";
@@ -502,8 +502,8 @@ namespace JiraTicketManager.Services
             foreach (var entry in entries.OrderBy(e => e.Cliente).ThenBy(e => e.Nome))
             {
                 worksheet.Cell(row, 1).Value = entry.Cliente;
-                worksheet.Cell(row, 2).Value = entry.Applicativo;
-                worksheet.Cell(row, 3).Value = entry.Area;
+                worksheet.Cell(row, 2).Value = entry.Area;
+                worksheet.Cell(row, 3).Value = entry.Applicativo;
                 worksheet.Cell(row, 4).Value = entry.Nome;
                 worksheet.Cell(row, 5).Value = entry.Email;
                 worksheet.Cell(row, 6).Value = entry.Telefono;

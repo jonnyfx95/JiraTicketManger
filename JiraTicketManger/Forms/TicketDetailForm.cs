@@ -31,6 +31,7 @@ namespace JiraTicketManager.Forms
         private readonly LoggingService _logger;
         private readonly JiraDataService _dataService;
         private readonly TextBoxManager _textBoxManager;
+        readonly ConfigService _configService;
         private ComboBoxManager _comboBoxManager;
         private DevelopmentTests _devTests; 
 
@@ -87,6 +88,8 @@ namespace JiraTicketManager.Forms
 
             InitializeCommentFunctionality();
             InitializeDevelopmentTests();
+
+            
 
 
 
@@ -334,7 +337,7 @@ namespace JiraTicketManager.Forms
                 this.Load += OnFormLoad;
                 this.FormClosing += OnFormClosing;
                 SetupPlanningEventHandlers();
-
+                
 
 
 
@@ -345,6 +348,10 @@ namespace JiraTicketManager.Forms
                 _logger.LogError("Errore setup form", ex);
             }
         }
+     
+
+
+
 
         private void SetupPlanningEventHandlers()
         {
@@ -403,6 +410,8 @@ namespace JiraTicketManager.Forms
                 [txtDescrizione] = "description"
             };
         }
+
+        public ConfigService ConfigService { get; set; }
 
         #endregion
 
@@ -731,6 +740,7 @@ namespace JiraTicketManager.Forms
         private void OnFormLoad(object sender, EventArgs e)
         {
             _logger.LogDebug("TicketDetailForm caricata");
+         
         }
 
         /// <summary>

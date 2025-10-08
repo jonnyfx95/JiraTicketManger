@@ -55,352 +55,360 @@ namespace JiraTicketManager.Forms
 
         private void InitializeComponent()
         {
-            this.pnlHeader = new Panel();
-            this.lblTitle = new Label();
-            this.lblSubtitle = new Label();
-            this.pnlToolbar = new Panel();
-            this.txtFilter = new TextBox();
-            this.btnRefresh = new Button();
-            this.btnExport = new Button();
-            this.btnClear = new Button();
-            this.lblFilterHint = new Label();
-            this.pnlContent = new Panel();
-            this.dgvPhoneBook = new DataGridView();
-            this.colCliente = new DataGridViewTextBoxColumn();
-            this.colApplicativo = new DataGridViewTextBoxColumn();
-            this.colArea = new DataGridViewTextBoxColumn();
-            this.colNome = new DataGridViewTextBoxColumn();
-            this.colEmail = new DataGridViewTextBoxColumn();
-            this.colTelefono = new DataGridViewTextBoxColumn();
-            this.statusStrip1 = new StatusStrip();
-            this.tslConnection = new ToolStripStatusLabel();
-            this.tslResults = new ToolStripStatusLabel();
-            this.tslLastUpdate = new ToolStripStatusLabel();
-            this.prgLoading = new ProgressBar();
-            this.pnlHeader.SuspendLayout();
-            this.pnlToolbar.SuspendLayout();
-            this.pnlContent.SuspendLayout();
-            ((ISupportInitialize)(this.dgvPhoneBook)).BeginInit();
-            this.statusStrip1.SuspendLayout();
-            this.SuspendLayout();
-
+            DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
+            pnlHeader = new Panel();
+            lblSubtitle = new Label();
+            lblTitle = new Label();
+            pnlToolbar = new Panel();
+            lblFilterHint = new Label();
+            btnClear = new Button();
+            btnExport = new Button();
+            btnRefresh = new Button();
+            txtFilter = new TextBox();
+            pnlContent = new Panel();
+            dgvPhoneBook = new DataGridView();
+            colCliente = new DataGridViewTextBoxColumn();
+            colApplicativo = new DataGridViewTextBoxColumn();
+            colArea = new DataGridViewTextBoxColumn();
+            colNome = new DataGridViewTextBoxColumn();
+            colEmail = new DataGridViewTextBoxColumn();
+            colTelefono = new DataGridViewTextBoxColumn();
+            statusStrip1 = new StatusStrip();
+            tslConnection = new ToolStripStatusLabel();
+            tslResults = new ToolStripStatusLabel();
+            tslLastUpdate = new ToolStripStatusLabel();
+            prgLoading = new ProgressBar();
+            txtSearchTicket = new TextBox();
+            lblTicketHint = new Label();
+            chkTeams = new CheckBox();
+            pnlHeader.SuspendLayout();
+            pnlToolbar.SuspendLayout();
+            pnlContent.SuspendLayout();
+            ((ISupportInitialize)dgvPhoneBook).BeginInit();
+            statusStrip1.SuspendLayout();
+            SuspendLayout();
             // 
             // pnlHeader
             // 
-            this.pnlHeader.BackColor = Color.FromArgb(41, 128, 185);
-            this.pnlHeader.Controls.Add(this.lblSubtitle);
-            this.pnlHeader.Controls.Add(this.lblTitle);
-            this.pnlHeader.Dock = DockStyle.Top;
-            this.pnlHeader.Location = new Point(0, 0);
-            this.pnlHeader.Name = "pnlHeader";
-            this.pnlHeader.Size = new Size(1400, 70);
-            this.pnlHeader.TabIndex = 0;
-
-            // 
-            // lblTitle
-            // 
-            this.lblTitle.AutoSize = true;
-            this.lblTitle.Font = new Font("Segoe UI", 16F, FontStyle.Bold);
-            this.lblTitle.ForeColor = Color.White;
-            this.lblTitle.Location = new Point(20, 15);
-            this.lblTitle.Name = "lblTitle";
-            this.lblTitle.Size = new Size(350, 30);
-            this.lblTitle.TabIndex = 0;
-            this.lblTitle.Text = "📞 Rubrica Telefonica Jira";
-
+            pnlHeader.BackColor = Color.FromArgb(41, 128, 185);
+            pnlHeader.Controls.Add(lblSubtitle);
+            pnlHeader.Controls.Add(lblTitle);
+            pnlHeader.Dock = DockStyle.Top;
+            pnlHeader.Location = new Point(0, 0);
+            pnlHeader.Name = "pnlHeader";
+            pnlHeader.Size = new Size(1400, 70);
+            pnlHeader.TabIndex = 0;
             // 
             // lblSubtitle
             // 
-            this.lblSubtitle.AutoSize = true;
-            this.lblSubtitle.Font = new Font("Segoe UI", 9F);
-            this.lblSubtitle.ForeColor = Color.FromArgb(236, 240, 241);
-            this.lblSubtitle.Location = new Point(23, 45);
-            this.lblSubtitle.Name = "lblSubtitle";
-            this.lblSubtitle.Size = new Size(300, 15);
-            this.lblSubtitle.TabIndex = 1;
-            this.lblSubtitle.Text = "Gestione contatti estratti dai ticket Jira";
-
+            lblSubtitle.AutoSize = true;
+            lblSubtitle.Font = new Font("Segoe UI", 9F);
+            lblSubtitle.ForeColor = Color.FromArgb(236, 240, 241);
+            lblSubtitle.Location = new Point(23, 45);
+            lblSubtitle.Name = "lblSubtitle";
+            lblSubtitle.Size = new Size(207, 15);
+            lblSubtitle.TabIndex = 1;
+            lblSubtitle.Text = "Gestione contatti estratti dai ticket Jira";
+            // 
+            // lblTitle
+            // 
+            lblTitle.AutoSize = true;
+            lblTitle.Font = new Font("Segoe UI", 16F, FontStyle.Bold);
+            lblTitle.ForeColor = Color.White;
+            lblTitle.Location = new Point(20, 15);
+            lblTitle.Name = "lblTitle";
+            lblTitle.Size = new Size(282, 30);
+            lblTitle.TabIndex = 0;
+            lblTitle.Text = "📞 Rubrica Telefonica Jira";
             // 
             // pnlToolbar
             // 
-            this.pnlToolbar.BackColor = Color.FromArgb(248, 249, 250);
-            this.pnlToolbar.BorderStyle = BorderStyle.FixedSingle;
-            this.pnlToolbar.Controls.Add(this.lblFilterHint);
-            this.pnlToolbar.Controls.Add(this.btnClear);
-            this.pnlToolbar.Controls.Add(this.btnExport);
-            this.pnlToolbar.Controls.Add(this.btnRefresh);
-            this.pnlToolbar.Controls.Add(this.txtFilter);
-            this.pnlToolbar.Dock = DockStyle.Top;
-            this.pnlToolbar.Location = new Point(0, 70);
-            this.pnlToolbar.Name = "pnlToolbar";
-            this.pnlToolbar.Size = new Size(1400, 80);
-            this.pnlToolbar.TabIndex = 1;
-
-            // 
-            // txtFilter
-            // 
-            this.txtFilter.Font = new Font("Segoe UI", 10F);
-            this.txtFilter.Location = new Point(20, 20);
-            this.txtFilter.Name = "txtFilter";
-            this.txtFilter.Size = new Size(450, 25);
-            this.txtFilter.TabIndex = 0;
-            this.txtFilter.PlaceholderText = "🔍 Filtra per cliente, nome, email, telefono...";
-
+            pnlToolbar.BackColor = Color.FromArgb(248, 249, 250);
+            pnlToolbar.BorderStyle = BorderStyle.FixedSingle;
+            pnlToolbar.Controls.Add(chkTeams);
+            pnlToolbar.Controls.Add(lblTicketHint);
+            pnlToolbar.Controls.Add(txtSearchTicket);
+            pnlToolbar.Controls.Add(lblFilterHint);
+            pnlToolbar.Controls.Add(btnClear);
+            pnlToolbar.Controls.Add(btnExport);
+            pnlToolbar.Controls.Add(btnRefresh);
+            pnlToolbar.Controls.Add(txtFilter);
+            pnlToolbar.Dock = DockStyle.Top;
+            pnlToolbar.Location = new Point(0, 70);
+            pnlToolbar.Name = "pnlToolbar";
+            pnlToolbar.Size = new Size(1400, 80);
+            pnlToolbar.TabIndex = 1;
             // 
             // lblFilterHint
             // 
-            this.lblFilterHint.AutoSize = true;
-            this.lblFilterHint.Font = new Font("Segoe UI", 8F);
-            this.lblFilterHint.ForeColor = Color.FromArgb(108, 117, 125);
-            this.lblFilterHint.Location = new Point(20, 50);
-            this.lblFilterHint.Name = "lblFilterHint";
-            this.lblFilterHint.Size = new Size(320, 13);
-            this.lblFilterHint.TabIndex = 4;
-            this.lblFilterHint.Text = "💡 Usa virgole per filtri multipli (es: \"Mario, Roma, 06\")";
-
-            // 
-            // btnRefresh
-            // 
-            this.btnRefresh.BackColor = Color.FromArgb(8, 145, 178);
-            this.btnRefresh.FlatAppearance.BorderSize = 0;
-            this.btnRefresh.FlatStyle = FlatStyle.Flat;
-            this.btnRefresh.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this.btnRefresh.ForeColor = Color.White;
-            this.btnRefresh.Location = new Point(490, 18);
-            this.btnRefresh.Name = "btnRefresh";
-            this.btnRefresh.Size = new Size(130, 30);
-            this.btnRefresh.TabIndex = 1;
-            this.btnRefresh.Text = "🔄 Aggiorna";
-            this.btnRefresh.UseVisualStyleBackColor = false;
-            this.btnRefresh.Cursor = Cursors.Hand;
-
-            // 
-            // btnExport
-            // 
-            this.btnExport.BackColor = Color.FromArgb(22, 163, 74);
-            this.btnExport.FlatAppearance.BorderSize = 0;
-            this.btnExport.FlatStyle = FlatStyle.Flat;
-            this.btnExport.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this.btnExport.ForeColor = Color.White;
-            this.btnExport.Location = new Point(630, 18);
-            this.btnExport.Name = "btnExport";
-            this.btnExport.Size = new Size(150, 30);
-            this.btnExport.TabIndex = 2;
-            this.btnExport.Text = "📊 Esporta Excel";
-            this.btnExport.UseVisualStyleBackColor = false;
-            this.btnExport.Cursor = Cursors.Hand;
-
+            lblFilterHint.AutoSize = true;
+            lblFilterHint.Font = new Font("Segoe UI", 8F);
+            lblFilterHint.ForeColor = Color.FromArgb(108, 117, 125);
+            lblFilterHint.Location = new Point(20, 50);
+            lblFilterHint.Name = "lblFilterHint";
+            lblFilterHint.Size = new Size(282, 13);
+            lblFilterHint.TabIndex = 4;
+            lblFilterHint.Text = "💡 Usa virgole per filtri multipli (es: \"Mario, Roma, 06\")";
             // 
             // btnClear
             // 
-            this.btnClear.BackColor = Color.FromArgb(108, 117, 125);
-            this.btnClear.FlatAppearance.BorderSize = 0;
-            this.btnClear.FlatStyle = FlatStyle.Flat;
-            this.btnClear.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this.btnClear.ForeColor = Color.White;
-            this.btnClear.Location = new Point(790, 18);
-            this.btnClear.Name = "btnClear";
-            this.btnClear.Size = new Size(100, 30);
-            this.btnClear.TabIndex = 3;
-            this.btnClear.Text = "🗑️ Pulisci";
-            this.btnClear.UseVisualStyleBackColor = false;
-            this.btnClear.Cursor = Cursors.Hand;
-
+            btnClear.BackColor = Color.FromArgb(108, 117, 125);
+            btnClear.Cursor = Cursors.Hand;
+            btnClear.FlatAppearance.BorderSize = 0;
+            btnClear.FlatStyle = FlatStyle.Flat;
+            btnClear.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnClear.ForeColor = Color.White;
+            btnClear.Location = new Point(1116, 20);
+            btnClear.Name = "btnClear";
+            btnClear.Size = new Size(100, 30);
+            btnClear.TabIndex = 3;
+            btnClear.Text = "🗑️ Pulisci";
+            btnClear.UseVisualStyleBackColor = false;
+            // 
+            // btnExport
+            // 
+            btnExport.BackColor = Color.FromArgb(22, 163, 74);
+            btnExport.Cursor = Cursors.Hand;
+            btnExport.FlatAppearance.BorderSize = 0;
+            btnExport.FlatStyle = FlatStyle.Flat;
+            btnExport.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnExport.ForeColor = Color.White;
+            btnExport.Location = new Point(960, 20);
+            btnExport.Name = "btnExport";
+            btnExport.Size = new Size(150, 30);
+            btnExport.TabIndex = 2;
+            btnExport.Text = "📊 Esporta Excel";
+            btnExport.UseVisualStyleBackColor = false;
+            // 
+            // btnRefresh
+            // 
+            btnRefresh.BackColor = Color.FromArgb(8, 145, 178);
+            btnRefresh.Cursor = Cursors.Hand;
+            btnRefresh.FlatAppearance.BorderSize = 0;
+            btnRefresh.FlatStyle = FlatStyle.Flat;
+            btnRefresh.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnRefresh.ForeColor = Color.White;
+            btnRefresh.Location = new Point(806, 20);
+            btnRefresh.Name = "btnRefresh";
+            btnRefresh.Size = new Size(148, 30);
+            btnRefresh.TabIndex = 1;
+            btnRefresh.Text = "🔄 Aggiorna tramite API";
+            btnRefresh.UseVisualStyleBackColor = false;
+            // 
+            // txtFilter
+            // 
+            txtFilter.Font = new Font("Segoe UI", 10F);
+            txtFilter.Location = new Point(20, 20);
+            txtFilter.Name = "txtFilter";
+            txtFilter.PlaceholderText = "🔍 Filtra per cliente, nome, email, telefono...";
+            txtFilter.Size = new Size(450, 25);
+            txtFilter.TabIndex = 0;
             // 
             // pnlContent
             // 
-            this.pnlContent.Controls.Add(this.dgvPhoneBook);
-            this.pnlContent.Dock = DockStyle.Fill;
-            this.pnlContent.Location = new Point(0, 150);
-            this.pnlContent.Name = "pnlContent";
-            this.pnlContent.Padding = new Padding(10);
-            this.pnlContent.Size = new Size(1400, 580);
-            this.pnlContent.TabIndex = 2;
-
+            pnlContent.Controls.Add(dgvPhoneBook);
+            pnlContent.Dock = DockStyle.Fill;
+            pnlContent.Location = new Point(0, 150);
+            pnlContent.Name = "pnlContent";
+            pnlContent.Padding = new Padding(10);
+            pnlContent.Size = new Size(1400, 580);
+            pnlContent.TabIndex = 2;
             // 
-            // dgvPhoneBook - STILE IDENTICO A MainForm.dgvTickets
+            // dgvPhoneBook
             // 
-            this.dgvPhoneBook.AllowUserToAddRows = false;
-            this.dgvPhoneBook.AllowUserToDeleteRows = false;
-            this.dgvPhoneBook.AllowUserToResizeRows = false;
-            this.dgvPhoneBook.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-            this.dgvPhoneBook.BackgroundColor = Color.White;
-            this.dgvPhoneBook.BorderStyle = BorderStyle.None;
-            this.dgvPhoneBook.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
-            this.dgvPhoneBook.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
-            // ✅ Header Style - IDENTICO A MainForm
-            this.dgvPhoneBook.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(248, 249, 250);
-            this.dgvPhoneBook.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this.dgvPhoneBook.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(52, 73, 94);
-            this.dgvPhoneBook.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(248, 249, 250);
-            this.dgvPhoneBook.ColumnHeadersDefaultCellStyle.SelectionForeColor = Color.FromArgb(52, 73, 94);
-            this.dgvPhoneBook.ColumnHeadersHeight = 40;
-            this.dgvPhoneBook.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-            this.dgvPhoneBook.Columns.AddRange(new DataGridViewColumn[] {
-                this.colCliente,
-                this.colApplicativo,
-                this.colArea,
-                this.colNome,
-                this.colEmail,
-                this.colTelefono});
-            // ✅ Cell Style - IDENTICO A MainForm
-            this.dgvPhoneBook.DefaultCellStyle.BackColor = Color.White;
-            this.dgvPhoneBook.DefaultCellStyle.Font = new Font("Segoe UI", 8F);
-            this.dgvPhoneBook.DefaultCellStyle.ForeColor = Color.FromArgb(52, 73, 94);
-            this.dgvPhoneBook.DefaultCellStyle.SelectionBackColor = Color.FromArgb(233, 246, 255);
-            this.dgvPhoneBook.DefaultCellStyle.SelectionForeColor = Color.FromArgb(52, 73, 94);
-            this.dgvPhoneBook.Dock = DockStyle.Fill;
-            this.dgvPhoneBook.EnableHeadersVisualStyles = false;
-            this.dgvPhoneBook.GridColor = Color.FromArgb(226, 232, 240);
-            this.dgvPhoneBook.Location = new Point(10, 10);
-            this.dgvPhoneBook.MultiSelect = false;
-            this.dgvPhoneBook.Name = "dgvPhoneBook";
-            this.dgvPhoneBook.ReadOnly = true;
-            this.dgvPhoneBook.RowHeadersVisible = false;
-            this.dgvPhoneBook.RowTemplate.Height = 35;
-            this.dgvPhoneBook.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            this.dgvPhoneBook.Size = new Size(1380, 560);
-            this.dgvPhoneBook.TabIndex = 0;
-
+            dgvPhoneBook.AllowUserToAddRows = false;
+            dgvPhoneBook.AllowUserToDeleteRows = false;
+            dgvPhoneBook.AllowUserToResizeRows = false;
+            dgvPhoneBook.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgvPhoneBook.BackgroundColor = Color.White;
+            dgvPhoneBook.BorderStyle = BorderStyle.None;
+            dgvPhoneBook.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+            dgvPhoneBook.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
+            dataGridViewCellStyle1.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle1.BackColor = Color.FromArgb(248, 249, 250);
+            dataGridViewCellStyle1.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            dataGridViewCellStyle1.ForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle1.SelectionBackColor = Color.FromArgb(248, 249, 250);
+            dataGridViewCellStyle1.SelectionForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle1.WrapMode = DataGridViewTriState.True;
+            dgvPhoneBook.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
+            dgvPhoneBook.ColumnHeadersHeight = 40;
+            dgvPhoneBook.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            dgvPhoneBook.Columns.AddRange(new DataGridViewColumn[] { colCliente, colApplicativo, colArea, colNome, colEmail, colTelefono });
+            dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle2.BackColor = Color.White;
+            dataGridViewCellStyle2.Font = new Font("Segoe UI", 8F);
+            dataGridViewCellStyle2.ForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle2.SelectionBackColor = Color.FromArgb(233, 246, 255);
+            dataGridViewCellStyle2.SelectionForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle2.WrapMode = DataGridViewTriState.False;
+            dgvPhoneBook.DefaultCellStyle = dataGridViewCellStyle2;
+            dgvPhoneBook.Dock = DockStyle.Fill;
+            dgvPhoneBook.EnableHeadersVisualStyles = false;
+            dgvPhoneBook.GridColor = Color.FromArgb(226, 232, 240);
+            dgvPhoneBook.Location = new Point(10, 10);
+            dgvPhoneBook.MultiSelect = false;
+            dgvPhoneBook.Name = "dgvPhoneBook";
+            dgvPhoneBook.ReadOnly = true;
+            dgvPhoneBook.RowHeadersVisible = false;
+            dgvPhoneBook.RowTemplate.Height = 35;
+            dgvPhoneBook.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvPhoneBook.Size = new Size(1380, 560);
+            dgvPhoneBook.TabIndex = 0;
             // 
             // colCliente
             // 
-            this.colCliente.DataPropertyName = "Cliente";
-            this.colCliente.HeaderText = "Cliente / Organizzazione";
-            this.colCliente.MinimumWidth = 150;
-            this.colCliente.Name = "colCliente";
-            this.colCliente.ReadOnly = true;
-            this.colCliente.Width = 230;
-
+            colCliente.DataPropertyName = "Cliente";
+            colCliente.HeaderText = "Cliente / Organizzazione";
+            colCliente.MinimumWidth = 150;
+            colCliente.Name = "colCliente";
+            colCliente.ReadOnly = true;
             // 
             // colApplicativo
             // 
-            this.colApplicativo.DataPropertyName = "Applicativo";
-            this.colApplicativo.HeaderText = "Applicativo";
-            this.colApplicativo.MinimumWidth = 150;
-            this.colApplicativo.Name = "colApplicativo";
-            this.colApplicativo.ReadOnly = true;
-            this.colApplicativo.Width = 250;
-
+            colApplicativo.DataPropertyName = "Applicativo";
+            colApplicativo.HeaderText = "Applicativo";
+            colApplicativo.MinimumWidth = 150;
+            colApplicativo.Name = "colApplicativo";
+            colApplicativo.ReadOnly = true;
             // 
             // colArea
             // 
-            this.colArea.DataPropertyName = "Area";
-            this.colArea.HeaderText = "Area";
-            this.colArea.MinimumWidth = 100;
-            this.colArea.Name = "colArea";
-            this.colArea.ReadOnly = true;
-            this.colArea.Width = 150;
-
+            colArea.DataPropertyName = "Area";
+            colArea.HeaderText = "Area";
+            colArea.MinimumWidth = 100;
+            colArea.Name = "colArea";
+            colArea.ReadOnly = true;
             // 
             // colNome
             // 
-            this.colNome.DataPropertyName = "Nome";
-            this.colNome.HeaderText = "Nome";
-            this.colNome.MinimumWidth = 120;
-            this.colNome.Name = "colNome";
-            this.colNome.ReadOnly = true;
-            this.colNome.Width = 180;
-
+            colNome.DataPropertyName = "Nome";
+            colNome.HeaderText = "Nome";
+            colNome.MinimumWidth = 120;
+            colNome.Name = "colNome";
+            colNome.ReadOnly = true;
             // 
             // colEmail
             // 
-            this.colEmail.DataPropertyName = "Email";
-            this.colEmail.HeaderText = "Email";
-            this.colEmail.MinimumWidth = 180;
-            this.colEmail.Name = "colEmail";
-            this.colEmail.ReadOnly = true;
-            this.colEmail.Width = 250;
-
+            colEmail.DataPropertyName = "Email";
+            colEmail.HeaderText = "Email";
+            colEmail.MinimumWidth = 180;
+            colEmail.Name = "colEmail";
+            colEmail.ReadOnly = true;
             // 
             // colTelefono
             // 
-            this.colTelefono.DataPropertyName = "Telefono";
-            this.colTelefono.HeaderText = "Telefono";
-            this.colTelefono.MinimumWidth = 120;
-            this.colTelefono.Name = "colTelefono";
-            this.colTelefono.ReadOnly = true;
-            this.colTelefono.Width = 150;
-
+            colTelefono.DataPropertyName = "Telefono";
+            colTelefono.HeaderText = "Telefono";
+            colTelefono.MinimumWidth = 120;
+            colTelefono.Name = "colTelefono";
+            colTelefono.ReadOnly = true;
             // 
-            // prgLoading
+            // statusStrip1
             // 
-            this.prgLoading.Dock = DockStyle.Bottom;
-            this.prgLoading.Location = new Point(0, 730);
-            this.prgLoading.Name = "prgLoading";
-            this.prgLoading.Size = new Size(1400, 5);
-            this.prgLoading.Style = ProgressBarStyle.Marquee;
-            this.prgLoading.TabIndex = 3;
-            this.prgLoading.Visible = false;
-
-            // 
-            // statusStrip1 - ✅ IDENTICO A MainForm
-            // 
-            this.statusStrip1.BackColor = Color.FromArgb(248, 249, 250);
-            this.statusStrip1.Font = new Font("Segoe UI", 8F);
-            this.statusStrip1.Items.AddRange(new ToolStripItem[] {
-                this.tslConnection,
-                this.tslResults,
-                this.tslLastUpdate
-            });
-            this.statusStrip1.Location = new Point(0, 735);
-            this.statusStrip1.Name = "statusStrip1";
-            this.statusStrip1.Size = new Size(1400, 22);
-            this.statusStrip1.TabIndex = 4;
-            this.statusStrip1.Text = "statusStrip1";
-
+            statusStrip1.BackColor = Color.FromArgb(248, 249, 250);
+            statusStrip1.Font = new Font("Segoe UI", 8F);
+            statusStrip1.Items.AddRange(new ToolStripItem[] { tslConnection, tslResults, tslLastUpdate });
+            statusStrip1.Location = new Point(0, 735);
+            statusStrip1.Name = "statusStrip1";
+            statusStrip1.Size = new Size(1400, 22);
+            statusStrip1.TabIndex = 4;
+            statusStrip1.Text = "statusStrip1";
             // 
             // tslConnection
             // 
-            this.tslConnection.ForeColor = Color.FromArgb(40, 167, 69);
-            this.tslConnection.Name = "tslConnection";
-            this.tslConnection.Size = new Size(120, 17);
-            this.tslConnection.Text = "🟢 Connesso a Jira";
-
+            tslConnection.ForeColor = Color.FromArgb(40, 167, 69);
+            tslConnection.Name = "tslConnection";
+            tslConnection.Size = new Size(102, 17);
+            tslConnection.Text = "\U0001f7e2 Connesso a Jira";
             // 
             // tslResults
             // 
-            this.tslResults.Name = "tslResults";
-            this.tslResults.Size = new Size(100, 17);
-            this.tslResults.Spring = true;
-            this.tslResults.Text = "📊 0 contatti";
-
+            tslResults.Name = "tslResults";
+            tslResults.Size = new Size(1190, 17);
+            tslResults.Spring = true;
+            tslResults.Text = "📊 0 contatti";
             // 
             // tslLastUpdate
             // 
-            this.tslLastUpdate.Name = "tslLastUpdate";
-            this.tslLastUpdate.Size = new Size(180, 17);
-            this.tslLastUpdate.Text = "⏱️ Ultimo agg: --";
-            this.tslLastUpdate.TextAlign = ContentAlignment.MiddleRight;
-
+            tslLastUpdate.Name = "tslLastUpdate";
+            tslLastUpdate.Size = new Size(93, 17);
+            tslLastUpdate.Text = "⏱️ Ultimo agg: --";
+            tslLastUpdate.TextAlign = ContentAlignment.MiddleRight;
+            // 
+            // prgLoading
+            // 
+            prgLoading.Dock = DockStyle.Bottom;
+            prgLoading.Location = new Point(0, 730);
+            prgLoading.Name = "prgLoading";
+            prgLoading.Size = new Size(1400, 5);
+            prgLoading.Style = ProgressBarStyle.Marquee;
+            prgLoading.TabIndex = 3;
+            prgLoading.Visible = false;
+            // 
+            // txtSearchTicket
+            // 
+            txtSearchTicket.Font = new Font("Segoe UI", 10F);
+            txtSearchTicket.Location = new Point(476, 20);
+            txtSearchTicket.Name = "txtSearchTicket";
+            txtSearchTicket.PlaceholderText = "🔍 Cerca per numero di Ticket";
+            txtSearchTicket.Size = new Size(324, 25);
+            txtSearchTicket.TabIndex = 5;
+            // 
+            // lblTicketHint
+            // 
+            lblTicketHint.AutoSize = true;
+            lblTicketHint.Font = new Font("Segoe UI", 8F);
+            lblTicketHint.ForeColor = Color.FromArgb(108, 117, 125);
+            lblTicketHint.Location = new Point(476, 50);
+            lblTicketHint.Name = "lblTicketHint";
+            lblTicketHint.Size = new Size(189, 13);
+            lblTicketHint.TabIndex = 6;
+            lblTicketHint.Text = "💡 Cerca per numero di ticket o link";
+            // 
+            // chkTeams
+            // 
+            chkTeams.AutoSize = true;
+            chkTeams.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            chkTeams.Location = new Point(1232, 26);
+            chkTeams.Name = "chkTeams";
+            chkTeams.Size = new Size(127, 19);
+            chkTeams.TabIndex = 7;
+            chkTeams.Text = "Chiama con Teams";
+            chkTeams.UseVisualStyleBackColor = true;
             // 
             // PhoneBookForm
             // 
-            this.AutoScaleDimensions = new SizeF(7F, 15F);
-            this.AutoScaleMode = AutoScaleMode.Font;
-            this.ClientSize = new Size(1400, 757);
-            this.Controls.Add(this.pnlContent);
-            this.Controls.Add(this.prgLoading);
-            this.Controls.Add(this.statusStrip1);
-            this.Controls.Add(this.pnlToolbar);
-            this.Controls.Add(this.pnlHeader);
-            this.Font = new Font("Segoe UI", 9F);
-            this.MinimumSize = new Size(1000, 600);
-            this.Name = "PhoneBookForm";
-            this.StartPosition = FormStartPosition.CenterParent;
-            this.Text = "Rubrica Telefonica Jira - Deda Group";
-            this.pnlHeader.ResumeLayout(false);
-            this.pnlHeader.PerformLayout();
-            this.pnlToolbar.ResumeLayout(false);
-            this.pnlToolbar.PerformLayout();
-            this.pnlContent.ResumeLayout(false);
-            ((ISupportInitialize)(this.dgvPhoneBook)).EndInit();
-            this.statusStrip1.ResumeLayout(false);
-            this.statusStrip1.PerformLayout();
-            this.ResumeLayout(false);
-            this.PerformLayout();
+            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleMode = AutoScaleMode.Font;
+            ClientSize = new Size(1400, 757);
+            Controls.Add(pnlContent);
+            Controls.Add(prgLoading);
+            Controls.Add(statusStrip1);
+            Controls.Add(pnlToolbar);
+            Controls.Add(pnlHeader);
+            Font = new Font("Segoe UI", 9F);
+            MinimumSize = new Size(1000, 600);
+            Name = "PhoneBookForm";
+            StartPosition = FormStartPosition.CenterParent;
+            Text = "Rubrica Telefonica Jira - Dedagroup";
+            pnlHeader.ResumeLayout(false);
+            pnlHeader.PerformLayout();
+            pnlToolbar.ResumeLayout(false);
+            pnlToolbar.PerformLayout();
+            pnlContent.ResumeLayout(false);
+            ((ISupportInitialize)dgvPhoneBook).EndInit();
+            statusStrip1.ResumeLayout(false);
+            statusStrip1.PerformLayout();
+            ResumeLayout(false);
+            PerformLayout();
         }
 
         #endregion
+
+        private Label lblTicketHint;
+        private TextBox txtSearchTicket;
+        private CheckBox chkTeams;
     }
 }

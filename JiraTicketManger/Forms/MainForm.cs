@@ -96,9 +96,27 @@ namespace JiraTicketManager
 
             // Setup UI
             InitializeForm();
+
+            //visibilita' pulsanti
+
+            ConfigureAdminPanelVisibility();
         }
 
         #endregion
+
+
+        private void ConfigureAdminPanelVisibility()
+        {
+            bool isSso = _configService.IsSSOMode; // Es.: true se SSO, false se API
+
+            //fpnlAdmin.Visible = !isSso; // Mostra admin solo se NON è SSO, quindi API
+            btnTest.Visible =! isSso;
+            btnConfig.Visible =! isSso;
+            btnJiraAutomation.Visible =! isSso;  
+            btnDashboard.Visible =! isSso; 
+            
+
+        }
 
         #region Search Logic
 
@@ -1958,6 +1976,9 @@ namespace JiraTicketManager
 
                 // Crea nuova istanza della form
                 var detailForm = new TicketDetailForm();
+                detailForm.ConfigService = this._configService;
+
+
 
                 // Configura la form
                 ConfigureDetailForm(detailForm, ticketKey);
@@ -2288,7 +2309,7 @@ namespace JiraTicketManager
                 _logger.LogInfo("✅ Caricamento dati iniziali completato");
 
                 // Toast di successo
-                _toastService.ShowSuccess("Sistema pronto", $"Caricati {searchResult.Issues.Count} ticket (pagina 1)");
+                //_toastService.ShowSuccess("Sistema pronto", $"Caricati {searchResult.Issues.Count} ticket (pagina 1)");
             }
             catch (Exception ex)
             {

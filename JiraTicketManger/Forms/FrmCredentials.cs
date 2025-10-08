@@ -299,8 +299,7 @@ namespace JiraTicketManager.Forms
                     this.Close();
                 }
 
-                // ❌ RIMOSSA: Non chiamare più OpenMainFormAndClose
-                // await OpenMainFormAndClose("");
+                
             }
             catch (Exception ex)
             {
@@ -319,7 +318,7 @@ namespace JiraTicketManager.Forms
                 SetMicrosoftLoginState(true);
                 UpdateStatus("Avvio autenticazione Microsoft...");
 
-                // ✅ MODIFICATO: WebViewAuthenticator senza parametro _logFilePath
+                // WebViewAuthenticator senza parametro _logFilePath
                 if (_webViewAuthenticator == null)
                 {
                     _webViewAuthenticator = new WebViewAuthenticator();

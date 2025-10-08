@@ -442,16 +442,21 @@ namespace JiraTicketManager.Services
         /// <param name="maxResults">Numero massimo di risultati</param>
         /// <param name="progress">Progress reporter opzionale</param>
         /// <returns>Risultati della ricerca</returns>
-        public async Task<JiraSearchResult> SearchIssuesAsync(string jql, int startAt, int maxResults, IProgress<int> progress = null, string nextPageToken = null)
+        public async Task<JiraSearchResult> SearchIssuesAsync(
+    string jql,
+    int startAt,
+    int maxResults,
+    IProgress<int>? progress = null,
+    string? nextPageToken = null)
         {
             try
             {
-                _logger.LogInfo($"SearchIssuesAsync - JQL: {jql}, StartAt: {startAt}, MaxResults: {maxResults}, NextPageToken: {nextPageToken?.Substring(0, 20) ?? "null"}");
+                _logger.LogInfo($"SearchIssuesAsync - Avvio ricerca Jira: JQL='{jql}', StartAt={startAt}, MaxResults={maxResults}, NextPageToken={(nextPageToken != null ? nextPageToken.Substring(0, Math.Min(20, nextPageToken.Length)) : "null")}");
 
                 // Encode JQL per URL
                 var encodedJql = Uri.EscapeDataString(jql);
 
-                // ✅ USA SEMPRE API v3 - Gestione paginazione con nextPageToken
+                // Costruisci URL API v3
                 string url = $"{Domain}/rest/api/3/search/jql?jql={encodedJql}&maxResults={maxResults}" +
                              "&fields=key,summary,status,priority,assignee,reporter,issuetype,created,updated,description,resolutiondate," +
                              "customfield_10117,customfield_10113,customfield_10114,customfield_10172," +
@@ -459,13 +464,14 @@ namespace JiraTicketManager.Services
                              "customfield_10272,customfield_10238,customfield_10096," +
                              "customfield_10116,customfield_10133,customfield_10089";
 
-                // ✅ NUOVO: Aggiungi nextPageToken se fornito
+                // Aggiungi nextPageToken se presente
                 if (!string.IsNullOrEmpty(nextPageToken))
                 {
                     url += $"&nextPageToken={Uri.EscapeDataString(nextPageToken)}";
+                    _logger.LogInfo($"NextPageToken applicato: {nextPageToken}");
                 }
 
-                _logger.LogDebug($"API v3 URL: {url}");
+                _logger.LogDebug($"SearchIssuesAsync - URL completo: {url}");
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Add("Authorization", GetAuthorizationHeader());
@@ -473,43 +479,72 @@ namespace JiraTicketManager.Services
 
                 using var response = await _httpClient.SendAsync(request);
 
+                _logger.LogInfo($"SearchIssuesAsync - Risposta ricevuta. Status code: {response.StatusCode}");
+
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    _logger.LogError($"API v3 Error - Status: {response.StatusCode}, Content: {errorContent}");
-                    throw new HttpRequestException($"API v3 Error: {response.StatusCode} - {errorContent}");
+                    _logger.LogError($"SearchIssuesAsync - Errore API Jira. Status: {response.StatusCode}, Content: {errorContent}");
+                    throw new HttpRequestException($"Errore API Jira: {response.StatusCode} - {errorContent}");
                 }
 
                 var jsonContent = await response.Content.ReadAsStringAsync();
-                var jsonObject = JObject.Parse(jsonContent);
+                _logger.LogDebug($"SearchIssuesAsync - Contenuto JSON ricevuto (primi 500 caratteri): {jsonContent.Substring(0, Math.Min(500, jsonContent.Length))}");
 
-                // ✅ GESTIONE SICURA DEI CAMPI - Alcuni potrebbero essere null nell'API v3
-                var result = new JiraSearchResult
+                JObject jsonObject;
+                try
                 {
-                    Issues = (JArray)(jsonObject["issues"] ?? new JArray()),
-                    Total = (int)(jsonObject["total"] ?? 0),
-                    StartAt = startAt, // Usiamo il valore passato come parametro
-                    MaxResults = (int)(jsonObject["maxResults"] ?? maxResults),
-                    NextPageToken = jsonObject["nextPageToken"]?.ToString() // ✅ NUOVO
+                    jsonObject = JObject.Parse(jsonContent);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"SearchIssuesAsync - Eccezione durante il parsing JSON: {ex.Message}");
+                    _logger.LogError($"Contenuto JSON completo: {jsonContent}");
+                    throw;
+                }
+
+                var issuesToken = jsonObject["issues"];
+                if (issuesToken == null)
+                {
+                    _logger.LogWarning("SearchIssuesAsync - Campo 'issues' non presente nella risposta.");
+                    issuesToken = new JArray();
+                }
+                else if (issuesToken.Type != JTokenType.Array)
+                {
+                    _logger.LogWarning($"SearchIssuesAsync - Campo 'issues' non è un array ma di tipo {issuesToken.Type}. Viene usato array vuoto.");
+                    issuesToken = new JArray();
+                }
+
+                var totalTickets = jsonObject["total"]?.Value<int>() ?? 0;
+                var returnedCount = ((JArray)issuesToken).Count;
+                var maxResultsValue = jsonObject["maxResults"]?.Value<int>() ?? maxResults;
+                var nextToken = jsonObject["nextPageToken"]?.ToString();
+
+                _logger.LogInfo($"SearchIssuesAsync - Totale da API: {totalTickets}, Ticket restituiti: {returnedCount}, maxResults: {maxResultsValue}, NextPageToken: {(string.IsNullOrEmpty(nextToken) ? "null" : nextToken)}");
+
+                progress?.Report(returnedCount);
+
+                return new JiraSearchResult
+                {
+                    Issues = (JArray)issuesToken,
+                    Total = totalTickets,
+                    StartAt = startAt,
+                    MaxResults = maxResultsValue,
+                    NextPageToken = nextToken
                 };
-
-                _logger.LogInfo($"API v3 Search completed - Found: {result.Total} tickets, Returned: {result.Issues.Count}, HasNextPage: {!string.IsNullOrEmpty(result.NextPageToken)}");
-
-                // Report progress se fornito
-                progress?.Report(result.Issues.Count);
-                return result;
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError("SearchIssuesAsync - HTTP Error", ex);
-                throw new Exception($"Errore di connessione API v3: {ex.Message}", ex);
+                _logger.LogError("SearchIssuesAsync - Errore HTTP durante richiesta API", ex);
+                throw new Exception($"Errore di connessione API Jira v3: {ex.Message}", ex);
             }
             catch (Exception ex)
             {
-                _logger.LogError("SearchIssuesAsync - Generic Error", ex);
-                throw new Exception($"Errore nella ricerca JIRA v3: {ex.Message}", ex);
+                _logger.LogError("SearchIssuesAsync - Errore generico durante ricerca", ex);
+                throw new Exception($"Errore durante ricerca Jira API v3: {ex.Message}", ex);
             }
         }
+
 
 
         /// <summary>

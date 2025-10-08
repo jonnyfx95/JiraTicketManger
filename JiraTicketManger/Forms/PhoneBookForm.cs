@@ -1,10 +1,11 @@
-﻿using System;
+﻿using JiraTicketManager.Data.Models;
+using JiraTicketManager.Services;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using JiraTicketManager.Data.Models;
-using JiraTicketManager.Services;
 
 namespace JiraTicketManager.Forms
 {
@@ -183,20 +184,34 @@ namespace JiraTicketManager.Forms
 
             try
             {
-                // Copia email in clipboard
-                var email = dgvPhoneBook.Rows[e.RowIndex].Cells["colEmail"].Value?.ToString();
-                if (!string.IsNullOrEmpty(email))
+                // Recupera il numero di telefono dalla cella
+
+                var telefono = "3347632044";
+              // var telefono = dgvPhoneBook.Rows[e.RowIndex].Cells["colTelefono"].Value?.ToString();
+
+                if (!string.IsNullOrWhiteSpace(telefono))
                 {
-                    Clipboard.SetText(email);
-                    _toastService.ShowInfo("Copiato", $"Email copiata: {email}");
-                    _logger.LogInfo($"Email copiata in clipboard: {email}");
+                    telefono = telefono.Replace(" ", "").Replace("-", "");
+                    if (!telefono.StartsWith("+"))
+                    {
+                        telefono = "+39" + telefono;
+                    }
+                    if (chkTeams.Checked)
+                    {
+                        string teamsUri = $"tel:{telefono}";
+                        Process.Start(new ProcessStartInfo(teamsUri) { UseShellExecute = true });
+                    }
+                    Clipboard.SetText(telefono);
+                    _toastService.ShowInfo("Copiato", $"Numero copiato: {telefono}");
+                    _logger.LogInfo($"Numero copiato in clipboard: {telefono}");
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError("Errore copia email", ex);
+                _logger.LogError("Errore gestione doppio click telefono", ex);
             }
         }
+
 
         private void OnSelectionChanged(object sender, EventArgs e)
         {
@@ -225,7 +240,7 @@ namespace JiraTicketManager.Forms
                 UpdateStatusLabels();
 
                 _logger.LogInfo($"✅ Rubrica caricata: {_allContacts.Count} contatti");
-                _toastService.ShowSuccess("Rubrica", $"Caricati {_allContacts.Count} contatti");
+                //_toastService.ShowSuccess("Rubrica", $"Caricati {_allContacts.Count} contatti");
             }
             catch (Exception ex)
             {
@@ -269,7 +284,8 @@ namespace JiraTicketManager.Forms
                 UpdateStatusLabels();
 
                 _logger.LogInfo($"✅ Refresh completato: {_allContacts.Count} contatti");
-                _toastService.ShowSuccess("Aggiornamento", $"Rubrica aggiornata: {_allContacts.Count} contatti");
+                
+               _toastService.ShowSuccess("Aggiornamento", $"Rubrica aggiornata: {_allContacts.Count} contatti");
             }
             catch (Exception ex)
             {
@@ -454,5 +470,7 @@ namespace JiraTicketManager.Forms
         }
 
         #endregion
+
+       
     }
 }
