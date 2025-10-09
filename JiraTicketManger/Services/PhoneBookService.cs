@@ -320,97 +320,69 @@ private List<PhoneBookEntry> MergeEntries(List<PhoneBookEntry> existingEntries, 
 }
 
 
-
         /// <summary>
-        /// Esporta la rubrica in Excel con raggruppamento per Cliente.
-        /// Gestisce caratteri speciali e nomi duplicati.
+        /// Esporta i contatti in Excel in UN SOLO FOGLIO.
+        /// Esporta esattamente la lista passata, senza raggruppamenti.
         /// </summary>
         public async Task ExportToExcelAsync(List<PhoneBookEntry> entries, string filePath)
         {
             try
             {
                 _logger.LogInfo($"Export Excel: {filePath}");
+                _logger.LogInfo($"📊 Contatti da esportare: {entries.Count}");
+
+                if (entries == null || entries.Count == 0)
+                {
+                    throw new InvalidOperationException("Nessun contatto da esportare");
+                }
 
                 await Task.Run(() =>
                 {
                     using (var workbook = new XLWorkbook())
                     {
-                        // Raggruppa per Cliente
-                        var groupedByCliente = entries
-                            .Where(e => !string.IsNullOrWhiteSpace(e.Cliente))
-                            .GroupBy(e => e.Cliente)
-                            .OrderBy(g => g.Key);
+                        // ✅ UN SOLO FOGLIO
+                        var worksheet = workbook.Worksheets.Add("Rubrica");
 
-                        // ✅ Traccia nomi fogli già usati per evitare duplicati
-                        var usedSheetNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        // ✅ HEADER
+                        worksheet.Cell(1, 1).Value = "Cliente";
+                        worksheet.Cell(1, 2).Value = "Area";
+                        worksheet.Cell(1, 3).Value = "Applicativo";
+                        worksheet.Cell(1, 4).Value = "Nome";
+                        worksheet.Cell(1, 5).Value = "Email";
+                        worksheet.Cell(1, 6).Value = "Telefono";
 
-                        foreach (var clienteGroup in groupedByCliente)
+                        // Formattazione header
+                        var headerRange = worksheet.Range(1, 1, 1, 6);
+                        headerRange.Style.Font.Bold = true;
+                        headerRange.Style.Fill.BackgroundColor = XLColor.LightBlue;
+
+                        // ✅ DATI - Esattamente come arrivano (senza ordinamenti o raggruppamenti)
+                        int row = 2;
+                        foreach (var entry in entries)
                         {
-                            var originalName = clienteGroup.Key;
-
-                            // ✅ Sanitizza e rendi unico il nome del foglio
-                            var sheetName = GetUniqueSheetName(originalName, usedSheetNames);
-
-                            if (string.IsNullOrWhiteSpace(sheetName))
-                            {
-                                _logger.LogWarning($"Nome foglio vuoto per cliente '{originalName}' - saltato");
-                                continue;
-                            }
-
-                            try
-                            {
-                                var worksheet = workbook.Worksheets.Add(sheetName);
-
-                                // Header
-                                worksheet.Cell(1, 1).Value = "Nome";
-                                worksheet.Cell(1, 2).Value = "Email";
-                                worksheet.Cell(1, 3).Value = "Telefono";
-                                worksheet.Cell(1, 4).Value = "Applicativo";
-                                worksheet.Cell(1, 5).Value = "Area";
-
-                                // Formattazione header
-                                var headerRange = worksheet.Range(1, 1, 1, 5);
-                                headerRange.Style.Font.Bold = true;
-                                headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
-                                headerRange.Style.Border.BottomBorder = XLBorderStyleValues.Thick;
-
-                                // Dati
-                                int row = 2;
-                                foreach (var entry in clienteGroup.OrderBy(e => e.Nome))
-                                {
-                                    worksheet.Cell(row, 1).Value = entry.Nome;
-                                    worksheet.Cell(row, 2).Value = entry.Email;
-                                    worksheet.Cell(row, 3).Value = entry.Telefono;
-                                    worksheet.Cell(row, 4).Value = entry.Applicativo;
-                                    worksheet.Cell(row, 5).Value = entry.Area;
-                                    row++;
-                                }
-
-                                // Auto-fit colonne
-                                worksheet.Columns().AdjustToContents();
-
-                                _logger.LogInfo($"✅ Foglio creato: '{sheetName}' (originale: '{originalName}') - {row - 2} contatti");
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError($"Errore creazione foglio '{sheetName}' per cliente '{originalName}'", ex);
-                                // Continua con il prossimo cliente
-                            }
+                            worksheet.Cell(row, 1).Value = entry.Cliente ?? "";
+                            worksheet.Cell(row, 2).Value = entry.Area ?? "";
+                            worksheet.Cell(row, 3).Value = entry.Applicativo ?? "";
+                            worksheet.Cell(row, 4).Value = entry.Nome ?? "";
+                            worksheet.Cell(row, 5).Value = entry.Email ?? "";
+                            worksheet.Cell(row, 6).Value = entry.Telefono ?? "";
+                            row++;
                         }
 
-                        // Se non ci sono fogli creati, crea foglio unico
-                        if (workbook.Worksheets.Count == 0)
-                        {
-                            _logger.LogWarning("Nessun foglio creato per clienti - creo foglio unico");
-                            var worksheet = workbook.Worksheets.Add("Tutti i Contatti");
-                            PopulateWorksheet(worksheet, entries);
-                        }
+                        // Auto-fit colonne
+                        worksheet.Columns().AdjustToContents();
+
+                        // Congela header
+                        worksheet.SheetView.FreezeRows(1);
+
+                        // Filtri automatici
+                        worksheet.RangeUsed().SetAutoFilter();
 
                         workbook.SaveAs(filePath);
                     }
                 });
 
-                _logger.LogInfo($"✅ Export Excel completato: {entries.Count} entries in {filePath}");
+                _logger.LogInfo($"✅ Export completato: {entries.Count} contatti");
             }
             catch (Exception ex)
             {
@@ -418,6 +390,10 @@ private List<PhoneBookEntry> MergeEntries(List<PhoneBookEntry> existingEntries, 
                 throw;
             }
         }
+
+
+
+
         /// <summary>
         /// Ottiene un nome foglio Excel unico, sanitizzato e valido.
         /// Gestisce caratteri speciali, troncamento e duplicati.
