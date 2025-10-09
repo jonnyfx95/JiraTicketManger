@@ -635,6 +635,9 @@ namespace JiraTicketManager
                 if (btnPhoneBook != null)
                     btnPhoneBook.Click += OnPhoneBookClick;
 
+                if (btnOrganizationMembers != null)
+                    btnOrganizationMembers.Click += OnOrganizationMembersClick;
+
 
                 // Navigation events
                 SetupNavigationEvents();
@@ -726,6 +729,38 @@ namespace JiraTicketManager
             {
                 _logger.LogError("Errore apertura rubrica telefonica", ex);
                 _toastService.ShowError("Errore", $"Impossibile aprire la rubrica: {ex.Message}");
+            }
+        }
+
+
+        private void OnOrganizationMembersClick(object sender, EventArgs e)
+        {
+            try
+            {
+                _logger.LogInfo("Apertura form Membri Organizzazioni");
+
+                using (var organizationMembersForm = new OrganizationMembersForm())
+                {
+                    // Configura il form
+                    organizationMembersForm.Text = "Membri Organizzazioni Jira";
+                    organizationMembersForm.Size = new System.Drawing.Size(1400, 800);
+                    organizationMembersForm.MinimumSize = new System.Drawing.Size(1200, 650);
+                    organizationMembersForm.StartPosition = FormStartPosition.CenterParent;
+
+                    // Icona (se disponibile)
+                    if (this.Icon != null)
+                    {
+                        organizationMembersForm.Icon = this.Icon;
+                    }
+
+                    _logger.LogInfo("Apertura OrganizationMembersForm");
+                    organizationMembersForm.ShowDialog(this);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Errore apertura OrganizationMembersForm", ex);
+                _toastService.ShowError("Errore", $"Impossibile aprire i membri organizzazioni: {ex.Message}");
             }
         }
 

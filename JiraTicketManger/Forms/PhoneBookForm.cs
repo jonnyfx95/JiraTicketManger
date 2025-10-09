@@ -160,7 +160,7 @@ namespace JiraTicketManager.Forms
 
                 if (saveDialog.ShowDialog() == DialogResult.OK)
                 {
-                    await ExportToExcelAsync(saveDialog.FileName);
+                    await HandleExportToExcelAsync(saveDialog.FileName);
                 }
             }
         }
@@ -310,7 +310,7 @@ namespace JiraTicketManager.Forms
         /// <summary>
         /// Esporta i contatti in Excel (metodo del PhoneBookForm)
         /// </summary>
-        private async Task ExportToExcelAsync(string filePath)
+        private async Task HandleExportToExcelAsync(string filePath)
         {
             try
             {

@@ -86,8 +86,8 @@ namespace JiraTicketManager
 
         private void InitializeComponent()
         {
-            DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
-            DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle3 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle4 = new DataGridViewCellStyle();
             pnlHeader = new Panel();
             lblConnectionStatus = new Label();
             lblSubTitle = new Label();
@@ -117,10 +117,10 @@ namespace JiraTicketManager
             rbJQLMode = new RadioButton();
             rbBasicMode = new RadioButton();
             pnlToolbar = new Panel();
-            btnJiraAutomation = new Button();
-            btnDashboard = new Button();
-            btnTest = new Button();
             btnConfig = new Button();
+            btnTest = new Button();
+            btnDashboard = new Button();
+            btnJiraAutomation = new Button();
             btnPhoneBook = new Button();
             btnPulisci = new Button();
             btnExportExcel = new Button();
@@ -141,6 +141,7 @@ namespace JiraTicketManager
             tslConnection = new ToolStripStatusLabel();
             tslResults = new ToolStripStatusLabel();
             tslLastUpdate = new ToolStripStatusLabel();
+            btnOrganizationMembers = new Button();
             pnlHeader.SuspendLayout();
             pnlMain.SuspendLayout();
             pnlContent.SuspendLayout();
@@ -232,24 +233,24 @@ namespace JiraTicketManager
             dgvTickets.BorderStyle = BorderStyle.None;
             dgvTickets.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
             dgvTickets.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
-            dataGridViewCellStyle1.Alignment = DataGridViewContentAlignment.MiddleLeft;
-            dataGridViewCellStyle1.BackColor = Color.FromArgb(248, 249, 250);
-            dataGridViewCellStyle1.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            dataGridViewCellStyle1.ForeColor = Color.FromArgb(52, 73, 94);
-            dataGridViewCellStyle1.SelectionBackColor = Color.FromArgb(248, 249, 250);
-            dataGridViewCellStyle1.SelectionForeColor = Color.FromArgb(52, 73, 94);
-            dataGridViewCellStyle1.WrapMode = DataGridViewTriState.True;
-            dgvTickets.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
+            dataGridViewCellStyle3.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle3.BackColor = Color.FromArgb(248, 249, 250);
+            dataGridViewCellStyle3.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            dataGridViewCellStyle3.ForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle3.SelectionBackColor = Color.FromArgb(248, 249, 250);
+            dataGridViewCellStyle3.SelectionForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle3.WrapMode = DataGridViewTriState.True;
+            dgvTickets.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle3;
             dgvTickets.ColumnHeadersHeight = 40;
             dgvTickets.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-            dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleLeft;
-            dataGridViewCellStyle2.BackColor = Color.White;
-            dataGridViewCellStyle2.Font = new Font("Segoe UI", 8F);
-            dataGridViewCellStyle2.ForeColor = Color.FromArgb(52, 73, 94);
-            dataGridViewCellStyle2.SelectionBackColor = Color.FromArgb(233, 246, 255);
-            dataGridViewCellStyle2.SelectionForeColor = Color.FromArgb(52, 73, 94);
-            dataGridViewCellStyle2.WrapMode = DataGridViewTriState.False;
-            dgvTickets.DefaultCellStyle = dataGridViewCellStyle2;
+            dataGridViewCellStyle4.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle4.BackColor = Color.White;
+            dataGridViewCellStyle4.Font = new Font("Segoe UI", 8F);
+            dataGridViewCellStyle4.ForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle4.SelectionBackColor = Color.FromArgb(233, 246, 255);
+            dataGridViewCellStyle4.SelectionForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle4.WrapMode = DataGridViewTriState.False;
+            dgvTickets.DefaultCellStyle = dataGridViewCellStyle4;
             dgvTickets.Dock = DockStyle.Fill;
             dgvTickets.EnableHeadersVisualStyles = false;
             dgvTickets.GridColor = Color.FromArgb(226, 232, 240);
@@ -521,6 +522,7 @@ namespace JiraTicketManager
             // 
             pnlToolbar.BackColor = Color.FromArgb(248, 249, 250);
             pnlToolbar.BorderStyle = BorderStyle.FixedSingle;
+            pnlToolbar.Controls.Add(btnOrganizationMembers);
             pnlToolbar.Controls.Add(btnConfig);
             pnlToolbar.Controls.Add(btnTest);
             pnlToolbar.Controls.Add(btnDashboard);
@@ -537,35 +539,20 @@ namespace JiraTicketManager
             pnlToolbar.Size = new Size(2102, 50);
             pnlToolbar.TabIndex = 0;
             // 
-            // btnJiraAutomation
+            // btnConfig
             // 
-            btnJiraAutomation.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnJiraAutomation.BackColor = Color.FromArgb(124, 58, 237);
-            btnJiraAutomation.FlatAppearance.BorderSize = 0;
-            btnJiraAutomation.FlatStyle = FlatStyle.Flat;
-            btnJiraAutomation.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            btnJiraAutomation.ForeColor = Color.White;
-            btnJiraAutomation.Location = new Point(1802, 13);
-            btnJiraAutomation.Name = "btnJiraAutomation";
-            btnJiraAutomation.Size = new Size(100, 23);
-            btnJiraAutomation.TabIndex = 5;
-            btnJiraAutomation.Text = "🤖 Automation";
-            btnJiraAutomation.UseVisualStyleBackColor = false;
-            // 
-            // btnDashboard
-            // 
-            btnDashboard.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnDashboard.BackColor = Color.FromArgb(8, 145, 178);
-            btnDashboard.FlatAppearance.BorderSize = 0;
-            btnDashboard.FlatStyle = FlatStyle.Flat;
-            btnDashboard.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            btnDashboard.ForeColor = Color.White;
-            btnDashboard.Location = new Point(1912, 15);
-            btnDashboard.Name = "btnDashboard";
-            btnDashboard.Size = new Size(90, 23);
-            btnDashboard.TabIndex = 4;
-            btnDashboard.Text = "📈 Dashboard";
-            btnDashboard.UseVisualStyleBackColor = false;
+            btnConfig.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnConfig.BackColor = Color.FromArgb(108, 117, 125);
+            btnConfig.FlatAppearance.BorderSize = 0;
+            btnConfig.FlatStyle = FlatStyle.Flat;
+            btnConfig.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnConfig.ForeColor = Color.White;
+            btnConfig.Location = new Point(2027, 15);
+            btnConfig.Name = "btnConfig";
+            btnConfig.Size = new Size(70, 23);
+            btnConfig.TabIndex = 7;
+            btnConfig.Text = "⚙️ Config";
+            btnConfig.UseVisualStyleBackColor = false;
             // 
             // btnTest
             // 
@@ -575,27 +562,42 @@ namespace JiraTicketManager
             btnTest.FlatStyle = FlatStyle.Flat;
             btnTest.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
             btnTest.ForeColor = Color.White;
-            btnTest.Location = new Point(2008, 14);
+            btnTest.Location = new Point(1961, 15);
             btnTest.Name = "btnTest";
             btnTest.Size = new Size(60, 23);
             btnTest.TabIndex = 6;
             btnTest.Text = "🔧 Test";
             btnTest.UseVisualStyleBackColor = false;
             // 
-            // btnConfig
+            // btnDashboard
             // 
-            btnConfig.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnConfig.BackColor = Color.FromArgb(108, 117, 125);
-            btnConfig.FlatAppearance.BorderSize = 0;
-            btnConfig.FlatStyle = FlatStyle.Flat;
-            btnConfig.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            btnConfig.ForeColor = Color.White;
-            btnConfig.Location = new Point(1726, 13);
-            btnConfig.Name = "btnConfig";
-            btnConfig.Size = new Size(70, 23);
-            btnConfig.TabIndex = 7;
-            btnConfig.Text = "⚙️ Config";
-            btnConfig.UseVisualStyleBackColor = false;
+            btnDashboard.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnDashboard.BackColor = Color.FromArgb(8, 145, 178);
+            btnDashboard.FlatAppearance.BorderSize = 0;
+            btnDashboard.FlatStyle = FlatStyle.Flat;
+            btnDashboard.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnDashboard.ForeColor = Color.White;
+            btnDashboard.Location = new Point(1759, 15);
+            btnDashboard.Name = "btnDashboard";
+            btnDashboard.Size = new Size(90, 23);
+            btnDashboard.TabIndex = 4;
+            btnDashboard.Text = "📈 Dashboard";
+            btnDashboard.UseVisualStyleBackColor = false;
+            // 
+            // btnJiraAutomation
+            // 
+            btnJiraAutomation.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnJiraAutomation.BackColor = Color.FromArgb(124, 58, 237);
+            btnJiraAutomation.FlatAppearance.BorderSize = 0;
+            btnJiraAutomation.FlatStyle = FlatStyle.Flat;
+            btnJiraAutomation.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnJiraAutomation.ForeColor = Color.White;
+            btnJiraAutomation.Location = new Point(1855, 15);
+            btnJiraAutomation.Name = "btnJiraAutomation";
+            btnJiraAutomation.Size = new Size(100, 23);
+            btnJiraAutomation.TabIndex = 5;
+            btnJiraAutomation.Text = "🤖 Automation";
+            btnJiraAutomation.UseVisualStyleBackColor = false;
             // 
             // btnPhoneBook
             // 
@@ -605,7 +607,7 @@ namespace JiraTicketManager
             btnPhoneBook.FlatStyle = FlatStyle.Flat;
             btnPhoneBook.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
             btnPhoneBook.ForeColor = Color.White;
-            btnPhoneBook.Location = new Point(518, 15);
+            btnPhoneBook.Location = new Point(1492, 13);
             btnPhoneBook.Name = "btnPhoneBook";
             btnPhoneBook.Size = new Size(90, 23);
             btnPhoneBook.TabIndex = 31;
@@ -634,7 +636,7 @@ namespace JiraTicketManager
             btnExportExcel.FlatStyle = FlatStyle.Flat;
             btnExportExcel.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
             btnExportExcel.ForeColor = Color.White;
-            btnExportExcel.Location = new Point(614, 15);
+            btnExportExcel.Location = new Point(518, 13);
             btnExportExcel.Name = "btnExportExcel";
             btnExportExcel.Size = new Size(90, 23);
             btnExportExcel.TabIndex = 3;
@@ -846,6 +848,21 @@ namespace JiraTicketManager
             tslLastUpdate.Text = "🕒 Ultimo aggiornamento: 20:13:08";
             tslLastUpdate.TextAlign = ContentAlignment.MiddleRight;
             // 
+            // btnOrganizationMembers
+            // 
+            btnOrganizationMembers.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnOrganizationMembers.BackColor = Color.FromArgb(99, 102, 241);
+            btnOrganizationMembers.FlatAppearance.BorderSize = 0;
+            btnOrganizationMembers.FlatStyle = FlatStyle.Flat;
+            btnOrganizationMembers.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnOrganizationMembers.ForeColor = Color.White;
+            btnOrganizationMembers.Location = new Point(1588, 14);
+            btnOrganizationMembers.Name = "btnOrganizationMembers";
+            btnOrganizationMembers.Size = new Size(165, 23);
+            btnOrganizationMembers.TabIndex = 32;
+            btnOrganizationMembers.Text = "🏢 Membri Organizzazioni";
+            btnOrganizationMembers.UseVisualStyleBackColor = false;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -888,5 +905,6 @@ namespace JiraTicketManager
         private Panel pnlDate;
         private RadioButton rbDate;
         private Button btnPhoneBook;
+        private Button btnOrganizationMembers;
     }
 }

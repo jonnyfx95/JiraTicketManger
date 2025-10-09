@@ -321,18 +321,20 @@ private List<PhoneBookEntry> MergeEntries(List<PhoneBookEntry> existingEntries, 
 
 
         /// <summary>
-        /// Esporta i contatti in Excel in UN SOLO FOGLIO.
-        /// Esporta esattamente la lista passata, senza raggruppamenti.
+        /// Esporta i contatti in un unico foglio Excel.
+        /// VERSIONE SEMPLIFICATA: tutto in un foglio "Rubrica", no suddivisione per cliente.
         /// </summary>
         public async Task ExportToExcelAsync(List<PhoneBookEntry> entries, string filePath)
         {
             try
             {
-                _logger.LogInfo($"Export Excel: {filePath}");
-                _logger.LogInfo($"📊 Contatti da esportare: {entries.Count}");
+                _logger.LogInfo($"=== EXPORT EXCEL UNICO FOGLIO ===");
+                _logger.LogInfo($"File: {filePath}");
+                _logger.LogInfo($"Contatti da esportare: {entries.Count}");
 
                 if (entries == null || entries.Count == 0)
                 {
+                    _logger.LogWarning("Nessun contatto da esportare");
                     throw new InvalidOperationException("Nessun contatto da esportare");
                 }
 
@@ -340,7 +342,7 @@ private List<PhoneBookEntry> MergeEntries(List<PhoneBookEntry> existingEntries, 
                 {
                     using (var workbook = new XLWorkbook())
                     {
-                        // ✅ UN SOLO FOGLIO
+                        // ✅ CREA UN UNICO FOGLIO "Rubrica"
                         var worksheet = workbook.Worksheets.Add("Rubrica");
 
                         // ✅ HEADER
@@ -354,11 +356,15 @@ private List<PhoneBookEntry> MergeEntries(List<PhoneBookEntry> existingEntries, 
                         // Formattazione header
                         var headerRange = worksheet.Range(1, 1, 1, 6);
                         headerRange.Style.Font.Bold = true;
-                        headerRange.Style.Fill.BackgroundColor = XLColor.LightBlue;
+                        headerRange.Style.Font.FontSize = 11;
+                        headerRange.Style.Fill.BackgroundColor = XLColor.FromArgb(0, 112, 192); // Blu
+                        headerRange.Style.Font.FontColor = XLColor.White;
+                        headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                        headerRange.Style.Border.BottomBorder = XLBorderStyleValues.Thick;
 
-                        // ✅ DATI - Esattamente come arrivano (senza ordinamenti o raggruppamenti)
+                        // ✅ DATI (ordinati per Cliente, poi Nome)
                         int row = 2;
-                        foreach (var entry in entries)
+                        foreach (var entry in entries.OrderBy(e => e.Cliente).ThenBy(e => e.Nome))
                         {
                             worksheet.Cell(row, 1).Value = entry.Cliente ?? "";
                             worksheet.Cell(row, 2).Value = entry.Area ?? "";
@@ -369,24 +375,33 @@ private List<PhoneBookEntry> MergeEntries(List<PhoneBookEntry> existingEntries, 
                             row++;
                         }
 
+                        // ✅ FORMATTAZIONE FINALE
+                        // Bordi su tutte le celle con dati
+                        var dataRange = worksheet.Range(1, 1, row - 1, 6);
+                        dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                        dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
                         // Auto-fit colonne
                         worksheet.Columns().AdjustToContents();
 
-                        // Congela header
+                        // Larghezza minima per leggibilità
+                        worksheet.Column(1).Width = Math.Max(worksheet.Column(1).Width, 20); // Cliente
+                        worksheet.Column(4).Width = Math.Max(worksheet.Column(4).Width, 25); // Nome
+                        worksheet.Column(5).Width = Math.Max(worksheet.Column(5).Width, 30); // Email
+
+                        // Congela la riga di intestazione
                         worksheet.SheetView.FreezeRows(1);
 
-                        // Filtri automatici
-                        worksheet.RangeUsed().SetAutoFilter();
-
+                        // ✅ SALVA FILE
                         workbook.SaveAs(filePath);
+                        _logger.LogInfo($"✅ File Excel salvato: {filePath}");
+                        _logger.LogInfo($"📊 Totale righe esportate: {row - 1}");
                     }
                 });
-
-                _logger.LogInfo($"✅ Export completato: {entries.Count} contatti");
             }
             catch (Exception ex)
             {
-                _logger.LogError("Errore export Excel", ex);
+                _logger.LogError("❌ Errore export Excel", ex);
                 throw;
             }
         }
