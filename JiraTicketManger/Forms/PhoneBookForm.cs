@@ -1,4 +1,5 @@
-﻿using JiraTicketManager.Data.Models;
+﻿using ClosedXML.Excel;
+using JiraTicketManager.Data.Models;
 using JiraTicketManager.Services;
 using System;
 using System.Collections.Generic;
@@ -304,7 +305,10 @@ namespace JiraTicketManager.Forms
         }
 
         /// <summary>
-        /// Esporta in Excel
+        /// Esporta la rubrica in Excel in un unico foglio con tutti i contatti.
+        /// </summary>
+        /// <summary>
+        /// Esporta i contatti in Excel (metodo del PhoneBookForm)
         /// </summary>
         private async Task ExportToExcelAsync(string filePath)
         {
@@ -313,16 +317,77 @@ namespace JiraTicketManager.Forms
                 ShowLoading(true, "Esportazione in Excel...");
                 _logger.LogInfo($"=== EXPORT EXCEL: {filePath} ===");
 
-                // Esporta contatti filtrati se presente filtro, altrimenti tutti
-                var contactsToExport = _filteredContacts ?? _allContacts;
+                // ✅ LOG DEBUG: Verifica quanti contatti abbiamo
+                _logger.LogInfo($"📊 _allContacts: {_allContacts?.Count ?? 0} contatti");
+                _logger.LogInfo($"📊 _filteredContacts: {_filteredContacts?.Count.ToString() ?? "null"}");
 
+                List<PhoneBookEntry> contactsToExport;
+
+                // ✅ CONTROLLA SE C'È UN FILTRO ATTIVO
+                bool hasActiveFilter = _filteredContacts != null && _filteredContacts.Count < (_allContacts?.Count ?? 0);
+
+                if (hasActiveFilter)
+                {
+                    // ✅ C'è un filtro attivo - CHIEDI all'utente cosa vuole esportare
+                    var filterResult = MessageBox.Show(
+                        $"📋 Filtro attivo!\n\n" +
+                        $"• Contatti visibili (filtrati): {_filteredContacts.Count}\n" +
+                        $"• Contatti totali: {_allContacts.Count}\n\n" +
+                        $"Vuoi esportare SOLO i contatti filtrati?\n\n" +
+                        $"• Sì = Esporta {_filteredContacts.Count} contatti filtrati\n" +
+                        $"• No = Esporta TUTTI i {_allContacts.Count} contatti",
+                        "Selezione Export",
+                        MessageBoxButtons.YesNoCancel,
+                        MessageBoxIcon.Question
+                    );
+
+                    if (filterResult == DialogResult.Cancel)
+                    {
+                        _logger.LogInfo("❌ Export annullato dall'utente");
+                        ShowLoading(false);
+                        return;
+                    }
+
+                    contactsToExport = filterResult == DialogResult.Yes
+                        ? _filteredContacts
+                        : _allContacts;
+
+                    _logger.LogInfo($"✅ Scelta utente: {(filterResult == DialogResult.Yes ? "Filtrati" : "Tutti")}");
+                }
+                else
+                {
+                    // ✅ Nessun filtro attivo - esporta TUTTI
+                    contactsToExport = _allContacts;
+                    _logger.LogInfo($"✅ Nessun filtro attivo - export di tutti i contatti");
+                }
+
+                // ✅ VALIDAZIONE: Verifica che ci siano contatti da esportare
+                if (contactsToExport == null || contactsToExport.Count == 0)
+                {
+                    _logger.LogWarning("⚠️ Nessun contatto da esportare!");
+                    MessageBox.Show(
+                        "Nessun contatto da esportare!\n\nVerifica che la rubrica sia stata caricata correttamente.",
+                        "Nessun Dato",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
+                    ShowLoading(false);
+                    return;
+                }
+
+                _logger.LogInfo($"🚀 Avvio export: {contactsToExport.Count} contatti");
+
+                // ✅ CHIAMA IL SERVICE con DUE parametri (entries + filePath)
                 await _phoneBookService.ExportToExcelAsync(contactsToExport, filePath);
 
-                _logger.LogInfo($"✅ Export completato: {contactsToExport.Count} contatti");
+                _logger.LogInfo($"✅ Export completato: {contactsToExport.Count} contatti esportati");
 
                 // Chiedi se aprire il file
                 var result = MessageBox.Show(
-                    $"Export completato!\n\n{contactsToExport.Count} contatti esportati in:\n{filePath}\n\nVuoi aprire il file?",
+                    $"✅ Export completato!\n\n" +
+                    $"📊 {contactsToExport.Count} contatti esportati in:\n" +
+                    $"📁 {filePath}\n\n" +
+                    $"Vuoi aprire il file?",
                     "Export Completato",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Information
@@ -330,19 +395,35 @@ namespace JiraTicketManager.Forms
 
                 if (result == DialogResult.Yes)
                 {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    try
                     {
-                        FileName = filePath,
-                        UseShellExecute = true
-                    });
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = filePath,
+                            UseShellExecute = true
+                        });
+                    }
+                    catch (Exception openEx)
+                    {
+                        _logger.LogError("Errore apertura file Excel", openEx);
+                        MessageBox.Show(
+                            $"File esportato correttamente!\n\n" +
+                            $"Impossibile aprirlo automaticamente.\n" +
+                            $"Percorso: {filePath}",
+                            "Avviso",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information
+                        );
+                    }
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError("❌ Errore export Excel", ex);
                 MessageBox.Show(
-                    $"Errore durante l'esportazione:\n\n{ex.Message}",
-                    "Errore",
+                    $"Errore durante l'esportazione:\n\n{ex.Message}\n\n" +
+                    $"Verifica i log per maggiori dettagli.",
+                    "Errore Export",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
                 );
