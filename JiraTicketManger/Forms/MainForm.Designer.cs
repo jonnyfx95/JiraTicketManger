@@ -86,8 +86,8 @@ namespace JiraTicketManager
 
         private void InitializeComponent()
         {
-            DataGridViewCellStyle dataGridViewCellStyle3 = new DataGridViewCellStyle();
-            DataGridViewCellStyle dataGridViewCellStyle4 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
             pnlHeader = new Panel();
             lblConnectionStatus = new Label();
             lblSubTitle = new Label();
@@ -117,6 +117,7 @@ namespace JiraTicketManager
             rbJQLMode = new RadioButton();
             rbBasicMode = new RadioButton();
             pnlToolbar = new Panel();
+            btnOrganizationMembers = new Button();
             btnConfig = new Button();
             btnTest = new Button();
             btnDashboard = new Button();
@@ -141,7 +142,6 @@ namespace JiraTicketManager
             tslConnection = new ToolStripStatusLabel();
             tslResults = new ToolStripStatusLabel();
             tslLastUpdate = new ToolStripStatusLabel();
-            btnOrganizationMembers = new Button();
             pnlHeader.SuspendLayout();
             pnlMain.SuspendLayout();
             pnlContent.SuspendLayout();
@@ -233,24 +233,24 @@ namespace JiraTicketManager
             dgvTickets.BorderStyle = BorderStyle.None;
             dgvTickets.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
             dgvTickets.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
-            dataGridViewCellStyle3.Alignment = DataGridViewContentAlignment.MiddleLeft;
-            dataGridViewCellStyle3.BackColor = Color.FromArgb(248, 249, 250);
-            dataGridViewCellStyle3.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            dataGridViewCellStyle3.ForeColor = Color.FromArgb(52, 73, 94);
-            dataGridViewCellStyle3.SelectionBackColor = Color.FromArgb(248, 249, 250);
-            dataGridViewCellStyle3.SelectionForeColor = Color.FromArgb(52, 73, 94);
-            dataGridViewCellStyle3.WrapMode = DataGridViewTriState.True;
-            dgvTickets.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle3;
+            dataGridViewCellStyle1.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle1.BackColor = Color.FromArgb(248, 249, 250);
+            dataGridViewCellStyle1.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            dataGridViewCellStyle1.ForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle1.SelectionBackColor = Color.FromArgb(248, 249, 250);
+            dataGridViewCellStyle1.SelectionForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle1.WrapMode = DataGridViewTriState.True;
+            dgvTickets.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
             dgvTickets.ColumnHeadersHeight = 40;
             dgvTickets.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-            dataGridViewCellStyle4.Alignment = DataGridViewContentAlignment.MiddleLeft;
-            dataGridViewCellStyle4.BackColor = Color.White;
-            dataGridViewCellStyle4.Font = new Font("Segoe UI", 8F);
-            dataGridViewCellStyle4.ForeColor = Color.FromArgb(52, 73, 94);
-            dataGridViewCellStyle4.SelectionBackColor = Color.FromArgb(233, 246, 255);
-            dataGridViewCellStyle4.SelectionForeColor = Color.FromArgb(52, 73, 94);
-            dataGridViewCellStyle4.WrapMode = DataGridViewTriState.False;
-            dgvTickets.DefaultCellStyle = dataGridViewCellStyle4;
+            dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dataGridViewCellStyle2.BackColor = Color.White;
+            dataGridViewCellStyle2.Font = new Font("Segoe UI", 8F);
+            dataGridViewCellStyle2.ForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle2.SelectionBackColor = Color.FromArgb(233, 246, 255);
+            dataGridViewCellStyle2.SelectionForeColor = Color.FromArgb(52, 73, 94);
+            dataGridViewCellStyle2.WrapMode = DataGridViewTriState.False;
+            dgvTickets.DefaultCellStyle = dataGridViewCellStyle2;
             dgvTickets.Dock = DockStyle.Fill;
             dgvTickets.EnableHeadersVisualStyles = false;
             dgvTickets.GridColor = Color.FromArgb(226, 232, 240);
@@ -319,7 +319,7 @@ namespace JiraTicketManager
             pnlDate.Controls.Add(dtpCompletatoA);
             pnlDate.Controls.Add(dtpCompletatoDA);
             pnlDate.Controls.Add(dtpCreatoA);
-            pnlDate.Location = new Point(1573, 5);
+            pnlDate.Location = new Point(1824, 5);
             pnlDate.Name = "pnlDate";
             pnlDate.Size = new Size(218, 79);
             pnlDate.TabIndex = 11;
@@ -539,6 +539,21 @@ namespace JiraTicketManager
             pnlToolbar.Size = new Size(2102, 50);
             pnlToolbar.TabIndex = 0;
             // 
+            // btnOrganizationMembers
+            // 
+            btnOrganizationMembers.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnOrganizationMembers.BackColor = Color.FromArgb(99, 102, 241);
+            btnOrganizationMembers.FlatAppearance.BorderSize = 0;
+            btnOrganizationMembers.FlatStyle = FlatStyle.Flat;
+            btnOrganizationMembers.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
+            btnOrganizationMembers.ForeColor = Color.White;
+            btnOrganizationMembers.Location = new Point(1588, 14);
+            btnOrganizationMembers.Name = "btnOrganizationMembers";
+            btnOrganizationMembers.Size = new Size(165, 23);
+            btnOrganizationMembers.TabIndex = 32;
+            btnOrganizationMembers.Text = "🏢 Membri Organizzazioni";
+            btnOrganizationMembers.UseVisualStyleBackColor = false;
+            // 
             // btnConfig
             // 
             btnConfig.Anchor = AnchorStyles.Top | AnchorStyles.Right;
@@ -636,7 +651,7 @@ namespace JiraTicketManager
             btnExportExcel.FlatStyle = FlatStyle.Flat;
             btnExportExcel.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
             btnExportExcel.ForeColor = Color.White;
-            btnExportExcel.Location = new Point(518, 13);
+            btnExportExcel.Location = new Point(1396, 13);
             btnExportExcel.Name = "btnExportExcel";
             btnExportExcel.Size = new Size(90, 23);
             btnExportExcel.TabIndex = 3;
@@ -847,21 +862,6 @@ namespace JiraTicketManager
             tslLastUpdate.Size = new Size(187, 17);
             tslLastUpdate.Text = "🕒 Ultimo aggiornamento: 20:13:08";
             tslLastUpdate.TextAlign = ContentAlignment.MiddleRight;
-            // 
-            // btnOrganizationMembers
-            // 
-            btnOrganizationMembers.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnOrganizationMembers.BackColor = Color.FromArgb(99, 102, 241);
-            btnOrganizationMembers.FlatAppearance.BorderSize = 0;
-            btnOrganizationMembers.FlatStyle = FlatStyle.Flat;
-            btnOrganizationMembers.Font = new Font("Segoe UI", 8F, FontStyle.Bold);
-            btnOrganizationMembers.ForeColor = Color.White;
-            btnOrganizationMembers.Location = new Point(1588, 14);
-            btnOrganizationMembers.Name = "btnOrganizationMembers";
-            btnOrganizationMembers.Size = new Size(165, 23);
-            btnOrganizationMembers.TabIndex = 32;
-            btnOrganizationMembers.Text = "🏢 Membri Organizzazioni";
-            btnOrganizationMembers.UseVisualStyleBackColor = false;
             // 
             // MainForm
             // 
