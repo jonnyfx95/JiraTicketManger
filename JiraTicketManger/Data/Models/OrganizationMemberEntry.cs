@@ -28,7 +28,8 @@ namespace JiraTicketManager.Data.Models
         public string Email { get; set; } = "";
 
         /// <summary>
-        /// Account ID Jira (per deduplicazione)
+        /// Account ID Jira (uso interno per deduplicazione)
+        /// Nota: Questo campo non viene mostrato nella UI ma è necessario per identificare univocamente gli utenti
         /// </summary>
         public string AccountId { get; set; } = "";
 
@@ -36,6 +37,11 @@ namespace JiraTicketManager.Data.Models
         /// Numero di ticket creati dall'utente in questa organizzazione
         /// </summary>
         public int NumeroTicket { get; set; } = 0;
+
+        /// <summary>
+        /// Indica se l'utente è attivo in Jira (true) o disattivato (false)
+        /// </summary>
+        public bool Attivo { get; set; } = true;
 
         #endregion
 
@@ -45,13 +51,14 @@ namespace JiraTicketManager.Data.Models
         {
         }
 
-        public OrganizationMemberEntry(string organizzazione, string nome, string email, string accountId, int numeroTicket = 0)
+        public OrganizationMemberEntry(string organizzazione, string nome, string email, string accountId, int numeroTicket = 0, bool attivo = true)
         {
             Organizzazione = organizzazione ?? "";
             Nome = nome ?? "";
             Email = email ?? "";
             AccountId = accountId ?? "";
             NumeroTicket = numeroTicket;
+            Attivo = attivo;
         }
 
         #endregion
@@ -89,7 +96,7 @@ namespace JiraTicketManager.Data.Models
         /// </summary>
         public string ToCsvLine()
         {
-            return $"{EscapeCsv(Organizzazione)},{EscapeCsv(Nome)},{EscapeCsv(Email)},{EscapeCsv(AccountId)},{NumeroTicket}";
+            return $"{EscapeCsv(Organizzazione)},{EscapeCsv(Nome)},{EscapeCsv(Email)},{EscapeCsv(AccountId)},{NumeroTicket},{Attivo}";
         }
 
         /// <summary>
@@ -104,7 +111,7 @@ namespace JiraTicketManager.Data.Models
             {
                 var parts = SplitCsvLine(line);
 
-                if (parts.Length < 5)
+                if (parts.Length < 6)
                     return null;
 
                 return new OrganizationMemberEntry
@@ -113,7 +120,8 @@ namespace JiraTicketManager.Data.Models
                     Nome = UnescapeCsv(parts[1]),
                     Email = UnescapeCsv(parts[2]),
                     AccountId = UnescapeCsv(parts[3]),
-                    NumeroTicket = int.TryParse(parts[4], out int count) ? count : 0
+                    NumeroTicket = int.TryParse(parts[4], out int count) ? count : 0,
+                    Attivo = bool.TryParse(parts[5], out bool attivo) ? attivo : true
                 };
             }
             catch
@@ -127,7 +135,7 @@ namespace JiraTicketManager.Data.Models
         /// </summary>
         public static string GetCsvHeader()
         {
-            return "Organizzazione,Nome,Email,AccountId,NumeroTicket";
+            return "Organizzazione,Nome,Email,AccountId,NumeroTicket,Attivo";
         }
 
         #endregion
@@ -211,7 +219,8 @@ namespace JiraTicketManager.Data.Models
 
         public override string ToString()
         {
-            return $"{Organizzazione} - {Nome} ({Email}) - {NumeroTicket} ticket";
+            var statoAttivo = Attivo ? "Attivo" : "Disattivato";
+            return $"{Organizzazione} - {Nome} ({Email}) - {NumeroTicket} ticket - {statoAttivo}";
         }
 
         #endregion

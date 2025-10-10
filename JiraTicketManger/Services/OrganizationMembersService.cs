@@ -126,21 +126,21 @@ namespace JiraTicketManager.Services
                 var allMembers = new List<OrganizationMemberEntry>();
                 int orgCount = 0;
 
-                foreach (var org in organizations)
+                foreach (var (orgId, orgName) in organizations)
                 {
                     orgCount++;
-                    progress?.Report($"Elaborazione organizzazione {orgCount}/{organizations.Count}: {org}");
-                    _logger.LogInfo($"📂 [{orgCount}/{organizations.Count}] Elaborazione: {org}");
+                    progress?.Report($"Elaborazione organizzazione {orgCount}/{organizations.Count}: {orgName}");
+                    _logger.LogInfo($"📂 [{orgCount}/{organizations.Count}] Elaborazione: {orgName} (ID: {orgId})");
 
                     try
                     {
-                        var members = await LoadMembersForOrganizationAsync(org, progress);
+                        var members = await LoadMembersForOrganizationAsync(orgId, orgName, progress);
                         allMembers.AddRange(members);
                         _logger.LogInfo($"   ✅ {members.Count} membri trovati");
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError($"   ❌ Errore elaborazione organizzazione '{org}'", ex);
+                        _logger.LogError($"   ❌ Errore elaborazione organizzazione '{orgName}'", ex);
                         // Continua con le altre organizzazioni
                     }
 
@@ -220,11 +220,12 @@ namespace JiraTicketManager.Services
 
         /// <summary>
         /// Carica tutte le organizzazioni tramite API ServiceDesk
+        /// Restituisce una lista di tuple (ID, Nome)
         /// </summary>
-        private async Task<List<string>> LoadOrganizationsAsync(IProgress<string> progress)
+        private async Task<List<(string id, string name)>> LoadOrganizationsAsync(IProgress<string> progress)
         {
             _logger.LogInfo("🏢 Caricamento organizzazioni da API");
-            var organizations = new List<string>();
+            var organizations = new List<(string id, string name)>();
 
             using var httpClient = CreateHttpClient();
             int start = 0;
@@ -259,10 +260,12 @@ namespace JiraTicketManager.Services
                     {
                         foreach (var org in values)
                         {
+                            var orgId = org["id"]?.ToString()?.Trim();
                             var orgName = org["name"]?.ToString()?.Trim();
-                            if (!string.IsNullOrWhiteSpace(orgName))
+
+                            if (!string.IsNullOrWhiteSpace(orgId) && !string.IsNullOrWhiteSpace(orgName))
                             {
-                                organizations.Add(orgName);
+                                organizations.Add((orgId, orgName));
                             }
                         }
 
@@ -292,23 +295,121 @@ namespace JiraTicketManager.Services
                 await Task.Delay(100);
             }
 
-            var distinctOrgs = organizations.Distinct().OrderBy(o => o).ToList();
+            var distinctOrgs = organizations.Distinct().OrderBy(o => o.name).ToList();
             _logger.LogInfo($"🎯 Organizzazioni totali: {distinctOrgs.Count}");
             return distinctOrgs;
         }
 
         /// <summary>
-        /// Carica i membri di una specifica organizzazione tramite query JQL
+        /// Carica TUTTI i membri di una specifica organizzazione tramite API ServiceDesk
+        /// Usa l'API /rest/servicedeskapi/organization/{organizationId}/user per ottenere TUTTI gli utenti
         /// </summary>
-        private async Task<List<OrganizationMemberEntry>> LoadMembersForOrganizationAsync(string organizationName, IProgress<string> progress)
+        private async Task<List<OrganizationMemberEntry>> LoadMembersForOrganizationAsync(string organizationId, string organizationName, IProgress<string> progress)
         {
             var members = new List<OrganizationMemberEntry>();
 
             try
             {
-                // Query JQL per trovare tutti i reporter dell'organizzazione
+                using var httpClient = CreateHttpClient();
+
+                // STEP 1: Carica TUTTI i membri dell'organizzazione
+                int start = 0;
+                int batchSize = 50;
+                bool morePages = true;
+
+                while (morePages)
+                {
+                    var url = $"{_jiraApiService.Domain}/rest/servicedeskapi/organization/{organizationId}/user?start={start}&limit={batchSize}";
+                    _logger.LogDebug($"   📄 Caricamento membri: {url}");
+
+                    using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                    request.Headers.Add("Accept", "application/json");
+
+                    using var response = await httpClient.SendAsync(request);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger.LogWarning($"   ❌ Errore API membri: {response.StatusCode}");
+                        break;
+                    }
+
+                    var json = await response.Content.ReadAsStringAsync();
+                    var root = JObject.Parse(json);
+                    var values = root["values"] as JArray;
+
+                    if (values != null && values.Count > 0)
+                    {
+                        foreach (var user in values)
+                        {
+                            try
+                            {
+                                var accountId = user["accountId"]?.ToString() ?? "";
+                                var displayName = user["displayName"]?.ToString() ?? "";
+                                var emailAddress = user["emailAddress"]?.ToString() ?? "";
+                                var active = user["active"]?.ToObject<bool>() ?? true;
+
+                                if (string.IsNullOrWhiteSpace(accountId))
+                                    continue;
+
+                                members.Add(new OrganizationMemberEntry(
+                                    organizationName,
+                                    displayName,
+                                    emailAddress,
+                                    accountId,
+                                    0, // Numero ticket sarà calcolato dopo
+                                    active
+                                ));
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogDebug($"   ⚠️ Errore parsing user: {ex.Message}");
+                            }
+                        }
+
+                        if (values.Count < batchSize)
+                        {
+                            morePages = false;
+                        }
+                        else
+                        {
+                            start += batchSize;
+                            await Task.Delay(100);
+                        }
+                    }
+                    else
+                    {
+                        morePages = false;
+                    }
+                }
+
+                _logger.LogDebug($"   👥 {members.Count} membri estratti dall'API");
+
+                // STEP 2: Conta i ticket per ogni membro (query JQL per organizzazione)
+                if (members.Count > 0)
+                {
+                    await CountTicketsForMembersAsync(organizationName, members);
+                }
+
+                _logger.LogDebug($"   ✅ {members.Count} membri processati con conteggio ticket");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Errore caricamento membri per {organizationName}", ex);
+            }
+
+            return members;
+        }
+
+        /// <summary>
+        /// Conta i ticket per tutti i membri di un'organizzazione usando una singola query JQL
+        /// </summary>
+        private async Task CountTicketsForMembersAsync(string organizationName, List<OrganizationMemberEntry> members)
+        {
+            try
+            {
+                // Query JQL per ottenere tutti i ticket dell'organizzazione
                 var jql = $"reporter in organizationMembers(\"{EscapeJql(organizationName)}\") AND project = CC";
-                _logger.LogDebug($"   JQL: {jql}");
+                _logger.LogDebug($"   🔍 Conteggio ticket con JQL: {jql}");
 
                 var searchResult = await _jiraApiService.SearchIssuesAsync(jql, 0, 1000);
                 var tickets = searchResult.Issues;
@@ -316,13 +417,13 @@ namespace JiraTicketManager.Services
                 if (tickets == null || tickets.Count == 0)
                 {
                     _logger.LogDebug($"   ℹ️ Nessun ticket trovato per {organizationName}");
-                    return members;
+                    return;
                 }
 
                 _logger.LogDebug($"   📊 {tickets.Count} ticket trovati");
 
-                // Raggruppa per reporter e conta i ticket
-                var reporterGroups = new Dictionary<string, (string nome, string email, int count)>();
+                // Conta ticket per accountId
+                var ticketCounts = new Dictionary<string, int>();
 
                 foreach (var ticket in tickets)
                 {
@@ -335,20 +436,17 @@ namespace JiraTicketManager.Services
                             continue;
 
                         var accountId = reporter["accountId"]?.ToString() ?? "";
-                        var displayName = reporter["displayName"]?.ToString() ?? "";
-                        var emailAddress = reporter["emailAddress"]?.ToString() ?? "";
 
                         if (string.IsNullOrWhiteSpace(accountId))
                             continue;
 
-                        if (reporterGroups.ContainsKey(accountId))
+                        if (ticketCounts.ContainsKey(accountId))
                         {
-                            var current = reporterGroups[accountId];
-                            reporterGroups[accountId] = (current.nome, current.email, current.count + 1);
+                            ticketCounts[accountId]++;
                         }
                         else
                         {
-                            reporterGroups[accountId] = (displayName, emailAddress, 1);
+                            ticketCounts[accountId] = 1;
                         }
                     }
                     catch (Exception ex)
@@ -357,29 +455,23 @@ namespace JiraTicketManager.Services
                     }
                 }
 
-                // Converti in OrganizationMemberEntry
-                foreach (var kvp in reporterGroups)
+                // Aggiorna il conteggio nei membri
+                foreach (var member in members)
                 {
-                    var accountId = kvp.Key;
-                    var (nome, email, count) = kvp.Value;
-
-                    members.Add(new OrganizationMemberEntry(
-                        organizationName,
-                        nome,
-                        email,
-                        accountId,
-                        count
-                    ));
+                    if (ticketCounts.TryGetValue(member.AccountId, out int count))
+                    {
+                        member.NumeroTicket = count;
+                    }
+                    // else: NumeroTicket resta 0 (utente senza ticket)
                 }
 
-                _logger.LogDebug($"   👥 {members.Count} membri unici estratti");
+                _logger.LogDebug($"   📈 Conteggio ticket aggiornato per {ticketCounts.Count} membri");
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Errore caricamento membri per {organizationName}", ex);
+                _logger.LogError($"Errore conteggio ticket per {organizationName}", ex);
+                // Non bloccare l'estrazione, i membri avranno NumeroTicket = 0
             }
-
-            return members;
         }
 
         #endregion
@@ -443,15 +535,20 @@ namespace JiraTicketManager.Services
             }
         }
 
-        private async Task SaveOrganizationsCacheAsync(List<string> organizations)
+        private async Task SaveOrganizationsCacheAsync(List<(string id, string name)> organizations)
         {
             try
             {
                 using (var writer = new StreamWriter(_organizationsCacheFilePath, false, Encoding.UTF8))
                 {
-                    foreach (var org in organizations.OrderBy(o => o))
+                    // Header
+                    await writer.WriteLineAsync("ID,Name");
+
+                    foreach (var (id, name) in organizations.OrderBy(o => o.name))
                     {
-                        await writer.WriteLineAsync(org);
+                        // Escape CSV
+                        var escapedName = name.Contains(",") ? $"\"{name.Replace("\"", "\"\"")}\"" : name;
+                        await writer.WriteLineAsync($"{id},{escapedName}");
                     }
                 }
 
@@ -523,9 +620,10 @@ namespace JiraTicketManager.Services
             worksheet.Cell(1, 2).Value = "Nome";
             worksheet.Cell(1, 3).Value = "Email";
             worksheet.Cell(1, 4).Value = "Numero Ticket";
+            worksheet.Cell(1, 5).Value = "Stato";
 
             // Formattazione header
-            var headerRange = worksheet.Range(1, 1, 1, 4);
+            var headerRange = worksheet.Range(1, 1, 1, 5);
             headerRange.Style.Font.Bold = true;
             headerRange.Style.Font.FontSize = 11;
             headerRange.Style.Fill.BackgroundColor = XLColor.FromArgb(0, 112, 192);
@@ -541,11 +639,12 @@ namespace JiraTicketManager.Services
                 worksheet.Cell(row, 2).Value = entry.Nome ?? "";
                 worksheet.Cell(row, 3).Value = entry.Email ?? "";
                 worksheet.Cell(row, 4).Value = entry.NumeroTicket;
+                worksheet.Cell(row, 5).Value = entry.Attivo ? "Attivo" : "Disattivato";
                 row++;
             }
 
             // FORMATTAZIONE
-            var dataRange = worksheet.Range(1, 1, row - 1, 4);
+            var dataRange = worksheet.Range(1, 1, row - 1, 5);
             dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
             dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 

@@ -41,6 +41,7 @@
             this.colNome = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colEmail = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colNumeroTicket = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colAttivo = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.tslConnection = new System.Windows.Forms.ToolStripStatusLabel();
             this.tslResults = new System.Windows.Forms.ToolStripStatusLabel();
@@ -159,7 +160,8 @@
             this.colOrganizzazione,
             this.colNome,
             this.colEmail,
-            this.colNumeroTicket});
+            this.colNumeroTicket,
+            this.colAttivo});
             dataGridViewCellStyle2.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleLeft;
             dataGridViewCellStyle2.BackColor = System.Drawing.Color.White;
             dataGridViewCellStyle2.Font = new System.Drawing.Font("Segoe UI", 8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
@@ -184,7 +186,7 @@
             // colOrganizzazione
             // 
             this.colOrganizzazione.DataPropertyName = "Organizzazione";
-            this.colOrganizzazione.FillWeight = 30F;
+            this.colOrganizzazione.FillWeight = 25F;
             this.colOrganizzazione.HeaderText = "Organizzazione";
             this.colOrganizzazione.Name = "colOrganizzazione";
             this.colOrganizzazione.ReadOnly = true;
@@ -200,7 +202,7 @@
             // colEmail
             // 
             this.colEmail.DataPropertyName = "Email";
-            this.colEmail.FillWeight = 35F;
+            this.colEmail.FillWeight = 30F;
             this.colEmail.HeaderText = "Email";
             this.colEmail.Name = "colEmail";
             this.colEmail.ReadOnly = true;
@@ -212,6 +214,14 @@
             this.colNumeroTicket.HeaderText = "N° Ticket";
             this.colNumeroTicket.Name = "colNumeroTicket";
             this.colNumeroTicket.ReadOnly = true;
+            // 
+            // colAttivo
+            // 
+            this.colAttivo.DataPropertyName = "Attivo";
+            this.colAttivo.FillWeight = 10F;
+            this.colAttivo.HeaderText = "Stato";
+            this.colAttivo.Name = "colAttivo";
+            this.colAttivo.ReadOnly = true;
             // 
             // statusStrip1
             // 
@@ -302,5 +312,6 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn colNome;
         private System.Windows.Forms.DataGridViewTextBoxColumn colEmail;
         private System.Windows.Forms.DataGridViewTextBoxColumn colNumeroTicket;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colAttivo;
     }
 }
